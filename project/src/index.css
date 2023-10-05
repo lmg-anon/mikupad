@@ -1,0 +1,203 @@
+html {
+	--color-miku: #009bb3;
+	--color-base-0: oklch(0.20 0.02 60);
+	--color-base-10: color-mix(in oklch, var(--color-base-100) 10%, var(--color-base-0));
+	--color-base-20: color-mix(in oklch, var(--color-base-100) 20%, var(--color-base-0));
+	--color-base-30: color-mix(in oklch, var(--color-base-100) 30%, var(--color-base-0));
+	--color-base-40: color-mix(in oklch, var(--color-base-100) 40%, var(--color-base-0));
+	--color-base-50: color-mix(in oklch, var(--color-base-100) 50%, var(--color-base-0));
+	--color-base-60: color-mix(in oklch, var(--color-base-100) 60%, var(--color-base-0));
+	--color-base-70: color-mix(in oklch, var(--color-base-100) 70%, var(--color-base-0));
+	--color-base-80: color-mix(in oklch, var(--color-base-100) 80%, var(--color-base-0));
+	--color-base-90: color-mix(in oklch, var(--color-base-100) 90%, var(--color-base-0));
+	--color-base-100: oklch(0.95 0.04 70);
+
+	font: 16px 'Crimson Text', serif;
+	min-height: 100%;
+	display: flex;
+	flex-direction: column;
+
+	accent-color: var(--color-base-30);
+	background: var(--color-base-20);
+	color: var(--color-base-0);
+}
+
+body {
+	margin: 0;
+	display: flex;
+	flex: auto;
+	flex-direction: row;
+}
+
+#prompt-container {
+	position: relative;
+	font-size: 1.125rem;
+	max-width: 36em;
+	margin-right: auto;
+	margin-left: auto;
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+}
+
+#prompt-area, #prompt-overlay {
+	flex: 1;
+	border: none;
+	outline: none;
+	resize: none;
+	background: var(--color-base-100);
+	color: var(--color-base-10);
+	padding: 2em 3em;
+	margin: 0;
+	scrollbar-gutter: stable;
+	font: inherit;
+}
+
+#prompt-overlay {
+	white-space: pre-wrap;
+	position: absolute;
+	left: 0;
+	top: 0;
+	right: 0;
+	bottom: 0;
+	background: transparent;
+	color: transparent;
+	pointer-events: none;
+	overflow: auto;
+}
+
+#prompt-container:hover #prompt-overlay > .machine {
+	background: color-mix(in srgb, var(--color-miku) 10%, transparent);
+}
+#prompt-container #prompt-overlay > .machine.current {
+	border-radius: 3px;
+	outline: 1px solid var(--color-base-50);
+	outline-offset: 1px;
+}
+
+#probs {
+	position: absolute;
+	background: var(--color-base-30);
+	top: var(--probs-top);
+	left: var(--probs-left);
+	display: flex;
+	translate: -50% -100%;
+	border-radius: 5px;
+	box-shadow: 0 1px 1px 1px #00000033;
+	transition: top 0.2s, left 0.2s;
+}
+#probs > button {
+	background: transparent;
+	color: var(--color-base-100);
+	border-radius: 0;
+	padding: 2px 3px;
+	display: flex;
+	flex-direction: column;
+	flex: none;
+	font-size: 0.875rem;
+}
+#probs > button:first-child {
+	border-radius: 5px 0 0 5px;
+	padding-left: 6px;
+}
+#probs > button:last-child {
+	border-radius: 0 5px 5px 0;
+	padding-right: 6px;
+}
+#probs > button:hover {
+	background: var(--color-base-40);
+}
+#probs > button:active {
+	background: var(--color-base-50);
+}
+#probs > button > .prob {
+	font-size: 0.75rem;
+}
+
+#sidebar {
+	width: 250px;
+	background: var(--color-base-50);
+	color: var(--color-base-100);
+	padding: 4px 8px;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	overflow: auto;
+}
+
+.sidebar-hbox {
+	flex: none;
+	display: grid;
+	grid: auto / auto-flow minmax(min-content, 1fr);
+	gap: 8px;
+}
+
+.InputBox, .SelectBox {
+	display: flex;
+	flex-direction: column;
+	font-size: 0.75rem;
+	padding: 0 8px;
+}
+.InputBox > input, .SelectBox > select {
+	appearance: none;
+	border: none;
+	outline: none;
+	width: 100%;
+	box-sizing: content-box;
+	font: inherit;
+	font-size: 1rem;
+	padding: 4px 8px;
+	margin: 0 -8px;
+	border-radius: 2px;
+	color: inherit;
+	background: var(--color-base-30);
+	flex: none;
+}
+.InputBox > input:read-only {
+	background: var(--color-base-60);
+}
+.InputBox > input:focus-visible {
+	outline: 1px solid var(--color-base-0);
+}
+
+.Checkbox {
+	margin: 0 5px 0 0;
+	vertical-align: middle;
+}
+
+button {
+	appearance: none;
+	border: none;
+	outline: none;
+	font: inherit;
+	padding: 4px 8px;
+	color: inherit;
+	background: var(--color-base-30);
+	border-radius: 2px;
+}
+button:hover {
+	background: var(--color-base-40);
+}
+button:active {
+	background: var(--color-base-50);
+}
+button:disabled {
+	background: var(--color-base-60);
+}
+button:focus-visible {
+	outline: 1px solid var(--color-base-0);
+}
+button.completing {
+	outline: 1px solid limegreen;
+	animation: .5s ease-out infinite alternate completing;
+}
+@keyframes completing {
+	from { outline-width: 0px; }
+	to { outline-width: 4px; }
+}
+
+.buttons {
+	display: flex;
+	gap: 8px;
+	justify-content: center;
+}
