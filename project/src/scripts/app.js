@@ -277,6 +277,29 @@ export function App() {
 		predict(joinPrompt(newPrompt));
 	}
 
+	function switchEndpointAPI(value) {
+		var url = new URL(endpoint);
+		switch (value) {
+			case 0: // llama.cpp
+				if (url.protocol != 'http' && url.protocol != 'https')
+					url.protocol = "http";
+				url.port = 8080;
+				break;
+			case 1: // oobabooga
+				if (url.protocol != 'ws' && url.protocol != 'wss')
+					url.protocol = "ws";
+				url.port = 5005;
+				break;
+			case 2: // koboldcpp
+				if (url.protocol != 'http' && url.protocol != 'https')
+					url.protocol = "http";
+				url.port = 5001;
+				break;
+		}
+		setEndpoint(url.toString());
+		setEndpointAPI(value);
+	}
+
 	function switchDarkMode(value, force) {
 		if (value) {
 			document.documentElement.classList.add('dark-mode');
@@ -336,11 +359,11 @@ export function App() {
 			<${SelectBox}
 				label="API"
 				value=${endpointAPI}
-				onValueChange=${setEndpointAPI}
+				onValueChange=${switchEndpointAPI}
 				options=${[
-					{ name: 'llama.cpp server', value: 0 },
-					{ name: 'Oobabooga', value: 1 },
-					{ name: 'KoboldCPP', value: 2 },
+					{ name: 'llama.cpp', value: 0 },
+					{ name: 'oobabooga', value: 1 },
+					{ name: 'koboldcpp', value: 2 },
 				]}/>
 			<${InputBox} label="Temperature" type="number" step="0.01"
 				value=${temperature} onValueChange=${setTemperature}/>
