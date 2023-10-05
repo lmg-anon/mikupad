@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { html } from 'htm/react';
-import { tokenize, completion } from './endpoints.js';
+import { tokenize, completion, abortCompletion } from './endpoints.js';
 import { InputBox, SelectBox, Checkbox } from './components.js'
 
 const defaultPrompt = `[INST] <<SYS>>
@@ -16,38 +16,75 @@ function joinPrompt(prompt) {
 	return prompt.map(p => p.content).join('');
 }
 
+function usePersistentState(name, initialState) {
+	let savedState;
+	try {
+		savedState = JSON.parse(localStorage.getItem(name));
+	} catch {
+		savedState = null;
+	}
+	const [value, setValue] = useState(savedState || initialState);
+	return [value, (newValue) => {
+		if (typeof newValue === 'function') {
+			setValue(v => {
+				newValue = newValue(v);
+				localStorage.setItem(name, JSON.stringify(newValue));
+				return newValue;
+			});
+		} else {
+			localStorage.setItem(name, JSON.stringify(newValue));
+			setValue(newValue);
+		}
+	}]
+}
+
+function resetPersistence() {
+	localStorage.clear();
+	location.reload();
+}
+
 export function App() {
 	const promptArea = useRef();
 	const promptOverlay = useRef();
 	const [currentPromptChunk, setCurrentPromptChunk] = useState(undefined);
 	const [cancel, setCancel] = useState(null);
-	const [endpoint, setEndpoint] = useState('http://localhost:8080');
-	const [prompt, setPrompt] = useState(() => [{ type: 'user', content: defaultPrompt }]);
-	const [temperature, setTemperature] = useState(0.7); // llama.cpp default 0.8
-	const [repeatPenalty, setRepeatPenalty] = useState(1.1);
-	const [repeatLastN, setRepeatLastN] = useState(256); // llama.cpp default 64
-	const [penalizeNl, setPenalizeNl] = useState(true);
-	const [presencePenalty, setPresencePenalty] = useState(0);
-	const [frequencyPenalty, setFrequencyPenalty] = useState(0);
-	const [topK, setTopK] = useState(40);
-	const [topP, setTopP] = useState(0.95);
-	const [typicalP, setTypicalP] = useState(1);
-	const [tfsZ, setTfsZ] = useState(1);
-	const [mirostat, setMirostat] = useState(2); // llama.cpp default 0
-	const [mirostatTau, setMirostatTau] = useState(5.0);
-	const [mirostatEta, setMirostatEta] = useState(0.1);
-	const [ignoreEos, setIgnoreEos] = useState(false);
+	const [darkMode, setDarkMode] = usePersistentState('darkMode', false);
+	const [endpoint, setEndpoint] = usePersistentState('endpoint', 'http://localhost:8080');
+	const [endpointAPI, setEndpointAPI] = usePersistentState('endpointAPI', 0);
+	const [prompt, setPrompt] = usePersistentState('prompt', [{ type: 'user', content: defaultPrompt }]);
+	const [temperature, setTemperature] = usePersistentState('temperature', 0.7); // llama.cpp default 0.8
+	const [repeatPenalty, setRepeatPenalty] = usePersistentState('repeatPenalty', 1.1);
+	const [repeatLastN, setRepeatLastN] = usePersistentState('repeatLastN', 256); // llama.cpp default 64
+	const [penalizeNl, setPenalizeNl] = usePersistentState('penalizeNl', true);
+	const [presencePenalty, setPresencePenalty] = usePersistentState('presencePenalty', 0);
+	const [frequencyPenalty, setFrequencyPenalty] = usePersistentState('frequencyPenalty', 0);
+	const [topK, setTopK] = usePersistentState('topK', 40);
+	const [topP, setTopP] = usePersistentState('topP', 0.95);
+	const [typicalP, setTypicalP] = usePersistentState('typicalP', 1);
+	const [tfsZ, setTfsZ] = usePersistentState('tfsZ', 1);
+	const [mirostat, setMirostat] = usePersistentState('mirostat', 2); // llama.cpp default 0
+	const [mirostatTau, setMirostatTau] = usePersistentState('mirostatTau', 5.0);
+	const [mirostatEta, setMirostatEta] = usePersistentState('mirostatEta', 0.1);
+	const [ignoreEos, setIgnoreEos] = usePersistentState('ignoreEos', false);
 	const [tokens, setTokens] = useState(0);
 
 	const promptText = useMemo(() => joinPrompt(prompt), [prompt]);
 
+	if (darkMode) {
+		switchDarkMode(darkMode, true);
+	}
+
 	async function predict(prompt = promptText) {
 		const ac = new AbortController();
-		const cancel = () => ac.abort();
+		const cancel = () => {
+			abortCompletion({ endpoint, endpointAPI });
+			ac.abort();
+		};
 		setCancel(() => cancel);
 		try {
 			const { tokens } = await tokenize({
 				endpoint,
+				endpointAPI,
 				content: ` ${prompt}`,
 				signal: ac.signal,
 			});
@@ -55,6 +92,7 @@ export function App() {
 
 			for await (const chunk of completion({
 				endpoint,
+				endpointAPI,
 				prompt,
 				temperature,
 				repeat_penalty: repeatPenalty,
@@ -121,6 +159,7 @@ export function App() {
 			try {
 				const { tokens } = await tokenize({
 					endpoint,
+					endpointAPI,
 					content: ` ${promptText}`,
 					signal: ac.signal,
 				});
@@ -238,6 +277,16 @@ export function App() {
 		predict(joinPrompt(newPrompt));
 	}
 
+	function switchDarkMode(value, force) {
+		if (value) {
+			document.documentElement.classList.add('dark-mode');
+		} else {
+			document.documentElement.classList.remove('dark-mode');
+		}
+		if (!force)
+			setDarkMode(value);
+	}
+
 	const probs = useMemo(() =>
 		prompt[currentPromptChunk?.index]?.completion_probabilities?.[0]?.probs,
 		[prompt, currentPromptChunk]);
@@ -277,8 +326,22 @@ export function App() {
 					</button>`)}
 			</div>` : null}
 		<div id="sidebar">
+			<div className="sidebar-hbox">
+				<${Checkbox} label="Dark Mode"
+					value=${darkMode} onValueChange=${() => switchDarkMode(!darkMode, false)}/>
+				<button onClick=${resetPersistence}>Reset</button>
+			</div>
 			<${InputBox} label="Server"
 				value=${endpoint} onValueChange=${setEndpoint}/>
+			<${SelectBox}
+				label="API"
+				value=${endpointAPI}
+				onValueChange=${setEndpointAPI}
+				options=${[
+					{ name: 'llama.cpp server', value: 0 },
+					{ name: 'Oobabooga', value: 1 },
+					{ name: 'KoboldCPP', value: 2 },
+				]}/>
 			<${InputBox} label="Temperature" type="number" step="0.01"
 				value=${temperature} onValueChange=${setTemperature}/>
 			<div className="sidebar-hbox">
