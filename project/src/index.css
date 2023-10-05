@@ -11,8 +11,10 @@ html {
 	--color-base-80: color-mix(in oklch, var(--color-base-100) 80%, var(--color-base-0));
 	--color-base-90: color-mix(in oklch, var(--color-base-100) 90%, var(--color-base-0));
 	--color-base-100: oklch(0.95 0.04 70);
+	--color-dark: var(--color-base-0);
+	--color-light: var(--color-base-100);
 
-	font: 16px 'Crimson Text', serif;
+	font: 16px 'Open Serif', serif;
 	min-height: 100%;
 	display: flex;
 	flex-direction: column;
@@ -20,6 +22,22 @@ html {
 	accent-color: var(--color-base-30);
 	background: var(--color-base-20);
 	color: var(--color-base-0);
+}
+
+html.dark-mode {
+	--color-base-0: oklch(0.95 0.04 30);
+	--color-base-10: color-mix(in oklch, var(--color-base-100) 10%, var(--color-base-0));
+	--color-base-20: color-mix(in oklch, var(--color-base-100) 80%, var(--color-base-0));
+	--color-base-30: color-mix(in oklch, var(--color-base-100) 70%, var(--color-base-0));
+	--color-base-40: color-mix(in oklch, var(--color-base-100) 60%, var(--color-base-0));
+	--color-base-50: color-mix(in oklch, var(--color-base-100) 50%, var(--color-base-0));
+	--color-base-60: color-mix(in oklch, var(--color-base-100) 40%, var(--color-base-0));
+	--color-base-70: color-mix(in oklch, var(--color-base-100) 30%, var(--color-base-0));
+	--color-base-80: color-mix(in oklch, var(--color-base-100) 20%, var(--color-base-0));
+	--color-base-90: color-mix(in oklch, var(--color-base-100) 10%, var(--color-base-0));
+	--color-base-100: oklch(0.20 0.02 30);
+	--color-dark: var(--color-base-100);
+	--color-light: var(--color-base-0);
 }
 
 body {
@@ -88,7 +106,7 @@ body {
 }
 #probs > button {
 	background: transparent;
-	color: var(--color-base-100);
+	color: var(--color-light);
 	border-radius: 0;
 	padding: 2px 3px;
 	display: flex;
@@ -117,7 +135,7 @@ body {
 #sidebar {
 	width: 250px;
 	background: var(--color-base-50);
-	color: var(--color-base-100);
+	color: var(--color-light);
 	padding: 4px 8px;
 	display: flex;
 	flex-direction: column;
