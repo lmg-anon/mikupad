@@ -1,7 +1,6 @@
 import { EventIterator } from "event-iterator"
 
 export async function tokenize({ endpoint, endpointAPI, signal, ...options }) {
-	console.log(endpointAPI);
 	switch (endpointAPI) {
 		case 0: // llama.cpp
 			return await llamaCppTokenize({ endpoint, signal, ...options });
@@ -25,6 +24,13 @@ export async function* completion({ endpoint, endpointAPI, signal, ...options })
 
 export async function abortCompletion({ endpoint, endpointAPI }) {
 	switch (endpointAPI) {
+		case 1: // oobabooga
+			try {
+				endpoint = `${endpoint.replace("ws:", "http:").split(":")[0]}:5000`; // HACK!
+				return await oobaAbortCompletion({ endpoint });
+			} catch {
+				// do nothing.
+			}
 		case 2: // koboldcpp
 			return await koboldCppAbortCompletion({ endpoint });
 	}
@@ -125,7 +131,7 @@ async function* oobaCompletion({ endpoint, signal, ...options }) {
 	const ws = new WebSocket(new URL('/api/v1/stream', endpoint));
 
 	ws.onopen = () => {
-		ws.send(JSON.stringify(options));
+		ws.send(JSON.stringify(oobaConvertOptions(options)));
 	};
 
 	const wsStream = () => new EventIterator(
@@ -156,6 +162,12 @@ async function* oobaCompletion({ endpoint, signal, ...options }) {
 			break;
 		}
 	}
+}
+
+async function oobaAbortCompletion({ endpoint }) {
+	await fetch(new URL('/api/v1/stop-stream', endpoint), {
+		method: 'POST',
+	});
 }
 
 function koboldCppConvertOptions(options) {
