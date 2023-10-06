@@ -25,6 +25,7 @@ html {
 }
 
 html.dark-mode {
+	--color-miku: #00373f;
 	--color-base-0: oklch(0.95 0.04 30);
 	--color-base-10: color-mix(in oklch, var(--color-base-100) 10%, var(--color-base-0));
 	--color-base-20: color-mix(in oklch, var(--color-base-100) 80%, var(--color-base-0));
@@ -105,6 +106,7 @@ body {
 	transition: top 0.2s, left 0.2s;
 }
 #probs > button {
+	cursor: pointer;
 	background: transparent;
 	color: var(--color-light);
 	border-radius: 0;

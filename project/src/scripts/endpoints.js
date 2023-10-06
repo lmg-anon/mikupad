@@ -125,6 +125,7 @@ function oobaConvertOptions(options) {
 	swapOption("n_predict", "max_new_tokens");
 	swapOption("repeat_penalty", "repetition_penalty");
 	swapOption("repeat_last_n", "repetition_penalty_range");
+	swapOption("ignore_eos", "ban_eos_token");
 	swapOption("stop", "stopping_strings");
 	return options;
 }

@@ -9,7 +9,15 @@ export function InputBox({ label, value, type, onValueChange, ...props }) {
 				value=${value}
 				size="1"
 				onChange=${({ target }) => {
-					onValueChange(type === 'number' ? target.valueAsNumber : target.value);
+					let value = type === 'number' ? target.valueAsNumber : target.value;
+					if (props.inputmode === 'numeric') {
+						props.pattern = '^-?[0-9]*$';
+						if (value && !isNaN(+value))
+							value = +target.value;
+					}
+					if (props.pattern && !new RegExp(props.pattern).test(value))
+						return;
+					onValueChange(value);
 				}}
 				...${props}/>
 		</label>`;
