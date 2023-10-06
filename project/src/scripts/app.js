@@ -52,6 +52,7 @@ export function App() {
 	const [endpoint, setEndpoint] = usePersistentState('endpoint', 'http://localhost:8080');
 	const [endpointAPI, setEndpointAPI] = usePersistentState('endpointAPI', 0);
 	const [prompt, setPrompt] = usePersistentState('prompt', [{ type: 'user', content: defaultPrompt }]);
+	const [seed, setSeed] = usePersistentState('seed', -1);
 	const [temperature, setTemperature] = usePersistentState('temperature', 0.7); // llama.cpp default 0.8
 	const [repeatPenalty, setRepeatPenalty] = usePersistentState('repeatPenalty', 1.1);
 	const [repeatLastN, setRepeatLastN] = usePersistentState('repeatLastN', 256); // llama.cpp default 64
@@ -94,6 +95,7 @@ export function App() {
 				endpoint,
 				endpointAPI,
 				prompt,
+				seed,
 				temperature,
 				repeat_penalty: repeatPenalty,
 				repeat_last_n: repeatLastN,
@@ -365,6 +367,8 @@ export function App() {
 					{ name: 'oobabooga', value: 1 },
 					{ name: 'koboldcpp', value: 2 },
 				]}/>
+			<${InputBox} label="Seed" type="number"
+				value=${seed} onValueChange=${setSeed}/>
 			<${InputBox} label="Temperature" type="number" step="0.01"
 				value=${temperature} onValueChange=${setTemperature}/>
 			<div className="sidebar-hbox">
