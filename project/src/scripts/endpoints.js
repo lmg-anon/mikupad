@@ -12,6 +12,8 @@ export async function tokenize({ endpoint, endpointAPI, signal, ...options }) {
 }
 
 export async function* completion({ endpoint, endpointAPI, signal, ...options }) {
+	if (options['seed'] === -1)
+		delete options['seed'];
 	switch (endpointAPI) {
 		case 0: // llama.cpp
 			return yield* await llamaCppCompletion({ endpoint, signal, ...options });
@@ -29,7 +31,7 @@ export async function abortCompletion({ endpoint, endpointAPI }) {
 				endpoint = `${endpoint.replace("ws:", "http:").split(":")[0]}:5000`; // HACK!
 				return await oobaAbortCompletion({ endpoint });
 			} catch {
-				// do nothing.
+				break; // do nothing.
 			}
 		case 2: // koboldcpp
 			return await koboldCppAbortCompletion({ endpoint });
