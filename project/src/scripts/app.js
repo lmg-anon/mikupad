@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { html } from 'htm/react';
 import { tokenize, completion, abortCompletion } from './endpoints.js';
 import { InputBox, SelectBox, Checkbox } from './components.js'
@@ -19,7 +19,7 @@ function joinPrompt(prompt) {
 function usePersistentState(name, initialState) {
 	let savedState;
 	try {
-		savedState = JSON.parse(localStorage.getItem(name));
+		savedState = useMemo(() => JSON.parse(localStorage.getItem(name)), []);
 	} catch {
 		savedState = null;
 	}
@@ -46,13 +46,18 @@ function resetPersistence() {
 export function App() {
 	const promptArea = useRef();
 	const promptOverlay = useRef();
+	const undoStack = useRef([]);
+	const probsDelayTimer = useRef();
 	const [currentPromptChunk, setCurrentPromptChunk] = useState(undefined);
+	const [undoHovered, setUndoHovered] = useState(false);
+	const [showProbs, setShowProbs] = useState(true);
 	const [cancel, setCancel] = useState(null);
 	const [darkMode, setDarkMode] = usePersistentState('darkMode', false);
 	const [endpoint, setEndpoint] = usePersistentState('endpoint', 'http://localhost:8080');
 	const [endpointAPI, setEndpointAPI] = usePersistentState('endpointAPI', 0);
-	const [prompt, setPrompt] = usePersistentState('prompt', [{ type: 'user', content: defaultPrompt }]);
+	const [promptChunks, setPromptChunks] = usePersistentState('prompt', [{ type: 'user', content: defaultPrompt }]);
 	const [seed, setSeed] = usePersistentState('seed', -1);
+	const [maxPredictTokens, setMaxPredictTokens] = usePersistentState('maxPredictTokens', -1);
 	const [temperature, setTemperature] = usePersistentState('temperature', 0.7); // llama.cpp default 0.8
 	const [repeatPenalty, setRepeatPenalty] = usePersistentState('repeatPenalty', 1.1);
 	const [repeatLastN, setRepeatLastN] = usePersistentState('repeatLastN', 256); // llama.cpp default 64
@@ -69,11 +74,10 @@ export function App() {
 	const [ignoreEos, setIgnoreEos] = usePersistentState('ignoreEos', false);
 	const [tokens, setTokens] = useState(0);
 
-	const promptText = useMemo(() => joinPrompt(prompt), [prompt]);
+	const promptText = useMemo(() => joinPrompt(promptChunks), [promptChunks]);
 
-	if (darkMode) {
-		switchDarkMode(darkMode, true);
-	}
+	// Update dark mode on the first render.
+	useMemo(() => !darkMode || switchDarkMode(darkMode, true), []);
 
 	async function predict(prompt = promptText) {
 		const ac = new AbortController();
@@ -90,6 +94,9 @@ export function App() {
 				signal: ac.signal,
 			});
 			setTokens(tokens.length + 1);
+			if (undoStack.current.at(-1) != promptChunks.length)
+				undoStack.current.push(promptChunks.length);
+			setUndoHovered(false);
 
 			for await (const chunk of completion({
 				endpoint,
@@ -113,13 +120,14 @@ export function App() {
 					tfs_z: tfsZ,
 				}),
 				ignore_eos: ignoreEos,
+				n_predict: maxPredictTokens,
 				n_probs: 10,
 				signal: ac.signal,
 			})) {
 				ac.signal.throwIfAborted();
 				if (!chunk.content)
 					continue;
-				setPrompt(p => [...p, chunk]);
+				setPromptChunks(p => [...p, chunk]);
 				setTokens(t => t + (chunk?.completion_probabilities?.length ?? 1));
 			}
 		} catch (e) {
@@ -128,6 +136,12 @@ export function App() {
 		} finally {
 			setCancel(c => c === cancel ? null : c);
 		}
+	}
+
+	function undo() {
+		if (!undoStack.current.length)
+			return;
+		setPromptChunks(p => p.slice(0, undoStack.current.pop()));
 	}
 
 	// Update the textarea in an uncontrolled way so the user doesn't lose their
@@ -199,7 +213,7 @@ export function App() {
 	}, [predict, cancel]);
 
 	function onInput({ target }) {
-		setPrompt(oldPrompt => {
+		setPromptChunks(oldPrompt => {
 			const start = [];
 			const end = [];
 			oldPrompt = [...oldPrompt];
@@ -229,6 +243,8 @@ export function App() {
 				...end,
 			];
 		});
+		undoStack.current = [];
+		setUndoHovered(false);
 	}
 
 	function onScroll({ target }) {
@@ -255,6 +271,11 @@ export function App() {
 		setCurrentPromptChunk(cur => {
 			if (cur && cur.index === index && cur.top === top && cur.left === left)
 				return cur;
+			clearTimeout(probsDelayTimer.current);
+			setShowProbs(false);
+			probsDelayTimer.current = setTimeout(() => {
+				setShowProbs(true);
+			}, 300);
 			return { index, top, left };
 		});
 	}
@@ -269,13 +290,13 @@ export function App() {
 		}
 
 		const newPrompt = [
-			...prompt.slice(0, i),
+			...promptChunks.slice(0, i),
 			{
-				...prompt[i],
+				...promptChunks[i],
 				content: tok,
 			},
 		];
-		setPrompt(newPrompt);
+		setPromptChunks(newPrompt);
 		predict(joinPrompt(newPrompt));
 	}
 
@@ -313,8 +334,8 @@ export function App() {
 	}
 
 	const probs = useMemo(() =>
-		prompt[currentPromptChunk?.index]?.completion_probabilities?.[0]?.probs,
-		[prompt, currentPromptChunk]);
+		showProbs && promptChunks[currentPromptChunk?.index]?.completion_probabilities?.[0]?.probs,
+		[promptChunks, currentPromptChunk, showProbs]);
 
 	return html`
 		<div id="prompt-container" onMouseMove=${onPromptMouseMove}>
@@ -325,14 +346,15 @@ export function App() {
 				onInput=${onInput}
 				onScroll=${onScroll}/>
 			<div ref=${promptOverlay} id="prompt-overlay">
-				${prompt.map((chunk, i) => {
+				${promptChunks.map((chunk, i) => {
 					const isCurrent = currentPromptChunk && currentPromptChunk.index === i;
+					const isNextUndo = undoHovered && !!undoStack.current.length && undoStack.current.at(-1) <= i;
 					return html`
 						<span
 							key=${i}
 							data-promptchunk=${i}
-							className=${`${chunk.type === 'user' ? 'user' : 'machine'} ${isCurrent ? 'current' : ''}`}>
-							${chunk.content + (i === prompt.length - 1 && chunk.content.endsWith('\n') ? '\u00a0' : '')}
+							className=${`${chunk.type === 'user' ? 'user' : 'machine'} ${isCurrent ? 'current' : ''} ${isNextUndo ? 'erase' : ''}`}>
+							${chunk.content + (i === promptChunks.length - 1 && chunk.content.endsWith('\n') ? '\u00a0' : '')}
 						</span>`;
 				})}
 			</div>
@@ -367,8 +389,10 @@ export function App() {
 					{ name: 'oobabooga', value: 1 },
 					{ name: 'koboldcpp', value: 2 },
 				]}/>
-			<${InputBox} label="Seed" type="number"
+			<${InputBox} label="Seed" type="text" inputmode="numeric"
 				value=${seed} onValueChange=${setSeed}/>
+			<${InputBox} label="Max Predict Tokens" type="text" inputmode="numeric"
+				value=${maxPredictTokens} onValueChange=${setMaxPredictTokens}/>
 			<${InputBox} label="Temperature" type="number" step="0.01"
 				value=${temperature} onValueChange=${setTemperature}/>
 			<div className="sidebar-hbox">
@@ -428,6 +452,13 @@ export function App() {
 					onClick=${() => predict()}>
 					Predict
 				</button>
+				${!cancel && !!undoStack.current.length && html`
+					<button
+						onClick=${() => undo()}
+						onMouseEnter=${() => setUndoHovered(true)}
+						onMouseLeave=${() => setUndoHovered(false)}>
+						Undo
+					</button>`}
 				<button disabled=${!cancel} onClick=${cancel}>Cancel</button>
 			</div>
 		</div>`;
