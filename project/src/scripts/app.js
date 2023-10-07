@@ -61,7 +61,6 @@ export function App() {
 	const promptOverlay = useRef();
 	const undoStack = useRef([]);
 	const probsDelayTimer = useRef();
-	const switchCompletionDelayTimer = useRef();
 	const [currentPromptChunk, setCurrentPromptChunk] = useState(undefined);
 	const [undoHovered, setUndoHovered] = useState(false);
 	const [showProbs, setShowProbs] = useState(true);
@@ -95,12 +94,24 @@ export function App() {
 	useMemo(() => !darkMode || switchDarkMode(darkMode, true), []);
 
 	async function predict(prompt = promptText, chunkCount = promptChunks.length) {
+		if (cancel) {
+			cancel?.();
+
+			// llama.cpp server sometimes generates gibberish if we stop and
+			// restart right away (???)
+			let cancelled = false;
+			setCancel(() => () => cancelled = true);
+			await new Promise(resolve => setTimeout(resolve, 500));
+			if (cancelled)
+				return;
+		}
+
 		const ac = new AbortController();
-		const cancel = () => {
+		const cancelThis = () => {
 			abortCompletion({ endpoint, endpointAPI });
 			ac.abort();
 		};
-		setCancel(() => cancel);
+		setCancel(() => cancelThis);
 		try {
 			const { tokens } = await tokenize({
 				endpoint,
@@ -110,6 +121,7 @@ export function App() {
 			});
 			setTokens(tokens.length + 1);
 			setPredictStartTokens(tokens.length + 1);
+
 			while (undoStack.current.at(-1) >= chunkCount)
 				undoStack.current.pop();
 			undoStack.current.push(chunkCount);
@@ -152,7 +164,7 @@ export function App() {
 			if (e.name !== 'AbortError')
 				reportError(e);
 		} finally {
-			setCancel(c => c === cancel ? null : c);
+			setCancel(c => c === cancelThis ? null : c);
 			if (undoStack.current.at(-1) === chunkCount)
 				undoStack.current.pop();
 		}
@@ -257,11 +269,14 @@ export function App() {
 				newValue = newValue.slice(0, -chunk.content.length);
 			}
 
-			return [
+			const newPrompt = [
 				...start,
 				...(newValue ? [{ type: 'user', content: newValue }] : []),
 				...end,
 			];
+			if (cancel)
+				predict(joinPrompt(newPrompt), newPrompt.length);
+			return newPrompt;
 		});
 		undoStack.current = [];
 		setUndoHovered(false);
@@ -307,19 +322,6 @@ export function App() {
 			},
 		];
 		setPromptChunks(newPrompt);
-
-		if (cancel || switchCompletionDelayTimer.current) {
-			cancel?.();
-
-			// llama.cpp server sometimes generates gibberish if we stop and
-			// restart right away (???)
-			clearTimeout(switchCompletionDelayTimer.current);
-			switchCompletionDelayTimer.current = setTimeout(async () => {
-				predict(joinPrompt(newPrompt), newPrompt.length);
-			}, 500);
-			return;
-		}
-
 		predict(joinPrompt(newPrompt), newPrompt.length);
 	}
 
