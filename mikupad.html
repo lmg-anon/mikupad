@@ -644,10 +644,9 @@ export function App() {
 				signal: ac.signal,
 			});
 			setTokens(tokens.length + 1);
-			while (undoStack.current.at(-1) > chunkCount)
+			while (undoStack.current.at(-1) >= chunkCount)
 				undoStack.current.pop();
-			if (undoStack.current.at(-1) !== chunkCount)
-				undoStack.current.push(chunkCount);
+			undoStack.current.push(chunkCount);
 			setUndoHovered(false);
 
 			for await (const chunk of completion({
@@ -681,12 +680,15 @@ export function App() {
 					continue;
 				setPromptChunks(p => [...p, chunk]);
 				setTokens(t => t + (chunk?.completion_probabilities?.length ?? 1));
+				chunkCount += 1;
 			}
 		} catch (e) {
 			if (e.name !== 'AbortError')
 				reportError(e);
 		} finally {
 			setCancel(c => c === cancel ? null : c);
+			if (undoStack.current.at(-1) === chunkCount)
+				undoStack.current.pop();
 		}
 	}
 
