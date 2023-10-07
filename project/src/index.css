@@ -61,7 +61,7 @@ body {
 
 #prompt-area, #prompt-overlay {
 	flex: 1;
-	border: none;
+	border: 1px solid transparent;
 	outline: none;
 	resize: none;
 	background: var(--color-base-100);
