@@ -61,6 +61,7 @@ export function App() {
 	const promptOverlay = useRef();
 	const undoStack = useRef([]);
 	const probsDelayTimer = useRef();
+	const switchCompletionDelayTimer = useRef();
 	const [currentPromptChunk, setCurrentPromptChunk] = useState(undefined);
 	const [undoHovered, setUndoHovered] = useState(false);
 	const [showProbs, setShowProbs] = useState(true);
@@ -92,7 +93,7 @@ export function App() {
 	// Update dark mode on the first render.
 	useMemo(() => !darkMode || switchDarkMode(darkMode, true), []);
 
-	async function predict(prompt = promptText) {
+	async function predict(prompt = promptText, chunkCount = promptChunks.length) {
 		const ac = new AbortController();
 		const cancel = () => {
 			abortCompletion({ endpoint, endpointAPI });
@@ -107,8 +108,10 @@ export function App() {
 				signal: ac.signal,
 			});
 			setTokens(tokens.length + 1);
-			if (undoStack.current.at(-1) != promptChunks.length)
-				undoStack.current.push(promptChunks.length);
+			while (undoStack.current.at(-1) > chunkCount)
+				undoStack.current.pop();
+			if (undoStack.current.at(-1) !== chunkCount)
+				undoStack.current.push(chunkCount);
 			setUndoHovered(false);
 
 			for await (const chunk of completion({
@@ -284,24 +287,14 @@ export function App() {
 		setCurrentPromptChunk(cur => {
 			if (cur && cur.index === index && cur.top === top && cur.left === left)
 				return cur;
-			clearTimeout(probsDelayTimer.current);
 			setShowProbs(false);
-			probsDelayTimer.current = setTimeout(() => {
-				setShowProbs(true);
-			}, 300);
+			clearTimeout(probsDelayTimer.current);
+			probsDelayTimer.current = setTimeout(() => setShowProbs(true), 300);
 			return { index, top, left };
 		});
 	}
 
 	async function switchCompletion(i, tok) {
-		if (cancel) {
-			cancel?.();
-
-			// llama.cpp server sometimes generates gibberish if we stop and
-			// restart right away (???)
-			await new Promise(res => setTimeout(res, 500));
-		}
-
 		const newPrompt = [
 			...promptChunks.slice(0, i),
 			{
@@ -310,7 +303,20 @@ export function App() {
 			},
 		];
 		setPromptChunks(newPrompt);
-		predict(joinPrompt(newPrompt));
+
+		if (cancel || switchCompletionDelayTimer.current) {
+			cancel?.();
+
+			// llama.cpp server sometimes generates gibberish if we stop and
+			// restart right away (???)
+			clearTimeout(switchCompletionDelayTimer.current);
+			switchCompletionDelayTimer.current = setTimeout(async () => {
+				predict(joinPrompt(newPrompt), newPrompt.length);
+			}, 500);
+			return;
+		}
+
+		predict(joinPrompt(newPrompt), newPrompt.length);
 	}
 
 	function switchEndpointAPI(value) {
