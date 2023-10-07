@@ -87,6 +87,7 @@ export function App() {
 	const [mirostatEta, setMirostatEta] = usePersistentState('mirostatEta', 0.1);
 	const [ignoreEos, setIgnoreEos] = usePersistentState('ignoreEos', false);
 	const [tokens, setTokens] = useState(0);
+	const [predictStartTokens, setPredictStartTokens] = useState(0);
 
 	const promptText = useMemo(() => joinPrompt(promptChunks), [promptChunks]);
 
@@ -108,6 +109,7 @@ export function App() {
 				signal: ac.signal,
 			});
 			setTokens(tokens.length + 1);
+			setPredictStartTokens(tokens.length + 1);
 			while (undoStack.current.at(-1) >= chunkCount)
 				undoStack.current.pop();
 			undoStack.current.push(chunkCount);
@@ -470,7 +472,7 @@ export function App() {
 				<${InputBox} label="Tokens" value=${tokens} readOnly/>`}
 			<div className="buttons">
 				<button
-					className=${cancel ? 'completing' : ''}
+					className=${cancel ? (predictStartTokens === tokens ? 'processing' : 'completing') : ''}
 					disabled=${!!cancel}
 					onClick=${() => predict()}>
 					Predict
