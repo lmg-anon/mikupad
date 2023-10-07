@@ -207,6 +207,14 @@ button:disabled {
 button:focus-visible {
 	outline: 1px solid var(--color-base-0);
 }
+button.processing {
+	outline: 1px solid rgba(255, 255, 255, 0.5);
+	animation: .5s ease-out infinite alternate processing;
+}
+@keyframes processing {
+	from { outline-width: 0px; }
+	to { outline-width: 4px; }
+}
 button.completing {
 	outline: 1px solid limegreen;
 	animation: .5s ease-out infinite alternate completing;
