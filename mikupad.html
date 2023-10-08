@@ -38,7 +38,8 @@ html {
 	--color-dark: var(--color-base-0);
 	--color-light: var(--color-base-100);
 
-	font: 16px 'Open Serif', serif;
+	font-family: serif;
+	font-size: 16px;
 	min-height: 100%;
 	display: flex;
 	flex-direction: column;
@@ -209,6 +210,17 @@ body {
 .Checkbox {
 	margin: 0 5px 0 0;
 	vertical-align: middle;
+}
+
+.error-text {
+	width: max-content;
+	text-align: center;
+	background: #4E3534;
+	border-radius: 4px;
+	color: #D17776;
+	margin-left: auto;
+	margin-right: auto;
+	padding: 2px 10px;
 }
 
 button {
@@ -413,8 +425,10 @@ function oobaConvertOptions(options) {
 
 async function* oobaCompletion({ endpoint, signal, ...options }) {
 	const ws = new WebSocket(new URL('/api/v1/stream', endpoint));
+	let connected = false;
 
 	ws.onopen = () => {
+		connected = true;
 		ws.send(JSON.stringify(oobaConvertOptions(options)));
 	};
 
@@ -422,7 +436,7 @@ async function* oobaCompletion({ endpoint, signal, ...options }) {
 		queue => {
 			ws.onmessage = queue.push;
 			ws.onclose = queue.stop;
-			ws.onerror = queue.fail;
+			ws.onerror = (e) => queue.fail(new Error(connected ? "WebSocket Error" : "Failed to connect"));
 			if (signal) {
 				signal.addEventListener("abort", queue.stop);
 			}
@@ -547,6 +561,13 @@ function Checkbox({ label, value, onValueChange, ...props }) {
 		</label>`;
 }
 
+function Text({ value, ...props }) {
+	return html`
+		<span ...${props}>
+			${value}
+		</span>`;
+}
+
 const defaultPrompt = `[INST] <<SYS>>
 You are a talented writing assistant. Always respond by incorporating the instructions into expertly written prose that is highly detailed, evocative, vivid and engaging.
 <</SYS>>
@@ -631,6 +652,7 @@ export function App() {
 	const [ignoreEos, setIgnoreEos] = usePersistentState('ignoreEos', false);
 	const [tokens, setTokens] = useState(0);
 	const [predictStartTokens, setPredictStartTokens] = useState(0);
+	const [lastError, setLastError] = useState(undefined);
 
 	const promptText = useMemo(() => joinPrompt(promptChunks), [promptChunks]);
 
@@ -656,6 +678,9 @@ export function App() {
 			ac.abort();
 		};
 		setCancel(() => cancelThis);
+		setLastError(undefined);
+
+		let predictedChunkCount = 0;
 		try {
 			const { tokens } = await tokenize({
 				endpoint,
@@ -705,8 +730,11 @@ export function App() {
 				chunkCount += 1;
 			}
 		} catch (e) {
-			if (e.name !== 'AbortError')
+			if (e.name !== 'AbortError') {
 				reportError(e);
+				setLastError(e.toString());
+			}
+			return false;
 		} finally {
 			setCancel(c => c === cancelThis ? null : c);
 			if (undoStack.current.at(-1) === chunkCount)
@@ -1032,6 +1060,8 @@ export function App() {
 					</button>`}
 				<button disabled=${!cancel} onClick=${cancel}>Cancel</button>
 			</div>
+			${!!lastError && html`
+				<${Text} className="error-text" value="${lastError}"/>`}
 		</div>`;
 }
 
