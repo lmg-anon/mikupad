@@ -765,14 +765,18 @@ export function App() {
 
 		let predictedChunkCount = 0;
 		try {
+			// sometimes "getTokenCount" can take a while because the server is busy
+			// so let's set the predictStartTokens beforehand.
+			setPredictStartTokens(tokens);
+
 			const tokenCount = await getTokenCount({
 				endpoint,
 				endpointAPI,
 				content: ` ${prompt}`,
 				signal: ac.signal,
 			});
-			setTokens(tokens.length + 1);
-			setPredictStartTokens(tokens.length + 1);
+			setTokens(tokenCount);
+			setPredictStartTokens(tokenCount);
 
 			while (undoStack.current.at(-1) >= chunkCount)
 				undoStack.current.pop();
