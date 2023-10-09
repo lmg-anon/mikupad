@@ -280,7 +280,7 @@ button.completing {
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { html } from 'htm/react';
-import { EventIterator } from "event-iterator"
+import { EventIterator } from 'event-iterator';
 
 // Polyfill for piece of shit Chromium
 if (!(Symbol.asyncIterator in ReadableStream.prototype)) {
@@ -299,14 +299,14 @@ if (!(Symbol.asyncIterator in ReadableStream.prototype)) {
 	};
 }
 
-export async function tokenize({ endpoint, endpointAPI, signal, ...options }) {
+export async function getTokenCount({ endpoint, endpointAPI, signal, ...options }) {
 	switch (endpointAPI) {
 		case 0: // llama.cpp
-			return await llamaCppTokenize({ endpoint, signal, ...options });
+			return await llamaCppTokenCount({ endpoint, signal, ...options });
 		case 1: // oobabooga
-			return await new Promise((resolve) => resolve({ tokens: [] })); // i don't know if ooba support this.
+			return await oobaTokenCount({ endpoint, signal, ...options });
 		case 2: // koboldcpp
-			return await new Promise((resolve) => resolve({ tokens: [] })); // koboldcpp doesn't support this.
+			return await koboldCppTokenCount({ endpoint, signal, ...options });
 	}
 }
 
@@ -327,7 +327,6 @@ export async function abortCompletion({ endpoint, endpointAPI }) {
 	switch (endpointAPI) {
 		case 1: // oobabooga
 			try {
-				endpoint = `${endpoint.replace("ws:", "http:").split(":")[0]}:5000`; // HACK!
 				return await oobaAbortCompletion({ endpoint });
 			} catch (e) {
 				reportError(e);
@@ -383,7 +382,7 @@ async function* parseEventStream(eventStream) {
 	}
 }
 
-async function llamaCppTokenize({ endpoint, signal, ...options }) {
+async function llamaCppTokenCount({ endpoint, signal, ...options }) {
 	const res = await fetch(new URL('/tokenize', endpoint), {
 		method: 'POST',
 		headers: {
@@ -394,7 +393,8 @@ async function llamaCppTokenize({ endpoint, signal, ...options }) {
 	});
 	if (!res.ok)
 		throw new Error(`HTTP ${res.status}`);
-	return await res.json();
+	const { tokens } = await res.json();
+	return tokens.length + 1; // + 1 for BOS, I guess.
 }
 
 async function* llamaCppCompletion({ endpoint, signal, ...options }) {
@@ -412,6 +412,24 @@ async function* llamaCppCompletion({ endpoint, signal, ...options }) {
 	if (!res.ok)
 		throw new Error(`HTTP ${res.status}`);
 	return yield* await parseEventStream(res.body);
+}
+
+async function oobaTokenCount({ endpoint, signal, ...options }) {
+	endpoint = `http:${endpoint.split(":")[1]}:5000`; // HACK!
+	const res = await fetch(new URL('/api/v1/token-count', endpoint), {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+		},
+		body: JSON.stringify({
+			prompt: options.content
+		}),
+		signal,
+	});
+	if (!res.ok)
+		throw new Error(`HTTP ${res.status}`);
+	const { results } = await res.json();
+	return results[0].tokens;
 }
 
 function oobaConvertOptions(options) {
@@ -470,9 +488,27 @@ async function* oobaCompletion({ endpoint, signal, ...options }) {
 }
 
 async function oobaAbortCompletion({ endpoint }) {
+	endpoint = `http:${endpoint.split(":")[1]}:5000`; // HACK!
 	await fetch(new URL('/api/v1/stop-stream', endpoint), {
 		method: 'POST',
 	});
+}
+
+async function koboldCppTokenCount({ endpoint, signal, ...options }) {
+	const res = await fetch(new URL('/api/extra/tokencount', endpoint), {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+		},
+		body: JSON.stringify({
+			prompt: options.content
+		}),
+		signal,
+	});
+	if (!res.ok)
+		throw new Error(`HTTP ${res.status}`);
+	const { value } = await res.json();
+	return value;
 }
 
 function koboldCppConvertOptions(options) {
@@ -599,25 +635,6 @@ function replaceUnprintableBytes(inputString) {
   });
 
   return replacedString;
-}
-
-function* iterateSpecialToken(tok, str) {
-  let startIndex = 0;
-
-  while (startIndex < str.length) {
-    const openBracketIndex = str.indexOf(tok, startIndex);
-
-    if (openBracketIndex === -1) {
-      yield [false, str.slice(startIndex)];
-      break;
-    }
-
-    yield [true, str.slice(startIndex, openBracketIndex)];
-
-    startIndex = openBracketIndex + tok.length;
-  }
-
-  yield [false, ""]
 }
 
 function usePersistentState(name, initialState) {
@@ -843,13 +860,13 @@ export function App() {
 		const ac = new AbortController();
 		const to = setTimeout(async () => {
 			try {
-				const { tokens } = await tokenize({
+				const tokenCount = await getTokenCount({
 					endpoint,
 					endpointAPI,
 					content: ` ${promptText}`,
 					signal: ac.signal,
 				});
-				setTokens(tokens.length + 1);
+				setTokens(tokenCount);
 			} catch (e) {
 				if (e.name !== 'AbortError')
 					reportError(e);
@@ -857,7 +874,7 @@ export function App() {
 		}, 500);
 		ac.signal.addEventListener('abort', () => clearTimeout(to));
 		return () => ac.abort();
-	}, [promptText, cancel]);
+	}, [promptText, cancel, endpoint, endpointAPI]);
 
 	useEffect(() => {
 		function onKeyDown(e) {
