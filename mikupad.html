@@ -178,6 +178,12 @@ body {
 	grid: auto / auto-flow minmax(min-content, 1fr);
 	gap: 8px;
 }
+.sidebar-vbox {
+	flex: none;
+	display: grid;
+	grid: auto / minmax(min-content, 1fr) auto-flow;
+	gap: 4px;
+}
 
 .InputBox, .SelectBox {
 	display: flex;
@@ -217,7 +223,7 @@ body {
 	text-align: center;
 	background: #4E3534;
 	border-radius: 4px;
-	color: #D17776;
+	color: #FF8080;
 	margin-left: auto;
 	margin-right: auto;
 	padding: 2px 10px;
@@ -323,7 +329,8 @@ export async function abortCompletion({ endpoint, endpointAPI }) {
 			try {
 				endpoint = `${endpoint.replace("ws:", "http:").split(":")[0]}:5000`; // HACK!
 				return await oobaAbortCompletion({ endpoint });
-			} catch {
+			} catch (e) {
+				reportError(e);
 				break; // do nothing.
 			}
 		case 2: // koboldcpp
@@ -594,14 +601,34 @@ function replaceUnprintableBytes(inputString) {
   return replacedString;
 }
 
+function* iterateSpecialToken(tok, str) {
+  let startIndex = 0;
+
+  while (startIndex < str.length) {
+    const openBracketIndex = str.indexOf(tok, startIndex);
+
+    if (openBracketIndex === -1) {
+      yield [false, str.slice(startIndex)];
+      break;
+    }
+
+    yield [true, str.slice(startIndex, openBracketIndex)];
+
+    startIndex = openBracketIndex + tok.length;
+  }
+
+  yield [false, ""]
+}
+
 function usePersistentState(name, initialState) {
 	let savedState;
 	try {
 		savedState = useMemo(() => JSON.parse(localStorage.getItem(name)), []);
-	} catch {
+	} catch (e) {
+		reportError(e);
 		savedState = null;
 	}
-	const [value, setValue] = useState(savedState || initialState);
+	const [value, setValue] = useState(savedState == null ? initialState : savedState);
 	return [value, (newValue) => {
 		if (typeof newValue === 'function') {
 			setValue(v => {
@@ -617,8 +644,47 @@ function usePersistentState(name, initialState) {
 }
 
 function resetPersistence() {
+	if (!window.confirm("Are you sure you want to reset all the presets and the prompt? This action can't be undone."))
+		return;
 	localStorage.clear();
 	location.reload();
+}
+
+function exportPersistence() {
+	var element = document.createElement('a');
+	element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(JSON.stringify(localStorage)));
+	element.setAttribute('download', `mikupad_session.json`);
+	element.style.display = 'none';
+	document.body.appendChild(element);
+	element.click();
+	document.body.removeChild(element);
+}
+
+function importPersistence() {
+	const fileInput = document.createElement("input");
+	fileInput.type = 'file';
+	fileInput.style.display = 'none';
+	fileInput.onchange = (e) => {
+		const file = e.target.files[0];
+		if (!file)
+			return;
+		const reader = new FileReader();
+		reader.onload = (e) => {
+			const contents = e.target.result;
+			fileInput.func(contents);
+		}
+		reader.readAsText(file);
+	};
+	fileInput.func = (text) => {
+		const data = JSON.parse(text);
+		Object.keys(data).forEach((k) => {
+			localStorage.setItem(k, data[k]);
+		});
+		location.reload();
+	};
+	document.body.appendChild(fileInput);
+	fileInput.click();
+	document.body.removeChild(fileInput);
 }
 
 export function App() {
@@ -970,9 +1036,11 @@ export function App() {
 					</button>`)}
 			</div>` : null}
 		<div id="sidebar">
+			<${Checkbox} label="Dark Mode"
+				value=${darkMode} onValueChange=${() => switchDarkMode(!darkMode, false)}/>
 			<div className="sidebar-hbox">
-				<${Checkbox} label="Dark Mode"
-					value=${darkMode} onValueChange=${() => switchDarkMode(!darkMode, false)}/>
+				<button onClick=${importPersistence}>Import</button>
+				<button onClick=${exportPersistence}>Export</button>
 				<button onClick=${resetPersistence}>Reset</button>
 			</div>
 			<${InputBox} label="Server"
