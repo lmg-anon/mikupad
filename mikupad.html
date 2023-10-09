@@ -765,7 +765,7 @@ export function App() {
 
 		let predictedChunkCount = 0;
 		try {
-			const { tokens } = await tokenize({
+			const tokenCount = await getTokenCount({
 				endpoint,
 				endpointAPI,
 				content: ` ${prompt}`,
