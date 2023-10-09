@@ -959,12 +959,13 @@ export function App() {
 		const top = rect.top;
 		const left = rect.x + rect.width / 2;
 		setCurrentPromptChunk(cur => {
-			if (cur && cur.index === index && cur.top === top && cur.left === left)
-				return cur;
-			setShowProbs(false);
-			clearTimeout(probsDelayTimer.current);
-			probsDelayTimer.current = setTimeout(() => setShowProbs(true), 300);
-			return { index, top, left };
+			const isCurrent = cur && cur.index === index && cur.top === top && cur.left === left;
+			if (!isCurrent || !showProbs) {
+				setShowProbs(false);
+				clearTimeout(probsDelayTimer.current);
+				probsDelayTimer.current = setTimeout(() => setShowProbs(true), 300);
+			}
+			return isCurrent ? cur : { index, top, left };
 		});
 	}
 
