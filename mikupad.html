@@ -276,6 +276,12 @@ button.completing {
 	gap: 8px;
 	justify-content: center;
 }
+.buttons .shorts {
+	line-height: 0;
+}
+.buttons .shorts > button {
+	height: 100%;
+}
 
 </style>
 <script type="module">
@@ -708,7 +714,9 @@ export function App() {
 	const promptArea = useRef();
 	const promptOverlay = useRef();
 	const undoStack = useRef([]);
+	const redoStack = useRef([]);
 	const probsDelayTimer = useRef();
+	const [currentFillInTheMiddle, setCurrentFillInTheMiddle] = useState(undefined);
 	const [currentPromptChunk, setCurrentPromptChunk] = useState(undefined);
 	const [undoHovered, setUndoHovered] = useState(false);
 	const [showProbs, setShowProbs] = useState(true);
@@ -832,7 +840,16 @@ export function App() {
 	function undo() {
 		if (!undoStack.current.length)
 			return;
+		redoStack.current.push(promptChunks.slice(undoStack.current.at(-1)));
 		setPromptChunks(p => p.slice(0, undoStack.current.pop()));
+	}
+
+	function redo() {
+		if (!redoStack.current.length)
+			return;
+		undoStack.current.push(promptChunks.length);
+		setPromptChunks(p => [...p, ...redoStack.current.pop()]);
+		setUndoHovered(false);
 	}
 
 	// Update the textarea in an uncontrolled way so the user doesn't lose their
@@ -907,6 +924,7 @@ export function App() {
 		setPromptChunks(oldPrompt => {
 			const start = [];
 			const end = [];
+			const oldPromptLength = oldPrompt.length;
 			oldPrompt = [...oldPrompt];
 			let newValue = target.value;
 
@@ -928,6 +946,23 @@ export function App() {
 				newValue = newValue.slice(0, -chunk.content.length);
 			}
 
+			// Remove all undo positions within the modified range.
+			undoStack.current = undoStack.current.filter(pos => start.length < pos);
+			if (!undoStack.current.length)
+				setUndoHovered(false);
+
+			// Update all undo positions.
+			if (start.length + end.length + (+!!newValue) !== oldPromptLength) {
+				// Reset redo stack if a new chunk is added at the end.
+				if (!end.length)
+					redoStack.current = [];
+
+				if (!oldPrompt.length)
+					undoStack.current = undoStack.current.map(pos => pos + 1);
+				else
+					undoStack.current = undoStack.current.map(pos => pos - oldPrompt.length);
+			}
+
 			const newPrompt = [
 				...start,
 				...(newValue ? [{ type: 'user', content: newValue }] : []),
@@ -937,8 +972,6 @@ export function App() {
 				predict(joinPrompt(newPrompt), newPrompt.length);
 			return newPrompt;
 		});
-		undoStack.current = [];
-		setUndoHovered(false);
 	}
 
 	function onScroll({ target }) {
@@ -1144,14 +1177,23 @@ export function App() {
 					onClick=${() => predict()}>
 					Predict
 				</button>
-				${!cancel && !!undoStack.current.length && html`
-					<button
-						onClick=${() => undo()}
-						onMouseEnter=${() => setUndoHovered(true)}
-						onMouseLeave=${() => setUndoHovered(false)}>
-						Undo
-					</button>`}
 				<button disabled=${!cancel} onClick=${cancel}>Cancel</button>
+				<div className="shorts">
+					${!cancel && (!!undoStack.current.length || !!redoStack.current.length) && html`
+						<button
+							disabled=${!undoStack.current.length}
+							onClick=${() => undo()}
+							onMouseEnter=${() => setUndoHovered(true)}
+							onMouseLeave=${() => setUndoHovered(false)}>
+							<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24"><path d="M17.026 22.957c10.957-11.421-2.326-20.865-10.384-13.309l2.464 2.352h-9.106v-8.947l2.232 2.229c14.794-13.203 31.51 7.051 14.794 17.675z" fill="white"/></svg>
+						</button>`}
+					${!cancel && (!!undoStack.current.length || !!redoStack.current.length) && html`
+						<button
+							disabled=${!redoStack.current.length}
+							onClick=${() => redo()}>
+							<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24"><path d="M6.974 22.957c-10.957-11.421 2.326-20.865 10.384-13.309l-2.464 2.352h9.106v-8.947l-2.232 2.229c-14.794-13.203-31.51 7.051-14.794 17.675z" fill="white"/></svg>
+						</button>`}
+				</div>
 			</div>
 			${!!lastError && html`
 				<span className="error-text">${lastError}</span>`}
