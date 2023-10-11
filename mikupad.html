@@ -530,6 +530,10 @@ function koboldCppConvertOptions(options) {
 }
 
 async function* koboldCppCompletion({ endpoint, signal, ...options }) {
+	if (options.n_predict === -1) {
+		// koboldcpp breaks with -1 and with very large predict values...
+		options.n_predict = 1024;
+	}
 	const res = await fetch(new URL('/api/extra/generate/stream', endpoint), {
 		method: 'POST',
 		headers: {
