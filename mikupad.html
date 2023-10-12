@@ -995,68 +995,13 @@ export function App() {
 					undoStack.current = undoStack.current.map(pos => pos - oldPrompt.length);
 			}
 
-			/*
-			if (newValue) {
-				// Merge with adjacent chunk, or create a new chunk.
-				let newChunk = { type: 'user', content: newValue };
-				if (start.at(-1)?.type === 'user') {
-					newChunk = start.pop();
-					newChunk.content += newValue;
-				} else if (end[0]?.type === 'user') {
-					newChunk = end.shift();
-					newChunk.content = newValue + newChunk.content;
-				}
-
-				if (newChunk.content.includes(fillToken)) {
-					// Split out the fill token.
-					for (const [found, chunkPart] of iterateSpecialToken(fillToken, newChunk.content)) {
-						const lastNewChunk = start.at(-1);
-						if (!newChunk) {
-							if (chunkPart) {
-								if (lastNewChunk && lastNewChunk.type === 'user') {
-									lastNewChunk.content += chunkPart;
-								} else {
-									start.push({ type: 'user', content: chunkPart });
-								}
-							}
-						} else {
-							if (chunkPart) {
-								newChunk.content = chunkPart;
-								start.push(newChunk);
-							}
-							newChunk = undefined;
-						}
-						if (!found)
-							break;
-						const fillChunk = { type: 'fill', content: fillToken };
-						start.push(fillChunk);
-					}
-				} else {
-					start.push(newChunk);
-				}
-			}
-
-			// Merge with adjacent chunks.
-			while (start.at(-1)?.type === 'user' && end[0]?.type === 'user') {
-				const newChunk = start.pop();
-				end[0].content = newChunk.content + end[0].content;
-			}
-			while (end[0]?.type === 'user' && start.at(-1)?.type === 'user') {
-				const newChunk = end.shift();
-				start.at(-1).content += newChunk.content;
-			}
-
-			const newPrompt = [
-				...start,
-				...end,
-			];*/
 			const newPrompt = [
 				...start,
 				...(newValue ? [{ type: 'user', content: newValue }] : []),
 				...end,
 			];
 			if (cancel)
-				predict(newPrompt.map(p => currentFillInTheMiddle !== p ? p.content : '').join(''), newPrompt);
+				predict(joinPrompt(newPrompt), newPrompt.length);
 			return newPrompt;
 		});
 	}
