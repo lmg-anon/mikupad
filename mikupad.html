@@ -127,10 +127,10 @@ body {
 	top: var(--probs-top);
 	left: var(--probs-left);
 	display: flex;
-	translate: -50% -100%;
+	transform: translate(-50%, -100%);
 	border-radius: 5px;
 	box-shadow: 0 1px 1px 1px #00000033;
-	transition: top 0.2s, left 0.2s;
+	/*transition: top 0.2s, left 0.2s;*/
 }
 #probs > button {
 	cursor: pointer;
@@ -852,6 +852,36 @@ export function App() {
 		setUndoHovered(false);
 	}
 
+	useEffect(() => {
+		const adjustProbsPosition = () => {
+			const probsElement = document.getElementById('probs');
+			if (!probsElement) return;
+
+			probsElement.style.display = '';
+
+			const probsRect = probsElement.getBoundingClientRect();
+			const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
+			const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+
+			// Adjust left position if element goes off-screen on the right
+			if (probsRect.right > viewportWidth) {
+				const newLeft = viewportWidth - probsRect.width / 2;
+				probsElement.style.setProperty('--probs-left', `${newLeft}px`);
+			}
+
+			// Adjust right position if element goes off-screen on the left
+			if (probsRect.left < 0) {
+				probsElement.style.setProperty('--probs-left', `${probsRect.width / 2}px`);
+			}
+		};
+
+		if (currentPromptChunk && showProbs) {
+			setTimeout(function() {
+				adjustProbsPosition();
+			});
+		}
+	}, [currentPromptChunk, showProbs]);
+
 	// Update the textarea in an uncontrolled way so the user doesn't lose their
 	// selection or cursor position during prediction
 	useEffect(() => {
@@ -1081,6 +1111,7 @@ export function App() {
 			<div
 				id="probs"
 				style=${{
+					'display': 'none', // prevents rendering it on a unadjusted position, see "adjustProbsPosition".
 					'--probs-top': `${currentPromptChunk.top}px`,
 					'--probs-left': `${currentPromptChunk.left}px`,
 				}}>
