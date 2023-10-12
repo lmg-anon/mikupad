@@ -858,6 +858,8 @@ export function App() {
 			if (!probsElement) return;
 
 			probsElement.style.display = '';
+			probsElement.style.setProperty('--probs-top', `${currentPromptChunk.top}px`);
+			probsElement.style.setProperty('--probs-left', `${currentPromptChunk.left}px`);
 
 			const probsRect = probsElement.getBoundingClientRect();
 			const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
@@ -1069,6 +1071,8 @@ export function App() {
 		if (probsElement) {
 			const probsTop = getComputedStyle(probsElement).getPropertyValue('top');
 			probsElement.style.setProperty('--probs-top', `calc(${probsTop} + ${oldTop - newTop}px)`);
+		} else if (currentPromptChunk) {
+			currentPromptChunk.top += oldTop - newTop;
 		}
 	}
 
@@ -1174,9 +1178,7 @@ export function App() {
 			<div
 				id="probs"
 				style=${{
-					'display': 'none', // prevents rendering it on a unadjusted position, see "adjustProbsPosition".
-					'--probs-top': `${currentPromptChunk.top}px`,
-					'--probs-left': `${currentPromptChunk.left}px`,
+					'display': 'none'
 				}}>
 				${probs.map((prob, i) =>
 					html`<button key=${i} onClick=${() => switchCompletion(currentPromptChunk?.index, prob.tok_str)}>
