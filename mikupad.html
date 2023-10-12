@@ -716,7 +716,6 @@ export function App() {
 	const undoStack = useRef([]);
 	const redoStack = useRef([]);
 	const probsDelayTimer = useRef();
-	const [currentFillInTheMiddle, setCurrentFillInTheMiddle] = useState(undefined);
 	const [currentPromptChunk, setCurrentPromptChunk] = useState(undefined);
 	const [undoHovered, setUndoHovered] = useState(false);
 	const [showProbs, setShowProbs] = useState(true);
@@ -789,6 +788,7 @@ export function App() {
 			while (undoStack.current.at(-1) >= chunkCount)
 				undoStack.current.pop();
 			undoStack.current.push(chunkCount);
+			redoStack.current = [];
 			setUndoHovered(false);
 
 			for await (const chunk of completion({
@@ -953,7 +953,7 @@ export function App() {
 
 			// Update all undo positions.
 			if (start.length + end.length + (+!!newValue) !== oldPromptLength) {
-				// Reset redo stack if a new chunk is added at the end.
+				// Reset redo stack if a new chunk is added/removed at the end.
 				if (!end.length)
 					redoStack.current = [];
 
