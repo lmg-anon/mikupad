@@ -892,11 +892,12 @@ export function App() {
 			return;
 		} else if (promptText.startsWith(elem.value)) {
 			const oldHeight = elem.scrollHeight;
-			const atBottom = elem.scrollTop + elem.clientHeight + 1 > oldHeight;
+			const atBottom = (elem.scrollTarget ?? elem.scrollTop) + elem.clientHeight + 1 > oldHeight;
 			const oldLen = elem.value.length;
 			elem.setRangeText(promptText.slice(oldLen), oldLen, oldLen, 'preserve');
 			const newHeight = elem.scrollHeight;
 			if (atBottom && oldHeight !== newHeight) {
+				elem.scrollTarget = newHeight - elem.clientHeight;
 				elem.scrollTo({
 					top: newHeight - elem.clientHeight,
 					behavior: 'smooth',
@@ -1007,6 +1008,9 @@ export function App() {
 	}
 
 	function onScroll({ target }) {
+		if (target.scrollTop === target.scrollTarget)
+			target.scrollTarget = undefined;
+
 		const newTop = target.scrollTop;
 		const oldTop = promptOverlay.current.scrollTop;
 		promptOverlay.current.scrollTop = target.scrollTop;
@@ -1166,13 +1170,13 @@ export function App() {
 			</div>
 			${endpointAPI == 0 && html`
 				<${Checkbox} label="Penalize NL"
-					disabled=${!!cancel} value=${penalizeNl} onValueChange=${setPenalizeNl}/>`}
-			<div className="sidebar-hbox">
-				<${InputBox} label="Presence penalty" type="number" step="0.01"
-					readOnly=${!!cancel} value=${presencePenalty} onValueChange=${setPresencePenalty}/>
-				<${InputBox} label="Frequency penalty" type="number" step="1"
-					readOnly=${!!cancel} value=${frequencyPenalty} onValueChange=${setFrequencyPenalty}/>
-			</div>
+					disabled=${!!cancel} value=${penalizeNl} onValueChange=${setPenalizeNl}/>
+				<div className="sidebar-hbox">
+					<${InputBox} label="Presence penalty" type="number" step="0.01"
+						readOnly=${!!cancel} value=${presencePenalty} onValueChange=${setPresencePenalty}/>
+					<${InputBox} label="Frequency penalty" type="number" step="1"
+						readOnly=${!!cancel} value=${frequencyPenalty} onValueChange=${setFrequencyPenalty}/>
+				</div>`}
 			${temperature <= 0 ? null : html`
 				<${SelectBox}
 					label="Mirostat"
@@ -1226,13 +1230,13 @@ export function App() {
 							onClick=${() => undo()}
 							onMouseEnter=${() => setUndoHovered(true)}
 							onMouseLeave=${() => setUndoHovered(false)}>
-							<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24"><path d="M17.026 22.957c10.957-11.421-2.326-20.865-10.384-13.309l2.464 2.352h-9.106v-8.947l2.232 2.229c14.794-13.203 31.51 7.051 14.794 17.675z" fill="white"/></svg>
+							<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24"><path d="M17.026 22.957c10.957-11.421-2.326-20.865-10.384-13.309l2.464 2.352h-9.106v-8.947l2.232 2.229c14.794-13.203 31.51 7.051 14.794 17.675z" fill="var(--color-light)"/></svg>
 						</button>`}
 					${!cancel && (!!undoStack.current.length || !!redoStack.current.length) && html`
 						<button
 							disabled=${!redoStack.current.length}
 							onClick=${() => redo()}>
-							<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24"><path d="M6.974 22.957c-10.957-11.421 2.326-20.865 10.384-13.309l-2.464 2.352h9.106v-8.947l-2.232 2.229c-14.794-13.203-31.51 7.051-14.794 17.675z" fill="white"/></svg>
+							<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24"><path d="M6.974 22.957c-10.957-11.421 2.326-20.865 10.384-13.309l-2.464 2.352h9.106v-8.947l-2.232 2.229c-14.794-13.203-31.51 7.051-14.794 17.675z" fill="var(--color-light)"/></svg>
 						</button>`}
 				</div>
 			</div>

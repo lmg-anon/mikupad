@@ -24,7 +24,7 @@ You can also [try it on GitHub Pages](https://lmg-anon.github.io/mikupad/mikupad
 
 ## Contributing
 
-We welcome contributions from the open-source community. Whether it's fixing a bug, adding a feature, or improving the documentation, your contributions are greatly appreciated. To contribute to **mikupad**, follow these steps:
+Contributions from the open-source community are welcome. Whether it's fixing a bug, adding a feature, or improving the documentation, your contributions are greatly appreciated. To contribute to **mikupad**, follow these steps:
 
 1. Fork the repository.
 2. Create a new branch for your changes: `git checkout -b feature/your-feature-name`
