@@ -65,6 +65,30 @@ html.dark-mode {
 	--color-light: var(--color-base-0);
 }
 
+html.hacker-mode {
+    /* Base colors for the hacker theme */
+	--color-base-0: oklch(1.0 0.0 30);
+	--color-base-10: color-mix(in oklch, var(--color-base-100) 10%, var(--color-base-0));
+	--color-base-20: color-mix(in oklch, var(--color-base-100) 80%, var(--color-base-0));
+	--color-base-30: color-mix(in oklch, var(--color-base-100) 70%, var(--color-base-0));
+	--color-base-40: color-mix(in oklch, var(--color-base-100) 60%, var(--color-base-0));
+	--color-base-50: color-mix(in oklch, var(--color-base-100) 50%, var(--color-base-0));
+	--color-base-60: color-mix(in oklch, var(--color-base-100) 40%, var(--color-base-0));
+	--color-base-70: color-mix(in oklch, var(--color-base-100) 30%, var(--color-base-0));
+	--color-base-80: color-mix(in oklch, var(--color-base-100) 20%, var(--color-base-0));
+	--color-base-90: color-mix(in oklch, var(--color-base-100) 10%, var(--color-base-0));
+	--color-base-100: oklch(0 0 30);
+	--color-dark: var(--color-base-100);
+	--color-light: var(--color-base-0);
+
+    font-family: 'Consolas', 'Monaco', monospace; /* Specific font for the hacker theme */
+	
+}
+
+html.hacker-mode #prompt-overlay .machine {
+    color: #00FF00 !important; /* Bright green color for the text */
+}
+
 body {
 	margin: 0;
 	display: flex;
@@ -755,6 +779,7 @@ export function App() {
 	const [showProbs, setShowProbs] = useState(true);
 	const [cancel, setCancel] = useState(null);
 	const [darkMode, setDarkMode] = usePersistentState('darkMode', false);
+	const [hackerMode, setHackerMode] = usePersistentState('hackerMode', false);
 	const [endpoint, setEndpoint] = usePersistentState('endpoint', 'http://localhost:8080');
 	const [endpointAPI, setEndpointAPI] = usePersistentState('endpointAPI', 0);
 	const [promptChunks, setPromptChunks] = usePersistentState('prompt', [{ type: 'user', content: defaultPrompt }]);
@@ -780,8 +805,16 @@ export function App() {
 
 	const promptText = useMemo(() => joinPrompt(promptChunks), [promptChunks]);
 
-	// Update dark mode on the first render.
-	useMemo(() => !darkMode || switchDarkMode(darkMode, true), []);
+	// Update modes on the first render.
+	useMemo(() => {
+		if (darkMode) {
+			switchDarkMode(darkMode, true);
+		}
+
+		if (hackerMode) {
+			switchHackerMode(hackerMode, true);
+		}
+	}, []);
 
 	async function predict(prompt = promptText, chunkCount = promptChunks.length) {
 		if (cancel) {
@@ -1136,6 +1169,25 @@ export function App() {
 		if (!force)
 			setDarkMode(value);
 	}
+	
+	function switchHackerMode(value, force) {
+		if (value) {
+			// Add 'hacker-mode' class to the <html> element, enabling HackerMode
+			document.documentElement.classList.add('hacker-mode');
+
+			// Assuming you don't want DarkMode and HackerMode to be enabled simultaneously
+			document.documentElement.classList.remove('dark-mode');
+		} else {
+			// Remove 'hacker-mode' class, turning HackerMode off
+			document.documentElement.classList.remove('hacker-mode');
+		}
+
+		// If 'force' parameter is not true, save the user's preference
+		// Assuming setHackerMode is similar to setDarkMode, but for the 'HackerMode'
+		if (!force) {
+			setHackerMode(value); // This function needs to be defined or adapted from your existing code
+		}
+	}
 
 	const probs = useMemo(() =>
 		showProbs && promptChunks[currentPromptChunk?.index]?.completion_probabilities?.[0]?.probs,
@@ -1178,6 +1230,14 @@ export function App() {
 		<div id="sidebar">
 			<${Checkbox} label="Dark Mode"
 				value=${darkMode} onValueChange=${() => switchDarkMode(!darkMode, false)}/>
+			<${Checkbox} label="Hacker Mode"
+				value=${hackerMode} onValueChange=${() => {
+					// When hacker mode is toggled, we want to turn off dark mode if it's on
+					if (hackerMode) {
+						switchDarkMode(false, false);
+					}
+					switchHackerMode(!hackerMode, false);
+				}}/>
 			<div className="sidebar-hbox">
 				<button onClick=${importPersistence}>Import</button>
 				<button onClick=${exportPersistence}>Export</button>
