@@ -120,6 +120,9 @@ body {
 	outline: 1px solid var(--color-base-50);
 	outline-offset: 1px;
 }
+#prompt-container #prompt-overlay > [data-content]:before {
+	content: attr(data-content);
+}
 
 #probs {
 	position: absolute;
@@ -1157,8 +1160,8 @@ export function App() {
 						<span
 							key=${i}
 							data-promptchunk=${i}
-							className=${`${chunk.type === 'user' ? 'user' : 'machine'} ${isCurrent ? 'current' : ''} ${isNextUndo ? 'erase' : ''}`}>
-							${(chunk.content === '\n' ? ' \n' : chunk.content) + (i === promptChunks.length - 1 && chunk.content.endsWith('\n') ? '\u00a0' : '')}
+							className=${`${chunk.type === 'user' ? 'user' : 'machine'} ${isCurrent ? 'current' : ''} ${isNextUndo ? 'erase' : ''}`}
+							data-content="${(chunk.content === '\n' ? ' \n' : chunk.content) + (i === promptChunks.length - 1 && chunk.content.endsWith('\n') ? '\u00a0' : '')}">
 						</span>`;
 				})}
 			</div>
