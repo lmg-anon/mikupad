@@ -1562,7 +1562,12 @@ export function App() {
 	}
 
 	function switchEndpointAPI(value) {
-		var url = new URL(endpoint);
+		let url;
+		try {
+			url = new URL(endpoint);
+		} catch {
+			return;
+		}
 		switch (value) {
 			case 0: // llama.cpp
 				if (url.protocol != 'http:' && url.protocol != 'https:')
@@ -1586,7 +1591,12 @@ export function App() {
 
 	function isMixedContent() {
 		const isHttps = window.location.protocol == 'https:';
-		const url = new URL(endpoint);
+		let url;
+		try {
+			url = new URL(endpoint);
+		} catch {
+			return false;
+		}
 		return isHttps && (url.protocol !== 'https:' && url.protocol !== 'wss:');
 	}
 
