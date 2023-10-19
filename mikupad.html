@@ -331,7 +331,6 @@ button.completing {
 	background-color: var(--color-base-30);
 	border-radius: 2px;
 }
-
 .collapsible-header svg {
 	margin-right: 5px;
 }
@@ -344,7 +343,6 @@ button.completing {
 	flex-direction: column;
 	gap: 4px;
 }
-
 .collapsible-content.expanded {
 	transform: scaleY(1);
 	margin-top: 4px;
@@ -386,7 +384,6 @@ button.completing {
 	display: flex;
 	word-break: break-word;
 }
-
 .Session:hover {
 	background-color: var(--color-base-60);
 }
@@ -407,6 +404,7 @@ button.completing {
 .Session > button:hover {
 	opacity: 1;
 }
+
 .Session > input {
 	padding: 0;
 	appearance: none;
@@ -987,7 +985,12 @@ class SessionStorage {
 			const newId = this.createSession('MikuPad #1');
 			for (const propertyName of Object.keys(localStorage)) {
 				if (propertyName === 'darkMode' || propertyName === 'nextSessionId' || propertyName.startsWith(`${newId}/`)) continue;
-				const value = JSON.parse(localStorage.getItem(propertyName));
+				try {
+					const value = JSON.parse(localStorage.getItem(propertyName));
+				} catch {
+					// This might have been added by a extension rather than us.
+					continue;
+				}
 				localStorage.removeItem(propertyName);
 				if (value !== null) {
 					this.sessions[newId][propertyName] = value;
