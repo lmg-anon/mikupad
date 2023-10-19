@@ -177,16 +177,17 @@ body {
 	overflow: auto;
 }
 
-.sidebar-hbox {
+.hbox {
 	flex: none;
 	display: grid;
 	grid: auto / auto-flow minmax(min-content, 1fr);
 	gap: 8px;
 }
-.sidebar-vbox {
+.vbox {
 	flex: none;
 	display: grid;
 	grid: auto / minmax(min-content, 1fr) auto-flow;
+	grid-template-rows: 0fr 0fr 0fr 0fr;
 	gap: 4px;
 }
 
@@ -235,18 +236,18 @@ body {
 }
 .tooltip .tooltiptext {
 	pointer-events: none;
-  	width: 95%;
-    background-color: #000000AA;
+	width: 95%;
+	background-color: #000000AA;
 	color: var(--color-light);
 	text-align: center;
-    padding: 5px 4px;
+	padding: 5px 4px;
 	margin: 0 -8px;
-    border-radius: 6px;
-    opacity: 0;
-    transition: opacity 0.3s;
+	border-radius: 6px;
+	opacity: 0;
+	transition: opacity 0.3s;
 
-    position: absolute;
-    z-index: 1;
+	position: absolute;
+	z-index: 1;
 	transform: translate(0, -75%);
 }
 .tooltip:hover .tooltiptext {
@@ -313,6 +314,113 @@ button.completing {
 }
 .buttons .shorts > button {
 	height: 100%;
+}
+
+.collapsible-group {
+	border: none;
+	outline: none;
+}
+
+.collapsible-header {
+	user-select: none;
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	padding: 4px 8px;
+	color: inherit;
+	background-color: var(--color-base-30);
+	border-radius: 2px;
+}
+
+.collapsible-header svg {
+	margin-right: 5px;
+}
+
+.collapsible-content {
+	transform: scaleY(0);
+	transition: transform 0.15s ease-in-out 0s, max-height 0.15s ease-in-out 0s;
+	transform-origin: center top;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.collapsible-content.expanded {
+	transform: scaleY(1);
+	margin-top: 4px;
+}
+
+.Sessions {
+	display: flex;
+	flex: auto;
+	flex-direction: row;
+	gap: 4px;
+}
+.Sessions > ul {
+	list-style-type: none;
+	margin: 0;
+	padding: 0;
+	max-height: 200px;
+	overflow-y: auto;
+	width: 100%;
+	background: var(--color-base-40);
+}
+.Sessions.disabled > ul {
+	background: var(--color-base-50);
+	pointer-events: auto;
+}
+
+.Sessions > ul > li {
+	display: flex;
+	align-items: center;
+}
+.Sessions.disabled > ul > li {
+	pointer-events: none;
+}
+
+.Session {
+	width: 100%;
+	padding: 0.5rem;
+	padding-left: 0.8rem;
+	cursor: pointer;
+	display: flex;
+	word-break: break-word;
+}
+
+.Session:hover {
+	background-color: var(--color-base-60);
+}
+.Session.selected {
+	background-color: var(--color-base-30);
+}
+
+.Session > button {
+	margin-left: 4px;
+	padding: 0;
+	background: none;
+	border: none;
+	cursor: pointer;
+	outline: none;
+	line-height: 0;
+	opacity: 0.5;
+}
+.Session > button:hover {
+	opacity: 1;
+}
+.Session > input {
+	padding: 0;
+	appearance: none;
+	border: none;
+	outline: 1px solid var(--color-light);
+	background-color: var(--color-base-40);
+	font: inherit;
+	color: inherit;
+	width: 80%;
+	margin-right: 5%;
+}
+
+.flex-separator {
+	margin-left: auto;
 }
 
 </style>
@@ -656,6 +764,342 @@ function Checkbox({ label, value, onValueChange, ...props }) {
 		</label>`;
 }
 
+function CollapsibleGroup({ label, expanded, children }) {
+	const contentArea = useRef(null);
+	const [contentHeight, setContentHeight] = useState(!expanded ? 0 : '');
+	const [isCollapsed, setIsCollapsed] = useState(!expanded);
+
+	useEffect(() => {
+		setContentHeight(contentArea.current.scrollHeight);
+		var observer = new MutationObserver(() => {
+			setContentHeight(contentArea.current.scrollHeight);
+		});
+		observer.observe(contentArea.current, { subtree: true, childList: true });
+		return () => observer.disconnect();
+	}, []);
+
+	const expandSvg = html`<svg fill="var(--color-light)" height="12" width="12" viewBox="0 0 330 330"><path d="M325.607,79.393c-5.857-5.857-15.355-5.858-21.213,0.001l-139.39,139.393L25.607,79.393 c-5.857-5.857-15.355-5.858-21.213,0.001c-5.858,5.858-5.858,15.355,0,21.213l150.004,150c2.813,2.813,6.628,4.393,10.606,4.393 s7.794-1.581,10.606-4.394l149.996-150C331.465,94.749,331.465,85.251,325.607,79.393z"/></svg>`;
+	const collapseSvg = html`<svg fill="var(--color-light)" height="12" width="12" viewBox="0 0 330 330"><path d="M325.606,229.393l-150.004-150C172.79,76.58,168.974,75,164.996,75c-3.979,0-7.794,1.581-10.607,4.394 l-149.996,150c-5.858,5.858-5.858,15.355,0,21.213c5.857,5.857,15.355,5.858,21.213,0l139.39-139.393l139.397,139.393 C307.322,253.536,311.161,255,315,255c3.839,0,7.678-1.464,10.607-4.394C331.464,244.748,331.464,235.251,325.606,229.393z"/></svg>`;
+
+	return html`
+		<div className="collapsible-group">
+			<div className="collapsible-header" onClick=${() => setIsCollapsed(!isCollapsed)}>
+				${isCollapsed ? expandSvg : collapseSvg}
+				${label}
+			</div>
+			<div
+				ref=${contentArea}
+				className="collapsible-content ${isCollapsed ? 'collapsed' : 'expanded'}"
+				style=${{ 'max-height': isCollapsed ? 0 : contentHeight }}>
+				${children}
+			</div>
+		</div>`;
+}
+
+function Sessions({ sessionStorage, onSessionChange, disabled }) {
+	const [version, setVersion] = useState(0);
+	const [newSessionName, setNewSessionName] = useState('');
+	const [renameSessionName, setRenameSessionName] = useState('');
+	const [isRenaming, setIsRenaming] = useState(false);
+	const [isCreating, setIsCreating] = useState(false);
+
+	useEffect(() => {
+		sessionStorage.onchange = () => setVersion(v => v + 1);
+		sessionStorage.onsessionchange = onSessionChange;
+		return () => {
+			sessionStorage.onchange = null;
+			sessionStorage.onsessionchange = null;
+		};
+	}, []);
+
+	const switchSession = (sessionId) => {
+		if (sessionStorage.selectedSession != sessionId) {
+			sessionStorage.switchSession(+sessionId);
+		}
+	};
+
+	const startRenameSession = (sessionId, name) => {
+		setRenameSessionName(name);
+		setIsRenaming(sessionId);
+	};
+
+	const renameSession = (sessionId) => {
+		if (renameSessionName) {
+			sessionStorage.renameSession(sessionId, renameSessionName);
+			setIsRenaming(false);
+		}
+	};
+
+	const deleteSession = (sessionId) => {
+		sessionStorage.deleteSession(sessionId);
+	};
+
+	const startCreateSession = () => {
+		setNewSessionName(`MikuPad #${sessionStorage.nextId + 1}`);
+		setIsCreating(true);
+	};
+
+	const createSession = () => {
+		if (newSessionName) {
+			const newId = sessionStorage.createSession(newSessionName);
+			sessionStorage.switchSession(newId);
+			setIsCreating(false);
+		}
+	};
+
+	const importSession = () => {
+		const fileInput = document.createElement("input");
+		fileInput.type = 'file';
+		fileInput.style.display = 'none';
+		fileInput.onchange = (e) => {
+			const file = e.target.files[0];
+			if (!file)
+				return;
+			const reader = new FileReader();
+			reader.onload = (e) => {
+				const contents = e.target.result;
+				fileInput.func(contents);
+			}
+			reader.readAsText(file);
+		};
+		fileInput.func = (text) => {
+			const newId = sessionStorage.createSessionFromObject(JSON.parse(text));
+			sessionStorage.switchSession(newId);
+		};
+		document.body.appendChild(fileInput);
+		fileInput.click();
+		document.body.removeChild(fileInput);
+	};
+
+	const exportSession = () => {
+		var element = document.createElement('a');
+		const sessionObj = { ...sessionStorage.sessions[sessionStorage.selectedSession] };
+		for (const [key, value] of Object.entries(sessionObj)) {
+			// This is done for compatibility with localStorage export files.
+			sessionObj[key] = JSON.stringify(value);
+		}
+		element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(JSON.stringify(sessionObj)));
+		element.setAttribute('download', `${sessionStorage.getProperty('name')}.json`);
+		element.style.display = 'none';
+		document.body.appendChild(element);
+		element.click();
+		document.body.removeChild(element);
+	};
+
+	const trashSvg = html`<svg fill="var(--color-light)" width="16" height="16" viewBox="0 0 490.646 490.646"><path d="m399.179 67.285-74.794.033L324.356 0 166.214.066l.029 67.318-74.802.033.025 62.914h307.739l-.026-63.046zM198.28 32.11l94.03-.041.017 35.262-94.03.041-.017-35.262zM91.465 490.646h307.739V146.359H91.465v344.287zm225.996-297.274h16.028v250.259h-16.028V193.372zm-80.14 0h16.028v250.259h-16.028V193.372zm-80.141 0h16.028v250.259H157.18V193.372z"/></svg>`;
+	const renameSvg = html`<svg fill="var(--color-light)" width="16" height="16" viewBox="0 0 512 448"><path style=${{ fillOpacity: 1, stroke: 'none', strokeWidth: 30, strokeLinecap: 'round', strokeMiterlimit: 4, strokeDasharray: 'none', strokeOpacity: 1 }} d="M0 96v256h320v-32H32V128h288V96H0zM416 96v32h64v192h-64v32h96V96h-96z" /><path style=${{ fillOpacity: 1, stroke: 'none', strokeWidth: 30, strokeLinecap: 'round', strokeMiterlimit: 4, strokeDasharray: 'none', strokeOpacity: 1 }} d="M352 636.362h32v384h-32z" transform="matrix(1, 0, 0, 1, 0, -604.3619995117188)" /><path style=${{ fillOpacity: 1, stroke: 'none', strokeWidth: 30, strokeLinecap: 'round', strokeMiterlimit: 4, strokeDasharray: 'none', strokeOpacity: 1 }} transform="matrix(0, 1, -1, 0, 0, -604.3619995117188)" d="M1020.362-448h32v64h-32zM1020.362-352h32v64h-32zM604.362-448h32v64h-32zM604.362-352h32v64h-32zM764.362-288h128v224h-128z" /></svg>`;
+
+	const confirmSvg = html`<svg width="16" height="16" viewBox="0 0 128 128"><circle cx="64" cy="64" r="64" fill="var(--color-dark)"/><path d="M54.3 97.2 24.8 67.7c-.4-.4-.4-1 0-1.4l8.5-8.5c.4-.4 1-.4 1.4 0L55 78.1l38.2-38.2c.4-.4 1-.4 1.4 0l8.5 8.5c.4.4.4 1 0 1.4L55.7 97.2c-.4.4-1 .4-1.4 0z" fill="var(--color-light)"/></svg>`;
+	const cancelSvg = html`<svg width="16" height="16" viewBox="0 0 128 128"><circle cx="64" cy="64" r="64" fill="var(--color-dark)"/><path d="M100.3 90.4 73.9 64l26.3-26.4c.4-.4.4-1 0-1.4l-8.5-8.5c-.4-.4-1-.4-1.4 0L64 54.1 37.7 27.8c-.4-.4-1-.4-1.4 0l-8.5 8.5c-.4.4-.4 1 0 1.4L54 64 27.7 90.3c-.4.4-.4 1 0 1.4l8.5 8.5c.4.4 1.1.4 1.4 0L64 73.9l26.3 26.3c.4.4 1.1.4 1.5.1l8.5-8.5c.4-.4.4-1 0-1.4z" fill="var(--color-light)"/></svg>`;
+
+	return html`
+		<div className="Sessions ${disabled ? 'disabled' : ''}">
+			<ul>
+				${isCreating && html`
+					<li key=-1>
+						<a className="Session">
+							<input
+								type="text"
+								value=${newSessionName}
+								onChange=${(e) => setNewSessionName(e.target.value)}
+								onClick=${(e) => e.stopPropagation()}
+								autoFocus
+							/>
+							<div className="flex-separator"></div>
+							<button onClick=${(e) => (createSession(), e.stopImmediatePropagation?.())}>${confirmSvg}</button>
+							<button onClick=${(e) => (setIsCreating(false), e.stopImmediatePropagation?.())}>${cancelSvg}</button>
+						</a>
+					</li>
+				`}
+				${Object.entries(sessionStorage.sessions).reverse().map(([sessionId, session]) => html`
+					<li key=${sessionId}>
+						<a className="Session ${sessionStorage.selectedSession == sessionId ? 'selected' : ''}"
+							onClick=${() => switchSession(sessionId)}>
+							${isRenaming === sessionId ? html`
+								<input
+									type="text"
+									value=${renameSessionName}
+									onChange=${(e) => setRenameSessionName(e.target.value)}
+									onClick=${(e) => e.stopPropagation()}
+									autoFocus
+								/>
+								<div className="flex-separator"></div>
+								<button onClick=${(e) => (renameSession(sessionId), e.stopImmediatePropagation())}>${confirmSvg}</button>
+								<button onClick=${(e) => (setIsRenaming(false), e.stopImmediatePropagation())}>${cancelSvg}</button>
+							` : html`
+								${session.name}
+								<div className="flex-separator"></div>
+								<button
+									onClick=${(e) => (startRenameSession(sessionId, session.name), e.stopPropagation())}>
+									${renameSvg}
+								</button>
+								<button
+									onClick=${(e) => (deleteSession(sessionId), e.stopPropagation())}>
+									${trashSvg}
+								</button>
+							`}
+						</a>
+					</li>
+				`)}
+			</ul>
+			<div className="vbox">
+				<button disabled=${disabled} onClick=${startCreateSession}>Create</button>
+				<button disabled=${disabled} onClick=${importSession}>Import</button>
+				<button disabled=${disabled} onClick=${exportSession}>Export</button>
+			</div>
+		</div>`;
+}
+
+class SessionStorage {
+	constructor(defaultPresets) {
+		this.nextId = +localStorage.getItem('nextSessionId');
+		this.dependents = {};
+		this.sessions = {};
+		this.selectedSession = +localStorage.getItem('selectedSessionId');
+		this.sessionTemplate = { ...defaultPresets };
+		this.onchange = null;
+		this.onsessionchange = null;
+		this.loadFromStorage();
+	}
+
+	getNewId() {
+		this.nextId += 1;
+		localStorage.setItem('nextSessionId', this.nextId);
+		return this.nextId - 1;
+	}
+
+	addDependent(name, callback) {
+		this.dependents[name] = this.dependents[name] || new Set();
+		this.dependents[name].add(callback);
+	}
+
+	updateDependents(name, newValue) {
+		if (this.dependents[name]) {
+			for (const callback of this.dependents[name]) {
+				callback(newValue);
+			}
+		}
+	}
+
+	loadFromStorage() {
+		const needsMigration = localStorage.getItem('selectedSessionId') == null;
+		if (needsMigration) {
+			const newId = this.createSession('MikuPad #1');
+			for (const propertyName of Object.keys(localStorage)) {
+				if (propertyName === 'darkMode' || propertyName === 'nextSessionId' || propertyName.startsWith(`${newId}/`)) continue;
+				const value = JSON.parse(localStorage.getItem(propertyName));
+				localStorage.removeItem(propertyName);
+				if (value !== null) {
+					this.sessions[newId][propertyName] = value;
+					this.savePropertyToStorage(newId, propertyName);
+				}
+			}
+			this.switchSession(newId);
+		} else {
+			for (const key of Object.keys(localStorage)) {
+				const [sessionId, propertyName] = key.split('/');
+				if (propertyName === undefined) continue;
+				const value = this.loadPropertyFromStorage(sessionId, propertyName);
+				if (value !== null) {
+					this.sessions[sessionId] = this.sessions[sessionId] || {};
+					this.sessions[sessionId][propertyName] = value;
+				}
+			};
+			this.switchSession(this.selectedSession);
+		}
+	}
+
+	saveToStorage() {
+		for (const sessionId of Object.keys(this.sessions)) {
+			for (const propertyName of Object.keys(this.sessions[sessionId])) {
+				this.savePropertyToStorage(sessionId, propertyName);
+			}
+		}
+	}
+
+	loadPropertyFromStorage(sessionId, propertyName) {
+		return JSON.parse(localStorage.getItem(`${sessionId}/${propertyName}`));
+	}
+
+	savePropertyToStorage(sessionId, propertyName) {
+		const value = this.sessions[sessionId][propertyName];
+		localStorage.setItem(`${sessionId}/${propertyName}`, JSON.stringify(value));
+	}
+
+	deletePropertyFromStorage(sessionId, propertyName) {
+		localStorage.removeItem(`${sessionId}/${propertyName}`);
+	}
+
+	getProperty(propertyName) {
+		return this.sessions[this.selectedSession]?.[propertyName];
+	}
+
+	setProperty(propertyName, value) {
+		if (this.sessions[this.selectedSession]) {
+			this.sessions[this.selectedSession][propertyName] = value;
+			this.savePropertyToStorage(this.selectedSession, propertyName);
+		}
+	}
+
+	switchSession(sessionId) {
+		this.selectedSession = sessionId;
+		localStorage.setItem('selectedSessionId', sessionId);
+		this.onchange?.();
+		this.onsessionchange?.();
+		for (const propertyName of Object.keys(this.sessionTemplate)) {
+			this.updateDependents(propertyName, this.getProperty(propertyName) ?? this.sessionTemplate[propertyName]);
+		}
+	}
+
+	renameSession(sessionId, renameSessionName) {
+		this.sessions[sessionId]['name'] = renameSessionName;
+		this.savePropertyToStorage(sessionId, 'name');
+		this.onchange?.();
+	}
+
+	deleteSession(sessionId) {
+		if (Object.keys(this.sessions).length === 1)
+			return;
+		if (!window.confirm("Are you sure you want to delete this session? This action can't be undone."))
+			return;
+		if (sessionId == this.selectedSession) {
+			const sessionIds = Object.keys(this.sessions);
+			const sessionIdx = sessionIds.indexOf(sessionId);
+			const newSessionId = sessionIds[sessionIdx - 1] ?? sessionIds[sessionIdx + 1];
+			this.switchSession(+newSessionId)
+		}
+		for (const propertyName of Object.keys(this.sessions[sessionId])) {
+			this.deletePropertyFromStorage(sessionId, propertyName);
+		}
+		delete this.sessions[sessionId];
+		this.onchange?.();
+	}
+
+	createSession(newSessionName) {
+		const newId = this.getNewId();
+		this.sessions[newId] = { name: newSessionName };
+		this.savePropertyToStorage(newId, 'name');
+		onchange?.();
+		return newId;
+	}
+
+	createSessionFromObject(obj) {
+		const newId = this.getNewId();
+		this.sessions[newId] = {};
+		for (const [propertyName, value] of Object.entries(obj)) {
+			if (propertyName === 'darkMode') continue;
+			this.sessions[newId][propertyName] = JSON.parse(value);
+			this.savePropertyToStorage(newId, propertyName);
+		}
+		if (!this.sessions[newId].hasOwnProperty('name')) {
+			this.sessions[newId]['name'] = `MikuPad #${this.nextId + 1}`;
+			this.savePropertyToStorage(newId, 'name');
+		}
+		onchange?.();
+		return newId;
+	}
+}
+
 const defaultPrompt = `[INST] <<SYS>>
 You are a talented writing assistant. Always respond by incorporating the instructions into expertly written prose that is highly detailed, evocative, vivid and engaging.
 <</SYS>>
@@ -664,6 +1108,28 @@ Write a story about Hatsune Miku and Kagamine Rin. [/INST]  Sure, how about this
 
 Chapter 1
 `;
+
+const defaultPresets = {
+	endpoint: 'http://localhost:8080',
+	endpointAPI: 0,
+	prompt: [{ type: 'user', content: defaultPrompt }],
+	seed: -1,
+	maxPredictTokens: -1,
+	temperature: 0.7,
+	repeatPenalty: 1.1,
+	repeatLastN: 256,
+	penalizeNl: true,
+	presencePenalty: 0,
+	frequencyPenalty: 0,
+	topK: 40,
+	topP: 0.95,
+	typicalP: 1,
+	tfsZ: 1,
+	mirostat: 2,
+	mirostatTau: 5.0,
+	mirostatEta: 0.1,
+	ignoreEos: false,
+};
 
 function joinPrompt(prompt) {
 	return prompt.map(p => p.content).join('');
@@ -682,74 +1148,62 @@ function replaceUnprintableBytes(inputString) {
   return replacedString;
 }
 
-function usePersistentState(name, initialState) {
-	let savedState;
-	try {
-		savedState = useMemo(() => JSON.parse(localStorage.getItem(name)), []);
-	} catch (e) {
-		reportError(e);
-		savedState = null;
-	}
-	const [value, setValue] = useState(savedState == null ? initialState : savedState);
-	return [value, (newValue) => {
-		if (typeof newValue === 'function') {
-			setValue(v => {
-				newValue = newValue(v);
-				localStorage.setItem(name, JSON.stringify(newValue));
-				return newValue;
-			});
-		} else {
-			localStorage.setItem(name, JSON.stringify(newValue));
-			setValue(newValue);
+function useSessionStorage(defaultPresets) {
+	const ref = useRef();
+	if (!ref.current)
+		ref.current = new SessionStorage(defaultPresets);
+	return [ref.current, (name, initialState) => useSessionState(ref.current, name, initialState)];
+}
+
+function useSessionState(sessionStorage, name, initialState) {
+	const savedState = useMemo(() => {
+		try {
+			return sessionStorage.getProperty(name);
+		} catch (e) {
+			reportError(e);
+			return null;
 		}
-	}]
-}
+	}, []);
 
-function resetPersistence() {
-	if (!window.confirm("Are you sure you want to reset all the presets and the prompt? This action can't be undone."))
-		return;
-	localStorage.clear();
-	location.reload();
-}
+	const [value, setValue] = useState(savedState ?? initialState);
+	sessionStorage.addDependent(name, setValue);
 
-function exportPersistence() {
-	var element = document.createElement('a');
-	element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(JSON.stringify(localStorage)));
-	element.setAttribute('download', `mikupad_session.json`);
-	element.style.display = 'none';
-	document.body.appendChild(element);
-	element.click();
-	document.body.removeChild(element);
-}
-
-function importPersistence() {
-	const fileInput = document.createElement("input");
-	fileInput.type = 'file';
-	fileInput.style.display = 'none';
-	fileInput.onchange = (e) => {
-		const file = e.target.files[0];
-		if (!file)
-			return;
-		const reader = new FileReader();
-		reader.onload = (e) => {
-			const contents = e.target.result;
-			fileInput.func(contents);
-		}
-		reader.readAsText(file);
-	};
-	fileInput.func = (text) => {
-		const data = JSON.parse(text);
-		Object.keys(data).forEach((k) => {
-			localStorage.setItem(k, data[k]);
+	const updateState = (newValue) => {
+		setValue((prevValue) => {
+			const updatedValue = typeof newValue === 'function' ? newValue(prevValue) : newValue;
+			sessionStorage.setProperty(name, updatedValue);
+			return updatedValue;
 		});
-		location.reload();
 	};
-	document.body.appendChild(fileInput);
-	fileInput.click();
-	document.body.removeChild(fileInput);
+
+	return [value, updateState];
+}
+
+function usePersistentState(name, initialState) {
+	const savedState = useMemo(() => {
+		try {
+			return JSON.parse(localStorage.getItem(name));
+		} catch (e) {
+			reportError(e);
+			return null;
+		}
+	}, []);
+
+	const [value, setValue] = useState(savedState ?? initialState);
+
+	const updateState = (newValue) => {
+		setValue((prevValue) => {
+			const updatedValue = typeof newValue === 'function' ? newValue(prevValue) : newValue;
+			localStorage.setItem(name, JSON.stringify(updatedValue));
+			return updatedValue;
+		});
+	};
+
+	return [value, updateState];
 }
 
 export function App() {
+	const [sessionStorage, useSessionState] = useSessionStorage(defaultPresets);
 	const promptArea = useRef();
 	const promptOverlay = useRef();
 	const undoStack = useRef([]);
@@ -760,25 +1214,25 @@ export function App() {
 	const [showProbs, setShowProbs] = useState(true);
 	const [cancel, setCancel] = useState(null);
 	const [darkMode, setDarkMode] = usePersistentState('darkMode', false);
-	const [endpoint, setEndpoint] = usePersistentState('endpoint', 'http://localhost:8080');
-	const [endpointAPI, setEndpointAPI] = usePersistentState('endpointAPI', 0);
-	const [promptChunks, setPromptChunks] = usePersistentState('prompt', [{ type: 'user', content: defaultPrompt }]);
-	const [seed, setSeed] = usePersistentState('seed', -1);
-	const [maxPredictTokens, setMaxPredictTokens] = usePersistentState('maxPredictTokens', -1);
-	const [temperature, setTemperature] = usePersistentState('temperature', 0.7); // llama.cpp default 0.8
-	const [repeatPenalty, setRepeatPenalty] = usePersistentState('repeatPenalty', 1.1);
-	const [repeatLastN, setRepeatLastN] = usePersistentState('repeatLastN', 256); // llama.cpp default 64
-	const [penalizeNl, setPenalizeNl] = usePersistentState('penalizeNl', true);
-	const [presencePenalty, setPresencePenalty] = usePersistentState('presencePenalty', 0);
-	const [frequencyPenalty, setFrequencyPenalty] = usePersistentState('frequencyPenalty', 0);
-	const [topK, setTopK] = usePersistentState('topK', 40);
-	const [topP, setTopP] = usePersistentState('topP', 0.95);
-	const [typicalP, setTypicalP] = usePersistentState('typicalP', 1);
-	const [tfsZ, setTfsZ] = usePersistentState('tfsZ', 1);
-	const [mirostat, setMirostat] = usePersistentState('mirostat', 2); // llama.cpp default 0
-	const [mirostatTau, setMirostatTau] = usePersistentState('mirostatTau', 5.0);
-	const [mirostatEta, setMirostatEta] = usePersistentState('mirostatEta', 0.1);
-	const [ignoreEos, setIgnoreEos] = usePersistentState('ignoreEos', false);
+	const [endpoint, setEndpoint] = useSessionState('endpoint', defaultPresets.endpoint);
+	const [endpointAPI, setEndpointAPI] = useSessionState('endpointAPI', defaultPresets.endpointAPI);
+	const [promptChunks, setPromptChunks] = useSessionState('prompt', defaultPresets.prompt);
+	const [seed, setSeed] = useSessionState('seed', defaultPresets.seed);
+	const [maxPredictTokens, setMaxPredictTokens] = useSessionState('maxPredictTokens', defaultPresets.maxPredictTokens);
+	const [temperature, setTemperature] = useSessionState('temperature', defaultPresets.temperature);
+	const [repeatPenalty, setRepeatPenalty] = useSessionState('repeatPenalty', defaultPresets.repeatPenalty);
+	const [repeatLastN, setRepeatLastN] = useSessionState('repeatLastN', defaultPresets.repeatLastN);
+	const [penalizeNl, setPenalizeNl] = useSessionState('penalizeNl', defaultPresets.penalizeNl);
+	const [presencePenalty, setPresencePenalty] = useSessionState('presencePenalty', defaultPresets.presencePenalty);
+	const [frequencyPenalty, setFrequencyPenalty] = useSessionState('frequencyPenalty', defaultPresets.frequencyPenalty);
+	const [topK, setTopK] = useSessionState('topK', defaultPresets.topK);
+	const [topP, setTopP] = useSessionState('topP', defaultPresets.topP);
+	const [typicalP, setTypicalP] = useSessionState('typicalP', defaultPresets.typicalP);
+	const [tfsZ, setTfsZ] = useSessionState('tfsZ', defaultPresets.tfsZ);
+	const [mirostat, setMirostat] = useSessionState('mirostat', defaultPresets.mirostat);
+	const [mirostatTau, setMirostatTau] = useSessionState('mirostatTau', defaultPresets.mirostatTau);
+	const [mirostatEta, setMirostatEta] = useSessionState('mirostatEta', defaultPresets.mirostatEta);
+	const [ignoreEos, setIgnoreEos] = useSessionState('ignoreEos', defaultPresets.ignoreEos);
 	const [tokens, setTokens] = useState(0);
 	const [predictStartTokens, setPredictStartTokens] = useState(0);
 	const [lastError, setLastError] = useState(undefined);
@@ -1142,6 +1596,13 @@ export function App() {
 			setDarkMode(value);
 	}
 
+	function sessionChanged() {
+		// TODO: Store the undo/redo in the session.
+		redoStack.current = [];
+		undoStack.current = [];
+		setUndoHovered(false);
+	}
+
 	const probs = useMemo(() =>
 		showProbs && promptChunks[currentPromptChunk?.index]?.completion_probabilities?.[0]?.probs,
 		[promptChunks, currentPromptChunk, showProbs]);
@@ -1183,84 +1644,86 @@ export function App() {
 		<div id="sidebar">
 			<${Checkbox} label="Dark Mode"
 				value=${darkMode} onValueChange=${() => switchDarkMode(!darkMode, false)}/>
-			<div className="sidebar-hbox">
-				<button onClick=${importPersistence}>Import</button>
-				<button onClick=${exportPersistence}>Export</button>
-				<button onClick=${resetPersistence}>Reset</button>
-			</div>
-			<${InputBox} label="Server"
-				className="${isMixedContent() ? 'mixed-content' : ''}"
-				tooltip="${isMixedContent() ? 'This URL might be blocked due to mixed content. If the prediction fails, download mikupad.html and run it locally.' : ''}"
-				readOnly=${!!cancel}
-				value=${endpoint}
-				onValueChange=${setEndpoint}/>
-			<${SelectBox}
-				label="API"
-				disabled=${!!cancel}
-				value=${endpointAPI}
-				onValueChange=${switchEndpointAPI}
-				options=${[
-					{ name: 'llama.cpp', value: 0 },
-					{ name: 'oobabooga', value: 1 },
-					{ name: 'koboldcpp', value: 2 },
-				]}/>
-			<${InputBox} label="Seed (-1 = random)" type="text" inputmode="numeric"
-				readOnly=${!!cancel} value=${seed} onValueChange=${setSeed}/>
-			<${InputBox} label="Max Predict Tokens${endpointAPI != 0 ? ' (-1 = 1024)' : ' (-1 = infinite)'}" type="text" inputmode="numeric"
-				readOnly=${!!cancel} value=${maxPredictTokens} onValueChange=${setMaxPredictTokens}/>
-			<${InputBox} label="Temperature" type="number" step="0.01"
-				readOnly=${!!cancel} value=${temperature} onValueChange=${setTemperature}/>
-			<div className="sidebar-hbox">
-				<${InputBox} label="Repeat penalty" type="number" step="0.01"
-					readOnly=${!!cancel} value=${repeatPenalty} onValueChange=${setRepeatPenalty}/>
-				<${InputBox} label="Repeat last n" type="number" step="1"
-					readOnly=${!!cancel} value=${repeatLastN} onValueChange=${setRepeatLastN}/>
-			</div>
-			${endpointAPI == 0 && html`
-				<${Checkbox} label="Penalize NL"
-					disabled=${!!cancel} value=${penalizeNl} onValueChange=${setPenalizeNl}/>
-				<div className="sidebar-hbox">
-					<${InputBox} label="Presence penalty" type="number" step="0.01"
-						readOnly=${!!cancel} value=${presencePenalty} onValueChange=${setPresencePenalty}/>
-					<${InputBox} label="Frequency penalty" type="number" step="1"
-						readOnly=${!!cancel} value=${frequencyPenalty} onValueChange=${setFrequencyPenalty}/>
-				</div>`}
-			${temperature <= 0 ? null : html`
-				<${SelectBox}
-					label="Mirostat"
+			<${CollapsibleGroup} label="Sessions">
+				<${Sessions} sessionStorage=${sessionStorage}
 					disabled=${!!cancel}
-					value=${mirostat}
-					onValueChange=${setMirostat}
+					onSessionChange=${sessionChanged}/>
+			</${CollapsibleGroup}>
+			<${CollapsibleGroup} label="Presets" expanded>
+				<${InputBox} label="Server"
+					className="${isMixedContent() ? 'mixed-content' : ''}"
+					tooltip="${isMixedContent() ? 'This URL might be blocked due to mixed content. If the prediction fails, download mikupad.html and run it locally.' : ''}"
+					readOnly=${!!cancel}
+					value=${endpoint}
+					onValueChange=${setEndpoint}/>
+				<${SelectBox}
+					label="API"
+					disabled=${!!cancel}
+					value=${endpointAPI}
+					onValueChange=${switchEndpointAPI}
 					options=${[
-						{ name: 'Off', value: 0 },
-						{ name: 'Mirostat', value: 1 },
-						{ name: 'Mirostat 2.0', value: 2 },
+						{ name: 'llama.cpp', value: 0 },
+						{ name: 'oobabooga', value: 1 },
+						{ name: 'koboldcpp', value: 2 },
 					]}/>
-				${mirostat ? html`
-					<div className="sidebar-hbox">
-						<${InputBox} label="Mirostat τ" type="number" step="0.01"
-							readOnly=${!!cancel} value=${mirostatTau} onValueChange=${setMirostatTau}/>
-						<${InputBox} label="Mirostat η" type="number" step="0.01"
-							readOnly=${!!cancel} value=${mirostatEta} onValueChange=${setMirostatEta}/>
-					</div>
-				` : html`
-					<div className="sidebar-hbox">
-						<${InputBox} label="Top K" type="number" step="1"
-							readOnly=${!!cancel} value=${topK} onValueChange=${setTopK}/>
-						<${InputBox} label="Top P" type="number" step="1"
-							readOnly=${!!cancel} value=${topP} onValueChange=${setTopP}/>
-					</div>
-					<div className="sidebar-hbox">
-						<${InputBox} label="Typical p" type="number" step="0.01"
-							readOnly=${!!cancel} value=${typicalP} onValueChange=${setTypicalP}/>
-						<${InputBox} label="Tail Free Sampling z" type="number" step="0.01"
-							readOnly=${!!cancel} value=${tfsZ} onValueChange=${setTfsZ}/>
-					</div>
+				<${InputBox} label="Seed (-1 = random)" type="text" inputmode="numeric"
+					readOnly=${!!cancel} value=${seed} onValueChange=${setSeed}/>
+				<${InputBox} label="Max Predict Tokens${endpointAPI != 0 ? ' (-1 = 1024)' : ' (-1 = infinite)'}" type="text" inputmode="numeric"
+					readOnly=${!!cancel} value=${maxPredictTokens} onValueChange=${setMaxPredictTokens}/>
+				<${InputBox} label="Temperature" type="number" step="0.01"
+					readOnly=${!!cancel} value=${temperature} onValueChange=${setTemperature}/>
+				<div className="hbox">
+					<${InputBox} label="Repeat penalty" type="number" step="0.01"
+						readOnly=${!!cancel} value=${repeatPenalty} onValueChange=${setRepeatPenalty}/>
+					<${InputBox} label="Repeat last n" type="number" step="1"
+						readOnly=${!!cancel} value=${repeatLastN} onValueChange=${setRepeatLastN}/>
+				</div>
+				${endpointAPI == 0 && html`
+					<${Checkbox} label="Penalize NL"
+						disabled=${!!cancel} value=${penalizeNl} onValueChange=${setPenalizeNl}/>
+					<div className="hbox">
+						<${InputBox} label="Presence penalty" type="number" step="0.01"
+							readOnly=${!!cancel} value=${presencePenalty} onValueChange=${setPresencePenalty}/>
+						<${InputBox} label="Frequency penalty" type="number" step="1"
+							readOnly=${!!cancel} value=${frequencyPenalty} onValueChange=${setFrequencyPenalty}/>
+					</div>`}
+				${temperature <= 0 ? null : html`
+					<${SelectBox}
+						label="Mirostat"
+						disabled=${!!cancel}
+						value=${mirostat}
+						onValueChange=${setMirostat}
+						options=${[
+							{ name: 'Off', value: 0 },
+							{ name: 'Mirostat', value: 1 },
+							{ name: 'Mirostat 2.0', value: 2 },
+						]}/>
+					${mirostat ? html`
+						<div className="hbox">
+							<${InputBox} label="Mirostat τ" type="number" step="0.01"
+								readOnly=${!!cancel} value=${mirostatTau} onValueChange=${setMirostatTau}/>
+							<${InputBox} label="Mirostat η" type="number" step="0.01"
+								readOnly=${!!cancel} value=${mirostatEta} onValueChange=${setMirostatEta}/>
+						</div>
+					` : html`
+						<div className="hbox">
+							<${InputBox} label="Top K" type="number" step="1"
+								readOnly=${!!cancel} value=${topK} onValueChange=${setTopK}/>
+							<${InputBox} label="Top P" type="number" step="1"
+								readOnly=${!!cancel} value=${topP} onValueChange=${setTopP}/>
+						</div>
+						<div className="hbox">
+							<${InputBox} label="Typical p" type="number" step="0.01"
+								readOnly=${!!cancel} value=${typicalP} onValueChange=${setTypicalP}/>
+							<${InputBox} label="Tail Free Sampling z" type="number" step="0.01"
+								readOnly=${!!cancel} value=${tfsZ} onValueChange=${setTfsZ}/>
+						</div>
+					`}
 				`}
-			`}
-			${endpointAPI != 2 && html`
-				<${Checkbox} label="Ignore <eos>"
-					disabled=${!!cancel} value=${ignoreEos} onValueChange=${setIgnoreEos}/>`}
+				${endpointAPI != 2 && html`
+					<${Checkbox} label="Ignore <eos>"
+						disabled=${!!cancel} value=${ignoreEos} onValueChange=${setIgnoreEos}/>`}
+			</${CollapsibleGroup}>
 			${!!tokens && html`
 				<${InputBox} label="Tokens" value=${tokens} readOnly/>`}
 			<div className="buttons">
