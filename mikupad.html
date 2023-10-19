@@ -985,10 +985,11 @@ class SessionStorage {
 			const newId = this.createSession('MikuPad #1');
 			for (const propertyName of Object.keys(localStorage)) {
 				if (propertyName === 'darkMode' || propertyName === 'nextSessionId' || propertyName.startsWith(`${newId}/`)) continue;
+				let value = localStorage.getItem(propertyName);
 				try {
-					const value = JSON.parse(localStorage.getItem(propertyName));
+					value = JSON.parse(value);
 				} catch {
-					// This might have been added by a extension rather than us.
+					// This might have been added to the localStorage by a extension rather than us. Let's just skip it.
 					continue;
 				}
 				localStorage.removeItem(propertyName);
