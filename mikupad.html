@@ -122,9 +122,6 @@ body {
 	outline: 1px solid var(--color-base-50);
 	outline-offset: 1px;
 }
-#prompt-container #prompt-overlay > [data-content]:before {
-	content: attr(data-content);
-}
 
 #probs {
 	position: absolute;
@@ -969,6 +966,8 @@ class SessionStorage {
 	constructor(defaultPresets) {
 		this.nextId = +localStorage.getItem('nextSessionId');
 		this.dependents = {};
+		this.saveQueue = [];
+		this.saveTimer = setInterval(() => this.saveTimerHandler(), 1000);
 		this.sessions = {};
 		this.selectedSession = +localStorage.getItem('selectedSessionId');
 		this.sessionTemplate = { ...defaultPresets };
@@ -993,6 +992,13 @@ class SessionStorage {
 			for (const callback of this.dependents[name]) {
 				callback(newValue);
 			}
+		}
+	}
+
+	saveTimerHandler() {
+		while (this.saveQueue.length) {
+			const [sessionId, propertyName] = this.saveQueue.pop().split('/');
+			this.savePropertyToStorage(+sessionId, propertyName);
 		}
 	}
 
@@ -1058,7 +1064,8 @@ class SessionStorage {
 	setProperty(propertyName, value) {
 		if (this.sessions[this.selectedSession]) {
 			this.sessions[this.selectedSession][propertyName] = value;
-			this.savePropertyToStorage(this.selectedSession, propertyName);
+			if (this.saveQueue.indexOf(`${this.selectedSession}/${propertyName}`) === -1)
+				this.saveQueue.push(`${this.selectedSession}/${propertyName}`);
 		}
 	}
 
@@ -1654,8 +1661,8 @@ export function App() {
 						<span
 							key=${i}
 							data-promptchunk=${i}
-							className=${`${chunk.type === 'user' ? 'user' : 'machine'} ${isCurrent ? 'current' : ''} ${isNextUndo ? 'erase' : ''}`}
-							data-content="${(chunk.content === '\n' ? ' \n' : chunk.content) + (i === promptChunks.length - 1 && chunk.content.endsWith('\n') ? '\u00a0' : '')}">
+							className=${`${chunk.type === 'user' ? 'user' : 'machine'} ${isCurrent ? 'current' : ''} ${isNextUndo ? 'erase' : ''}`}>
+							${(chunk.content === '\n' ? ' \n' : chunk.content) + (i === promptChunks.length - 1 && chunk.content.endsWith('\n') ? '\u00a0' : '')}
 						</span>`;
 				})}
 			</div>
