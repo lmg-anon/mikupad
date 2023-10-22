@@ -1758,9 +1758,8 @@ export function App() {
 						</div>
 					`}
 				`}
-				${html`
-					<${Checkbox} label="Ignore <eos>"
-						disabled=${!!cancel} value=${ignoreEos} onValueChange=${setIgnoreEos}/>`}
+				<${Checkbox} label="Ignore <eos>"
+					disabled=${!!cancel} value=${ignoreEos} onValueChange=${setIgnoreEos}/>
 			</${CollapsibleGroup}>
 			${!!tokens && html`
 				<${InputBox} label="Tokens" value=${tokens} readOnly/>`}
