@@ -1758,7 +1758,7 @@ export function App() {
 						</div>
 					`}
 				`}
-				${endpointAPI != 2 && html`
+				${html`
 					<${Checkbox} label="Ignore <eos>"
 						disabled=${!!cancel} value=${ignoreEos} onValueChange=${setIgnoreEos}/>`}
 			</${CollapsibleGroup}>
