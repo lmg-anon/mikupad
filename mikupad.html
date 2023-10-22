@@ -1333,7 +1333,7 @@ export function App() {
 					typical_p: typicalP,
 					tfs_z: tfsZ,
 				}),
-				ignore_eos: ignoreEos,
+    				...(endpointAPI == 2 ? { use_default_badwordsids: ignoreEos } : { ignore_eos: ignoreEos }),
 				n_predict: maxPredictTokens,
 				n_probs: 10,
 				signal: ac.signal,
@@ -1758,9 +1758,8 @@ export function App() {
 						</div>
 					`}
 				`}
-				${endpointAPI != 2 && html`
-					<${Checkbox} label="Ignore <eos>"
-						disabled=${!!cancel} value=${ignoreEos} onValueChange=${setIgnoreEos}/>`}
+				<${Checkbox} label="Ignore <eos>"
+					disabled=${!!cancel} value=${ignoreEos} onValueChange=${setIgnoreEos}/>
 			</${CollapsibleGroup}>
 			${!!tokens && html`
 				<${InputBox} label="Tokens" value=${tokens} readOnly/>`}
