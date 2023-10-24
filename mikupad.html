@@ -85,7 +85,7 @@ body {
 	flex-direction: column;
 }
 
-#prompt-area, #prompt-overlay {
+#prompt-area, #prompt-overlay, #memory-area {
 	flex: 1;
 	border: none;
 	outline: none;
@@ -94,6 +94,20 @@ body {
 	color: var(--color-base-10);
 	padding: 2em 3em;
 	margin: 0;
+	scrollbar-gutter: stable;
+	font: inherit;
+}
+
+#memory-area {
+	flex: 1;
+	border: none;
+	outline: none;
+	resize: none;
+	background: var(--color-base-100);
+	color: var(--color-base-10);
+	padding: 1em 0.5em;
+	margin: 0;
+	min-height:300px;
 	scrollbar-gutter: stable;
 	font: inherit;
 }
@@ -677,6 +691,7 @@ function koboldCppConvertOptions(options) {
 	swapOption("typical_p", "typical");
 	swapOption("seed", "sampler_seed");
 	swapOption("stop", "stop_sequence");
+	swapOption("ignore_eos", "use_default_badwordsids");
 	return options;
 }
 
@@ -1157,6 +1172,8 @@ const defaultPresets = {
 	mirostatTau: 5.0,
 	mirostatEta: 0.1,
 	ignoreEos: false,
+	contextLength: 4096,
+	memoryTokens: '',
 };
 
 function joinPrompt(prompt) {
@@ -1264,8 +1281,12 @@ export function App() {
 	const [tokens, setTokens] = useState(0);
 	const [predictStartTokens, setPredictStartTokens] = useState(0);
 	const [lastError, setLastError] = useState(undefined);
+	const [contextLength, setContextLength] = useSessionState('contextLength', defaultPresets.contextLength);
+	const [memoryTokens, setMemoryTokens] = useSessionState('memoryTokens', defaultPresets.memoryTokens);
+	const memoryArea = useRef();
 
 	const promptText = useMemo(() => joinPrompt(promptChunks), [promptChunks]);
+	const modifiedPrompt = useMemo(() => memoryTokens.concat(promptText.substring(Math.round(promptText.length-(contextLength*3.3) + (memoryTokens.length/3.3))+1)), [contextLength, promptText, memoryTokens]);
 
 	// Update dark mode on the first render.
 	useMemo(() => !darkMode || switchDarkMode(darkMode, true), []);
@@ -1311,11 +1332,10 @@ export function App() {
 			undoStack.current.push(chunkCount);
 			redoStack.current = [];
 			setUndoHovered(false);
-
 			for await (const chunk of completion({
 				endpoint,
 				endpointAPI,
-				prompt,
+				prompt: modifiedPrompt,
 				seed,
 				temperature,
 				repeat_penalty: repeatPenalty,
@@ -1333,7 +1353,7 @@ export function App() {
 					typical_p: typicalP,
 					tfs_z: tfsZ,
 				}),
-    				...(endpointAPI == 2 ? { use_default_badwordsids: ignoreEos } : { ignore_eos: ignoreEos }),
+    				ignore_eos: ignoreEos,
 				n_predict: maxPredictTokens,
 				n_probs: 10,
 				signal: ac.signal,
@@ -1473,6 +1493,10 @@ export function App() {
 		window.addEventListener('keydown', onKeyDown);
 		return () => window.removeEventListener('keydown', onKeyDown);
 	}, [predict, cancel]);
+	
+	function onMemoryInput({ target }){
+		setMemoryTokens(target.value)
+	}
 
 	function onInput({ target }) {
 		setPromptChunks(oldPrompt => {
@@ -1706,6 +1730,8 @@ export function App() {
 					]}/>
 				<${InputBox} label="Seed (-1 = random)" type="text" inputmode="numeric"
 					readOnly=${!!cancel} value=${seed} onValueChange=${setSeed}/>
+				<${InputBox} label="Context Length (estimate, characters * 3.3)" type="text" inputmode="numeric"
+					readOnly=${!!cancel} value=${contextLength} onValueChange=${setContextLength}/>
 				<${InputBox} label="Max Predict Tokens${endpointAPI != 0 ? ' (-1 = 1024)' : ' (-1 = infinite)'}" type="text" inputmode="numeric"
 					readOnly=${!!cancel} value=${maxPredictTokens} onValueChange=${setMaxPredictTokens}/>
 				<${InputBox} label="Temperature" type="number" step="0.01"
@@ -1760,6 +1786,16 @@ export function App() {
 				`}
 				<${Checkbox} label="Ignore <eos>"
 					disabled=${!!cancel} value=${ignoreEos} onValueChange=${setIgnoreEos}/>
+			</${CollapsibleGroup}>
+			<${CollapsibleGroup} label="Memory">
+				<textarea
+				ref=${memoryArea}
+				readOnly=${!!cancel}
+				placeholder="Anything written here will be injected at the head of the prompt. Tokens here DO count towards the Context Limit."
+				defaultValue=${memoryTokens}
+				value=${memoryTokens}
+				onInput=${onMemoryInput}				
+				id="memory-area"/>
 			</${CollapsibleGroup}>
 			${!!tokens && html`
 				<${InputBox} label="Tokens" value=${tokens} readOnly/>`}
