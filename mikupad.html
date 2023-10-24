@@ -99,17 +99,8 @@ body {
 }
 
 #memory-area {
-	flex: 1;
-	border: none;
-	outline: none;
-	resize: none;
-	background: var(--color-base-100);
-	color: var(--color-base-10);
 	padding: 1em 0.5em;
-	margin: 0;
 	min-height:300px;
-	scrollbar-gutter: stable;
-	font: inherit;
 }
 
 #prompt-overlay {
@@ -1332,6 +1323,7 @@ export function App() {
 			undoStack.current.push(chunkCount);
 			redoStack.current = [];
 			setUndoHovered(false);
+			
 			for await (const chunk of completion({
 				endpoint,
 				endpointAPI,
