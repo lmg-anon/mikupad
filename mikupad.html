@@ -1274,7 +1274,6 @@ export function App() {
 	const [lastError, setLastError] = useState(undefined);
 	const [contextLength, setContextLength] = useSessionState('contextLength', defaultPresets.contextLength);
 	const [memoryTokens, setMemoryTokens] = useSessionState('memoryTokens', defaultPresets.memoryTokens);
-	const memoryArea = useRef();
 
 	const promptText = useMemo(() => joinPrompt(promptChunks), [promptChunks]);
 	const modifiedPrompt = useMemo(() => 
@@ -1785,7 +1784,6 @@ export function App() {
 			</${CollapsibleGroup}>
 			<${CollapsibleGroup} label="Memory">
 				<textarea
-				ref=${memoryArea}
 				readOnly=${!!cancel}
 				placeholder="Anything written here will be injected at the head of the prompt. Tokens here DO count towards the Context Limit."
 				defaultValue=${memoryTokens}
