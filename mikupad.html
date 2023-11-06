@@ -1152,6 +1152,7 @@ const defaultPresets = {
 	topK: 40,
 	topP: 0.95,
 	typicalP: 1,
+	minP: 0,
 	tfsZ: 1,
 	mirostat: 2,
 	mirostatTau: 5.0,
@@ -1256,6 +1257,7 @@ export function App() {
 	const [topK, setTopK] = useSessionState('topK', defaultPresets.topK);
 	const [topP, setTopP] = useSessionState('topP', defaultPresets.topP);
 	const [typicalP, setTypicalP] = useSessionState('typicalP', defaultPresets.typicalP);
+	const [minP, setMinP] = useSessionState('minP', defaultPresets.minP);
 	const [tfsZ, setTfsZ] = useSessionState('tfsZ', defaultPresets.tfsZ);
 	const [mirostat, setMirostat] = useSessionState('mirostat', defaultPresets.mirostat);
 	const [mirostatTau, setMirostatTau] = useSessionState('mirostatTau', defaultPresets.mirostatTau);
@@ -1331,6 +1333,7 @@ export function App() {
 					top_k: topK,
 					top_p: topP,
 					typical_p: typicalP,
+					min_p: minP,
 					tfs_z: tfsZ,
 				}),
     				...(endpointAPI == 2 ? { use_default_badwordsids: ignoreEos } : { ignore_eos: ignoreEos }),
@@ -1747,7 +1750,7 @@ export function App() {
 						<div className="hbox">
 							<${InputBox} label="Top K" type="number" step="1"
 								readOnly=${!!cancel} value=${topK} onValueChange=${setTopK}/>
-							<${InputBox} label="Top P" type="number" step="1"
+							<${InputBox} label="Top P" type="number" step="0.01"
 								readOnly=${!!cancel} value=${topP} onValueChange=${setTopP}/>
 						</div>
 						<div className="hbox">
@@ -1755,6 +1758,10 @@ export function App() {
 								readOnly=${!!cancel} value=${typicalP} onValueChange=${setTypicalP}/>
 							<${InputBox} label="Tail Free Sampling z" type="number" step="0.01"
 								readOnly=${!!cancel} value=${tfsZ} onValueChange=${setTfsZ}/>
+						</div>
+						<div className="hbox">
+							<${InputBox} label="Min P" type="number" step="0.01"
+								readOnly=${!!cancel} value=${minP} onValueChange=${setMinP}/>
 						</div>
 					`}
 				`}
