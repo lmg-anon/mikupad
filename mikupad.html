@@ -457,9 +457,16 @@ export async function getTokenCount({ endpoint, endpointAPI, signal, ...options 
 	}
 }
 
-export async function* completion({ endpoint, endpointAPI, signal, ...options }) {
-	if (options['seed'] === -1)
-		delete options['seed'];
+export async function getModels({ endpoint, endpointAPI, endpointAPIKey, signal, ...options }) {
+	switch (endpointAPI) {
+		case 3: // openai
+			return await openaiModels({ endpoint, endpointAPIKey, signal, ...options });
+		default:
+			return [];
+	}
+}
+
+export async function* completion({ endpoint, endpointAPI, endpointAPIKey, signal, ...options }) {
 	switch (endpointAPI) {
 		case 0: // llama.cpp
 			return yield* await llamaCppCompletion({ endpoint, signal, ...options });
@@ -468,7 +475,7 @@ export async function* completion({ endpoint, endpointAPI, signal, ...options })
 		case 2: // koboldcpp
 			return yield* await koboldCppCompletion({ endpoint, signal, ...options });
 		case 3: // openai
-			return yield* await openaiCompletion({ endpoint, signal, ...options });
+			return yield* await openaiCompletion({ endpoint, endpointAPIKey, signal, ...options });
 	}
 }
 
@@ -689,6 +696,7 @@ function koboldCppConvertOptions(options) {
 	swapOption("typical_p", "typical");
 	swapOption("seed", "sampler_seed");
 	swapOption("stop", "stop_sequence");
+	swapOption("ignore_eos", "use_default_badwordsids");
 	return options;
 }
 
@@ -718,20 +726,45 @@ async function koboldCppAbortCompletion({ endpoint }) {
 }
 
 async function openaiOobaTokenCount({ endpoint, signal, ...options }) {
-	const res = await fetch(new URL('/v1/internal/token-count', endpoint), {
-		method: 'POST',
-		headers: {
-			'Content-Type': 'application/json',
-		},
-		body: JSON.stringify({
-			prompt: options.content
-		}),
-		signal,
-	});
-	if (!res.ok)
-		throw new Error(`HTTP ${res.status}`);
-	const { results } = await res.json();
-	return results[0].tokens;
+	try {
+		const res = await fetch(new URL('/v1/internal/token-count', endpoint), {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+			},
+			body: JSON.stringify({
+				prompt: options.content
+			}),
+			signal,
+		});
+		if (!res.ok)
+			throw new Error(`HTTP ${res.status}`);
+		const { results } = await res.json();
+		return results[0].tokens;
+	} catch (e) {
+		reportError(e);
+		return 0;
+	}
+}
+
+async function openaiModels({ endpoint, endpointAPIKey, signal, ...options }) {
+	try {
+		const res = await fetch(new URL('/v1/models', endpoint), {
+			method: 'GET',
+			headers: {
+				'Content-Type': 'application/json',
+				'Authorization': `Bearer ${endpointAPIKey}`,
+			},
+			signal,
+		});
+		if (!res.ok)
+			throw new Error(`HTTP ${res.status}`);
+		const { data } = await res.json();
+		return data.map(item => item.id);
+	} catch (e) {
+		reportError(e);
+		return [];
+	}
 }
 
 function openaiConvertOptions(options) {
@@ -741,7 +774,6 @@ function openaiConvertOptions(options) {
 			delete options[lhs];
 		}
 	};
-	delete options.endpointAPIKey;
 	if (options.n_predict === -1) {
 		options.n_predict = 1024;
 	}
@@ -750,12 +782,12 @@ function openaiConvertOptions(options) {
 	return options;
 }
 
-async function* openaiCompletion({ endpoint, signal, ...options }) {
+async function* openaiCompletion({ endpoint, endpointAPIKey, signal, ...options }) {
 	const res = await fetch(new URL('/v1/completions', endpoint), {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
-			'Authorization': `Bearer ${options.endpointAPIKey}`,
+			'Authorization': `Bearer ${endpointAPIKey}`,
 		},
 		body: JSON.stringify({
 			...openaiConvertOptions(options),
@@ -771,17 +803,22 @@ async function* openaiCompletion({ endpoint, signal, ...options }) {
 }
 
 async function openaiOobaAbortCompletion({ endpoint }) {
-	await fetch(new URL('/v1/internal/stop-generation', endpoint), {
-		method: 'POST',
-	});
+	try {
+		await fetch(new URL('/v1/internal/stop-generation', endpoint), {
+			method: 'POST',
+		});
+	} catch (e) {
+		reportError(e);
+	}
 }
 
-function InputBox({ label, tooltip, value, type, onValueChange, ...props }) {
+function InputBox({ label, tooltip, value, type, datalist, onValueChange, ...props }) {
 	return html`
 		<label className="InputBox ${tooltip ? 'tooltip' : ''}">
 			${label}
 			<input
 				type=${type || 'text'}
+				list="${datalist ? label : ''}"
 				value=${value}
 				size="1"
 				onChange=${({ target }) => {
@@ -796,11 +833,17 @@ function InputBox({ label, tooltip, value, type, onValueChange, ...props }) {
 					onValueChange(value);
 				}}
 				...${props}/>
+			${datalist && html`
+				<datalist id="${label}">
+					${datalist.map(opt => html`
+						<option key="${opt}">
+							${opt}
+						</option>`)}
+				</datalist>`}
 			${tooltip && html`
 				<span class="tooltiptext">
 					${tooltip}
-				</span>
-			`}
+				</span>`}
 		</label>`;
 }
 
@@ -1212,6 +1255,7 @@ const defaultPresets = {
 	endpoint: 'http://127.0.0.1:8080',
 	endpointAPI: 0,
 	endpointAPIKey: '',
+	endpointModel: '',
 	prompt: [{ type: 'user', content: defaultPrompt }],
 	seed: -1,
 	maxPredictTokens: -1,
@@ -1230,6 +1274,7 @@ const defaultPresets = {
 	mirostatTau: 5.0,
 	mirostatEta: 0.1,
 	ignoreEos: false,
+	openaiPresets: true,
 };
 
 function joinPrompt(prompt) {
@@ -1318,6 +1363,7 @@ export function App() {
 	const [endpoint, setEndpoint] = useSessionState('endpoint', defaultPresets.endpoint);
 	const [endpointAPI, setEndpointAPI] = useSessionState('endpointAPI', defaultPresets.endpointAPI);
 	const [endpointAPIKey, setEndpointAPIKey] = useSessionState('endpointAPIKey', defaultPresets.endpointAPIKey);
+	const [endpointModel, setEndpointModel] = useSessionState('endpointModel', defaultPresets.endpointModel);
 	const [promptChunks, setPromptChunks] = useSessionState('prompt', defaultPresets.prompt);
 	const [seed, setSeed] = useSessionState('seed', defaultPresets.seed);
 	const [maxPredictTokens, setMaxPredictTokens] = useSessionState('maxPredictTokens', defaultPresets.maxPredictTokens);
@@ -1336,6 +1382,8 @@ export function App() {
 	const [mirostatTau, setMirostatTau] = useSessionState('mirostatTau', defaultPresets.mirostatTau);
 	const [mirostatEta, setMirostatEta] = useSessionState('mirostatEta', defaultPresets.mirostatEta);
 	const [ignoreEos, setIgnoreEos] = useSessionState('ignoreEos', defaultPresets.ignoreEos);
+	const [openaiPresets, setOpenaiPresets] = useSessionState('openaiPresets', defaultPresets.openaiPresets);
+	const [openaiModels, setOpenaiModels] = useState([]);
 	const [tokens, setTokens] = useState(0);
 	const [predictStartTokens, setPredictStartTokens] = useState(0);
 	const [lastError, setLastError] = useState(undefined);
@@ -1390,13 +1438,19 @@ export function App() {
 			for await (const chunk of completion({
 				endpoint,
 				endpointAPI,
-				...(endpointAPI == 3 ? { endpointAPIKey } : {}),
+				...(endpointAPI == 3 ? {
+					endpointAPIKey,
+					model: endpointModel
+				} : {}),
 				prompt,
-				seed,
+				...(seed != -1 ? { seed } : {}),
 				temperature,
-				repeat_penalty: repeatPenalty,
-				repeat_last_n: repeatLastN,
-				penalize_nl: penalizeNl,
+				...(!openaiPresets || endpointAPI != 3 ? {
+					repeat_penalty: repeatPenalty,
+					repeat_last_n: repeatLastN,
+					penalize_nl: penalizeNl,
+    				ignore_eos: ignoreEos,
+				} : {}),
 				presence_penalty: presencePenalty,
 				frequency_penalty: frequencyPenalty,
 				mirostat,
@@ -1404,13 +1458,14 @@ export function App() {
 					mirostat_tau: mirostatTau,
 					mirostat_eta: mirostatEta,
 				} : {
-					top_k: topK,
 					top_p: topP,
-					typical_p: typicalP,
-					min_p: minP,
-					tfs_z: tfsZ,
+					...(!openaiPresets || endpointAPI != 3 ? {
+						top_k: topK,
+						typical_p: typicalP,
+						min_p: minP,
+						tfs_z: tfsZ
+					} : {})
 				}),
-    				...(endpointAPI == 2 ? { use_default_badwordsids: ignoreEos } : { ignore_eos: ignoreEos }),
 				n_predict: maxPredictTokens,
 				n_probs: 10,
 				signal: ac.signal,
@@ -1527,6 +1582,26 @@ export function App() {
 		ac.signal.addEventListener('abort', () => clearTimeout(to));
 		return () => ac.abort();
 	}, [promptText, cancel, endpoint, endpointAPI]);
+
+	useEffect(() => {
+		const ac = new AbortController();
+		const to = setTimeout(async () => {
+			try {
+				const models = await getModels({
+					endpoint,
+					endpointAPI,
+					...(endpointAPI == 3 ? { endpointAPIKey } : {}),
+					signal: ac.signal,
+				});
+				setOpenaiModels(models);
+			} catch (e) {
+				if (e.name !== 'AbortError')
+					reportError(e);
+			}
+		}, 500);
+		ac.signal.addEventListener('abort', () => clearTimeout(to));
+		return () => ac.abort();
+	}, [endpoint, endpointAPI]);
 
 	useEffect(() => {
 		function onKeyDown(e) {
@@ -1790,22 +1865,31 @@ export function App() {
 					<${InputBox} label="API Key"
 						readOnly=${!!cancel}
 						value=${endpointAPIKey}
-						onValueChange=${setEndpointAPIKey}/>`}
+						onValueChange=${setEndpointAPIKey}/>
+					<${InputBox} label="Model"
+						datalist=${openaiModels}
+						readOnly=${!!cancel}
+						value=${endpointModel}
+						onValueChange=${setEndpointModel}/>
+					<${Checkbox} label="Full OpenAI compliance"
+						disabled=${!!cancel} value=${openaiPresets} onValueChange=${setOpenaiPresets}/>`}
 				<${InputBox} label="Seed (-1 = random)" type="text" inputmode="numeric"
 					readOnly=${!!cancel} value=${seed} onValueChange=${setSeed}/>
 				<${InputBox} label="Max Predict Tokens${endpointAPI != 0 ? ' (-1 = 1024)' : ' (-1 = infinite)'}" type="text" inputmode="numeric"
 					readOnly=${!!cancel} value=${maxPredictTokens} onValueChange=${setMaxPredictTokens}/>
 				<${InputBox} label="Temperature" type="number" step="0.01"
 					readOnly=${!!cancel} value=${temperature} onValueChange=${setTemperature}/>
-				<div className="hbox">
-					<${InputBox} label="Repeat penalty" type="number" step="0.01"
-						readOnly=${!!cancel} value=${repeatPenalty} onValueChange=${setRepeatPenalty}/>
-					<${InputBox} label="Repeat last n" type="number" step="1"
-						readOnly=${!!cancel} value=${repeatLastN} onValueChange=${setRepeatLastN}/>
-				</div>
-				${endpointAPI == 0 && html`
-					<${Checkbox} label="Penalize NL"
-						disabled=${!!cancel} value=${penalizeNl} onValueChange=${setPenalizeNl}/>
+				${(!openaiPresets || endpointAPI != 3) && html`
+					<div className="hbox">
+						<${InputBox} label="Repeat penalty" type="number" step="0.01"
+							readOnly=${!!cancel} value=${repeatPenalty} onValueChange=${setRepeatPenalty}/>
+						<${InputBox} label="Repeat last n" type="number" step="1"
+							readOnly=${!!cancel} value=${repeatLastN} onValueChange=${setRepeatLastN}/>
+					</div>`}
+				${(endpointAPI == 0 || !openaiPresets || endpointAPI == 3) && html`
+					${(!openaiPresets || endpointAPI != 3) && html`
+						<${Checkbox} label="Penalize NL"
+							disabled=${!!cancel} value=${penalizeNl} onValueChange=${setPenalizeNl}/>`}
 					<div className="hbox">
 						<${InputBox} label="Presence penalty" type="number" step="0.01"
 							readOnly=${!!cancel} value=${presencePenalty} onValueChange=${setPresencePenalty}/>
@@ -1832,25 +1916,28 @@ export function App() {
 						</div>
 					` : html`
 						<div className="hbox">
-							<${InputBox} label="Top K" type="number" step="1"
-								readOnly=${!!cancel} value=${topK} onValueChange=${setTopK}/>
+							${(!openaiPresets || endpointAPI != 3) && html`
+								<${InputBox} label="Top K" type="number" step="1"
+									readOnly=${!!cancel} value=${topK} onValueChange=${setTopK}/>`}
 							<${InputBox} label="Top P" type="number" step="0.01"
 								readOnly=${!!cancel} value=${topP} onValueChange=${setTopP}/>
 						</div>
-						<div className="hbox">
-							<${InputBox} label="Typical p" type="number" step="0.01"
-								readOnly=${!!cancel} value=${typicalP} onValueChange=${setTypicalP}/>
-							<${InputBox} label="Tail Free Sampling z" type="number" step="0.01"
-								readOnly=${!!cancel} value=${tfsZ} onValueChange=${setTfsZ}/>
-						</div>
-						<div className="hbox">
-							<${InputBox} label="Min P" type="number" step="0.01"
-								readOnly=${!!cancel} value=${minP} onValueChange=${setMinP}/>
-						</div>
+						${(!openaiPresets || endpointAPI != 3) && html`
+							<div className="hbox">
+								<${InputBox} label="Typical p" type="number" step="0.01"
+									readOnly=${!!cancel} value=${typicalP} onValueChange=${setTypicalP}/>
+								<${InputBox} label="Tail Free Sampling z" type="number" step="0.01"
+									readOnly=${!!cancel} value=${tfsZ} onValueChange=${setTfsZ}/>
+							</div>
+							<div className="hbox">
+								<${InputBox} label="Min P" type="number" step="0.01"
+									readOnly=${!!cancel} value=${minP} onValueChange=${setMinP}/>
+							</div>`}
 					`}
 				`}
-				<${Checkbox} label="Ignore <eos>"
-					disabled=${!!cancel} value=${ignoreEos} onValueChange=${setIgnoreEos}/>
+				${(!openaiPresets || endpointAPI != 3) && html`
+					<${Checkbox} label="Ignore <eos>"
+						disabled=${!!cancel} value=${ignoreEos} onValueChange=${setIgnoreEos}/>`}
 			</${CollapsibleGroup}>
 			${!!tokens && html`
 				<${InputBox} label="Tokens" value=${tokens} readOnly/>`}
