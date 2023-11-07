@@ -452,6 +452,8 @@ export async function getTokenCount({ endpoint, endpointAPI, signal, ...options 
 			return await oobaTokenCount({ endpoint, signal, ...options });
 		case 2: // koboldcpp
 			return await koboldCppTokenCount({ endpoint, signal, ...options });
+		case 3: // openai // TODO: Fix this for official OpenAI?
+			return await openaiOobaTokenCount({ endpoint, signal, ...options });
 	}
 }
 
@@ -465,8 +467,8 @@ export async function* completion({ endpoint, endpointAPI, signal, ...options })
 			return yield* await oobaCompletion({ endpoint, signal, ...options });
 		case 2: // koboldcpp
 			return yield* await koboldCppCompletion({ endpoint, signal, ...options });
-		case 3: // openai // TODO: Fix this for official OpenAI?
-			return yield* await oobaTokenCount({ endpoint, signal, ...options });
+		case 3: // openai
+			return yield* await openaiCompletion({ endpoint, signal, ...options });
 	}
 }
 
@@ -476,8 +478,8 @@ export async function abortCompletion({ endpoint, endpointAPI }) {
 			return await oobaAbortCompletion({ endpoint });
 		case 2: // koboldcpp
 			return await koboldCppAbortCompletion({ endpoint });
-		case 3: // openai // TODO: Fix this for official OpenAI?
-			return await oobaAbortCompletion({ endpoint });
+		case 3: // openai (ooba)
+			return await openaiOobaAbortCompletion({ endpoint });
 	}
 }
 
@@ -715,6 +717,23 @@ async function koboldCppAbortCompletion({ endpoint }) {
 	});
 }
 
+async function openaiOobaTokenCount({ endpoint, signal, ...options }) {
+	const res = await fetch(new URL('/v1/internal/token-count', endpoint), {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+		},
+		body: JSON.stringify({
+			prompt: options.content
+		}),
+		signal,
+	});
+	if (!res.ok)
+		throw new Error(`HTTP ${res.status}`);
+	const { results } = await res.json();
+	return results[0].tokens;
+}
+
 function openaiConvertOptions(options) {
 	const swapOption = (lhs, rhs) => {
 		if (lhs in options) {
@@ -749,6 +768,12 @@ async function* openaiCompletion({ endpoint, signal, ...options }) {
 	for await (const chunk of parseEventStream(res.body)) {
 		yield { content: chunk.choices[0].text };
 	}
+}
+
+async function openaiOobaAbortCompletion({ endpoint }) {
+	await fetch(new URL('/v1/internal/stop-generation', endpoint), {
+		method: 'POST',
+	});
 }
 
 function InputBox({ label, tooltip, value, type, onValueChange, ...props }) {
@@ -1659,6 +1684,10 @@ export function App() {
 				if (url.protocol != 'http:' && url.protocol != 'https:')
 					url.protocol = "http:";
 				url.port = 5001;
+				break;
+			case 3:
+				if (url.protocol != 'http:' && url.protocol != 'https:')
+					url.protocol = "http:";
 				break;
 		}
 		setEndpoint(url.toString());
