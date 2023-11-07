@@ -777,8 +777,12 @@ function openaiConvertOptions(options) {
 	if (options.n_predict === -1) {
 		options.n_predict = 1024;
 	}
+	if (options.n_probs > 5) {
+		options.n_probs = 5;
+	}
 	swapOption("n_ctx", "max_context_length");
 	swapOption("n_predict", "max_tokens");
+	swapOption("n_probs", "logprobs");
 	return options;
 }
 
@@ -798,7 +802,15 @@ async function* openaiCompletion({ endpoint, endpointAPIKey, signal, ...options 
 	if (!res.ok)
 		throw new Error(`HTTP ${res.status}`);
 	for await (const chunk of parseEventStream(res.body)) {
-		yield { content: chunk.choices[0].text };
+		const logprobs = Object.entries(chunk.choices[0].logprobs?.top_logprobs?.[0] ?? {});
+		const probs = logprobs.map(([tok, logprob]) => ({ tok_str: tok, prob: Math.exp(logprob) }));
+		yield {
+			content: chunk.choices[0].text,
+			completion_probabilities: [{
+				content: chunk.choices[0].text,
+				probs
+			}]
+		};
 	}
 }
 
@@ -1449,7 +1461,7 @@ export function App() {
 					repeat_penalty: repeatPenalty,
 					repeat_last_n: repeatLastN,
 					penalize_nl: penalizeNl,
-    				ignore_eos: ignoreEos,
+					ignore_eos: ignoreEos,
 				} : {}),
 				presence_penalty: presencePenalty,
 				frequency_penalty: frequencyPenalty,
@@ -1601,7 +1613,7 @@ export function App() {
 		}, 500);
 		ac.signal.addEventListener('abort', () => clearTimeout(to));
 		return () => ac.abort();
-	}, [endpoint, endpointAPI]);
+	}, [endpoint, endpointAPI, endpointAPIKey]);
 
 	useEffect(() => {
 		function onKeyDown(e) {
