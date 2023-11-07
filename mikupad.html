@@ -465,20 +465,19 @@ export async function* completion({ endpoint, endpointAPI, signal, ...options })
 			return yield* await oobaCompletion({ endpoint, signal, ...options });
 		case 2: // koboldcpp
 			return yield* await koboldCppCompletion({ endpoint, signal, ...options });
+		case 3: // openai // TODO: Fix this for official OpenAI?
+			return yield* await oobaTokenCount({ endpoint, signal, ...options });
 	}
 }
 
 export async function abortCompletion({ endpoint, endpointAPI }) {
 	switch (endpointAPI) {
 		case 1: // oobabooga
-			try {
-				return await oobaAbortCompletion({ endpoint });
-			} catch (e) {
-				reportError(e);
-				break; // do nothing.
-			}
+			return await oobaAbortCompletion({ endpoint });
 		case 2: // koboldcpp
 			return await koboldCppAbortCompletion({ endpoint });
+		case 3: // openai // TODO: Fix this for official OpenAI?
+			return await oobaAbortCompletion({ endpoint });
 	}
 }
 
@@ -502,14 +501,6 @@ async function* parseEventStream(eventStream) {
 
 		for (const line of lines) {
 			if (!line) {
-				// We only emit message-type events for now (and assume JSON)
-				if (data && (type || 'message') === 'message') {
-					const json = JSON.parse(data);
-					// Both Chrome and Firefox suck at debugging
-					// text/event-stream, so make it easier by logging events
-					console.log('event', json);
-					yield json;
-				}
 				type = undefined;
 				data = undefined;
 				continue;
@@ -522,6 +513,16 @@ async function* parseEventStream(eventStream) {
 				case 'data':
 					data = data === undefined ? (value ?? '') : `${data}\n${value}`;
 					break;
+			}
+			// We only emit message-type events for now (and assume JSON)
+			if (data && (type || 'message') === 'message') {
+				const json = JSON.parse(data);
+				// Both Chrome and Firefox suck at debugging
+				// text/event-stream, so make it easier by logging events
+				console.log('event', json);
+				yield json;
+				type = undefined;
+				data = undefined;
 			}
 		}
 	}
@@ -560,21 +561,26 @@ async function* llamaCppCompletion({ endpoint, signal, ...options }) {
 }
 
 async function oobaTokenCount({ endpoint, signal, ...options }) {
-	endpoint = `http:${endpoint.split(":")[1]}:5000`; // HACK!
-	const res = await fetch(new URL('/api/v1/token-count', endpoint), {
-		method: 'POST',
-		headers: {
-			'Content-Type': 'application/json',
-		},
-		body: JSON.stringify({
-			prompt: options.content
-		}),
-		signal,
-	});
-	if (!res.ok)
-		throw new Error(`HTTP ${res.status}`);
-	const { results } = await res.json();
-	return results[0].tokens;
+	try {
+		endpoint = `http:${endpoint.split(":")[1]}:5000`; // HACK!
+		const res = await fetch(new URL('/api/v1/token-count', endpoint), {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+			},
+			body: JSON.stringify({
+				prompt: options.content
+			}),
+			signal,
+		});
+		if (!res.ok)
+			throw new Error(`HTTP ${res.status}`);
+		const { results } = await res.json();
+		return results[0].tokens;
+	} catch (e) {
+		reportError(e);
+		return 0;
+	}
 }
 
 function oobaConvertOptions(options) {
@@ -636,10 +642,14 @@ async function* oobaCompletion({ endpoint, signal, ...options }) {
 }
 
 async function oobaAbortCompletion({ endpoint }) {
-	endpoint = `http:${endpoint.split(":")[1]}:5000`; // HACK!
-	await fetch(new URL('/api/v1/stop-stream', endpoint), {
-		method: 'POST',
-	});
+	try {
+		endpoint = `http:${endpoint.split(":")[1]}:5000`; // HACK!
+		await fetch(new URL('/api/v1/stop-stream', endpoint), {
+			method: 'POST',
+		});
+	} catch (e) {
+		reportError(e);
+	}
 }
 
 async function koboldCppTokenCount({ endpoint, signal, ...options }) {
@@ -703,6 +713,42 @@ async function koboldCppAbortCompletion({ endpoint }) {
 	await fetch(new URL('/api/extra/abort', endpoint), {
 		method: 'POST',
 	});
+}
+
+function openaiConvertOptions(options) {
+	const swapOption = (lhs, rhs) => {
+		if (lhs in options) {
+			options[rhs] = options[lhs];
+			delete options[lhs];
+		}
+	};
+	delete options.endpointAPIKey;
+	if (options.n_predict === -1) {
+		options.n_predict = 1024;
+	}
+	swapOption("n_ctx", "max_context_length");
+	swapOption("n_predict", "max_tokens");
+	return options;
+}
+
+async function* openaiCompletion({ endpoint, signal, ...options }) {
+	const res = await fetch(new URL('/v1/completions', endpoint), {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+			'Authorization': `Bearer ${options.endpointAPIKey}`,
+		},
+		body: JSON.stringify({
+			...openaiConvertOptions(options),
+			stream: true,
+		}),
+		signal,
+	});
+	if (!res.ok)
+		throw new Error(`HTTP ${res.status}`);
+	for await (const chunk of parseEventStream(res.body)) {
+		yield { content: chunk.choices[0].text };
+	}
 }
 
 function InputBox({ label, tooltip, value, type, onValueChange, ...props }) {
@@ -1140,6 +1186,7 @@ Chapter 1
 const defaultPresets = {
 	endpoint: 'http://127.0.0.1:8080',
 	endpointAPI: 0,
+	endpointAPIKey: '',
 	prompt: [{ type: 'user', content: defaultPrompt }],
 	seed: -1,
 	maxPredictTokens: -1,
@@ -1245,6 +1292,7 @@ export function App() {
 	const [darkMode, setDarkMode] = usePersistentState('darkMode', false);
 	const [endpoint, setEndpoint] = useSessionState('endpoint', defaultPresets.endpoint);
 	const [endpointAPI, setEndpointAPI] = useSessionState('endpointAPI', defaultPresets.endpointAPI);
+	const [endpointAPIKey, setEndpointAPIKey] = useSessionState('endpointAPIKey', defaultPresets.endpointAPIKey);
 	const [promptChunks, setPromptChunks] = useSessionState('prompt', defaultPresets.prompt);
 	const [seed, setSeed] = useSessionState('seed', defaultPresets.seed);
 	const [maxPredictTokens, setMaxPredictTokens] = useSessionState('maxPredictTokens', defaultPresets.maxPredictTokens);
@@ -1317,6 +1365,7 @@ export function App() {
 			for await (const chunk of completion({
 				endpoint,
 				endpointAPI,
+				...(endpointAPI == 3 ? { endpointAPIKey } : {}),
 				prompt,
 				seed,
 				temperature,
@@ -1706,7 +1755,13 @@ export function App() {
 						{ name: 'llama.cpp', value: 0 },
 						{ name: 'oobabooga', value: 1 },
 						{ name: 'koboldcpp', value: 2 },
+						{ name: 'openai', value: 3 },
 					]}/>
+				${endpointAPI == 3 && html`
+					<${InputBox} label="API Key"
+						readOnly=${!!cancel}
+						value=${endpointAPIKey}
+						onValueChange=${setEndpointAPIKey}/>`}
 				<${InputBox} label="Seed (-1 = random)" type="text" inputmode="numeric"
 					readOnly=${!!cancel} value=${seed} onValueChange=${setSeed}/>
 				<${InputBox} label="Max Predict Tokens${endpointAPI != 0 ? ' (-1 = 1024)' : ' (-1 = infinite)'}" type="text" inputmode="numeric"
