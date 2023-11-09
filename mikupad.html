@@ -1898,8 +1898,8 @@ export function App() {
 						<${InputBox} label="Repeat last n" type="number" step="1"
 							readOnly=${!!cancel} value=${repeatLastN} onValueChange=${setRepeatLastN}/>
 					</div>`}
-				${(endpointAPI == 0 || !openaiPresets || endpointAPI == 3) && html`
-					${(!openaiPresets || endpointAPI != 3) && html`
+				${(endpointAPI == 0 || endpointAPI == 1 || !openaiPresets || endpointAPI == 3) && html`
+					${(endpointAPI != 1 && (!openaiPresets || endpointAPI != 3)) && html`
 						<${Checkbox} label="Penalize NL"
 							disabled=${!!cancel} value=${penalizeNl} onValueChange=${setPenalizeNl}/>`}
 					<div className="hbox">
