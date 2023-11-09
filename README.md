@@ -4,7 +4,7 @@
 
 ## Features
 
-* **Multiple Backends**: Multiple backends are supported, namely **llamacpp**, **oobabooga** and **koboldcpp**. You can seamlessly switch between these backends to get different text generation experiences.
+* **Multiple Backends**: Multiple backends are supported, namely **llamacpp**, **oobabooga**, and **koboldcpp**. You can seamlessly switch between these backends to get different text generation experiences.
   * The OpenAI API is also available, but currently, its primary focus is on providing support for oobabooga since its old WebSocket backend has been deprecated.
 * **Session Persistence**: Your text generation sessions are automatically saved and restored. This means you can work on your text in multiple sittings and continue right where you left off. Import and export your sessions to share your creative work or switch devices effortlessly.
 * **Prediction Undo/Redo**: It's possible to undo and redo predictions, making it easy to experiment and fine-tune your generated text until it's just right.
