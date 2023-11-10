@@ -227,6 +227,9 @@ body {
 .InputBox > input.mixed-content {
 	outline: 1px solid yellow;
 }
+.InputBox > input.rejected {
+	outline: 1px solid #ff3131;
+}
 
 .tooltip {
 	position: relative;
@@ -246,6 +249,9 @@ body {
 	position: absolute;
 	z-index: 1;
 	transform: translate(0, -75%);
+}
+.tooltip .tooltiptext.short {
+	transform: translate(0, -45%);
 }
 .tooltip:hover .tooltiptext {
     opacity: 1;
@@ -748,23 +754,18 @@ async function openaiOobaTokenCount({ endpoint, signal, ...options }) {
 }
 
 async function openaiModels({ endpoint, endpointAPIKey, signal, ...options }) {
-	try {
-		const res = await fetch(new URL('/v1/models', endpoint), {
-			method: 'GET',
-			headers: {
-				'Content-Type': 'application/json',
-				'Authorization': `Bearer ${endpointAPIKey}`,
-			},
-			signal,
-		});
-		if (!res.ok)
-			throw new Error(`HTTP ${res.status}`);
-		const { data } = await res.json();
-		return data.map(item => item.id);
-	} catch (e) {
-		reportError(e);
-		return [];
-	}
+	const res = await fetch(new URL('/v1/models', endpoint), {
+		method: 'GET',
+		headers: {
+			'Content-Type': 'application/json',
+			'Authorization': `Bearer ${endpointAPIKey}`,
+		},
+		signal,
+	});
+	if (!res.ok)
+		throw new Error(`HTTP ${res.status}`);
+	const { data } = await res.json();
+	return data.map(item => item.id);
 }
 
 function openaiConvertOptions(options) {
@@ -824,7 +825,7 @@ async function openaiOobaAbortCompletion({ endpoint }) {
 	}
 }
 
-function InputBox({ label, tooltip, value, type, datalist, onValueChange, ...props }) {
+function InputBox({ label, tooltip, tooltipSize, value, type, datalist, onValueChange, ...props }) {
 	return html`
 		<label className="InputBox ${tooltip ? 'tooltip' : ''}">
 			${label}
@@ -853,7 +854,7 @@ function InputBox({ label, tooltip, value, type, datalist, onValueChange, ...pro
 						</option>`)}
 				</datalist>`}
 			${tooltip && html`
-				<span class="tooltiptext">
+				<span class="tooltiptext ${tooltipSize || ""}">
 					${tooltip}
 				</span>`}
 		</label>`;
@@ -1395,6 +1396,7 @@ export function App() {
 	const [mirostatEta, setMirostatEta] = useSessionState('mirostatEta', defaultPresets.mirostatEta);
 	const [ignoreEos, setIgnoreEos] = useSessionState('ignoreEos', defaultPresets.ignoreEos);
 	const [openaiPresets, setOpenaiPresets] = useSessionState('openaiPresets', defaultPresets.openaiPresets);
+	const [rejectedAPIKey, setRejectedAPIKey] = useState(false);
 	const [openaiModels, setOpenaiModels] = useState([]);
 	const [tokens, setTokens] = useState(0);
 	const [predictStartTokens, setPredictStartTokens] = useState(0);
@@ -1465,8 +1467,8 @@ export function App() {
 				} : {}),
 				presence_penalty: presencePenalty,
 				frequency_penalty: frequencyPenalty,
-				mirostat,
-				...(mirostat ? {
+				...((mirostat && (!openaiPresets || endpointAPI != 3)) ? {
+					mirostat,
 					mirostat_tau: mirostatTau,
 					mirostat_eta: mirostatEta,
 				} : {
@@ -1492,7 +1494,15 @@ export function App() {
 		} catch (e) {
 			if (e.name !== 'AbortError') {
 				reportError(e);
-				setLastError(e.toString());
+				const errStr = e.toString();
+				if (endpointAPI == 3 && errStr.includes("401")) {
+					setLastError("Error: Rejected API Key");
+					setRejectedAPIKey(true);
+				} else if (endpointAPI == 3 && errStr.includes("429")) {
+					setLastError("Error: Insufficient Quota");
+				} else {
+					setLastError(errStr);
+				}
 			}
 			return false;
 		} finally {
@@ -1596,6 +1606,9 @@ export function App() {
 	}, [promptText, cancel, endpoint, endpointAPI]);
 
 	useEffect(() => {
+		if (endpointAPI != 3)
+			return;
+		setRejectedAPIKey(false);
 		const ac = new AbortController();
 		const to = setTimeout(async () => {
 			try {
@@ -1607,8 +1620,13 @@ export function App() {
 				});
 				setOpenaiModels(models);
 			} catch (e) {
-				if (e.name !== 'AbortError')
+				if (e.name !== 'AbortError') {
 					reportError(e);
+					const errStr = e.toString();
+					if (endpointAPI == 3 && errStr.includes("401")) {
+						setRejectedAPIKey(true);
+					}
+				}
 			}
 		}, 500);
 		ac.signal.addEventListener('abort', () => clearTimeout(to));
@@ -1874,7 +1892,10 @@ export function App() {
 						{ name: 'openai', value: 3 },
 					]}/>
 				${endpointAPI == 3 && html`
-					<${InputBox} label="API Key"
+					<${InputBox} label="API Key" type="password"
+						className="${rejectedAPIKey ? 'rejected' : ''}"
+						tooltip="${rejectedAPIKey ? 'This API Key was rejected by the backend.' : ''}"
+						tooltipSize="short"
 						readOnly=${!!cancel}
 						value=${endpointAPIKey}
 						onValueChange=${setEndpointAPIKey}/>
@@ -1909,17 +1930,18 @@ export function App() {
 							readOnly=${!!cancel} value=${frequencyPenalty} onValueChange=${setFrequencyPenalty}/>
 					</div>`}
 				${temperature <= 0 ? null : html`
-					<${SelectBox}
-						label="Mirostat"
-						disabled=${!!cancel}
-						value=${mirostat}
-						onValueChange=${setMirostat}
-						options=${[
-							{ name: 'Off', value: 0 },
-							{ name: 'Mirostat', value: 1 },
-							{ name: 'Mirostat 2.0', value: 2 },
-						]}/>
-					${mirostat ? html`
+					${(!openaiPresets || endpointAPI != 3) && html`
+						<${SelectBox}
+							label="Mirostat"
+							disabled=${!!cancel}
+							value=${mirostat}
+							onValueChange=${setMirostat}
+							options=${[
+								{ name: 'Off', value: 0 },
+								{ name: 'Mirostat', value: 1 },
+								{ name: 'Mirostat 2.0', value: 2 },
+							]}/>`}
+					${(mirostat && (!openaiPresets || endpointAPI != 3)) ? html`
 						<div className="hbox">
 							<${InputBox} label="Mirostat τ" type="number" step="0.01"
 								readOnly=${!!cancel} value=${mirostatTau} onValueChange=${setMirostatTau}/>
