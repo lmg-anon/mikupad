@@ -768,7 +768,7 @@ async function openaiModels({ endpoint, endpointAPIKey, signal, ...options }) {
 	return data.map(item => item.id);
 }
 
-function openaiConvertOptions(options) {
+function openaiConvertOptions(options, isOpenAI) {
 	const swapOption = (lhs, rhs) => {
 		if (lhs in options) {
 			options[rhs] = options[lhs];
@@ -778,7 +778,7 @@ function openaiConvertOptions(options) {
 	if (options.n_predict === -1) {
 		options.n_predict = 1024;
 	}
-	if (options.n_probs > 5) {
+	if (isOpenAI && options.n_probs > 5) {
 		options.n_probs = 5;
 	}
 	swapOption("n_ctx", "max_context_length");
@@ -795,7 +795,7 @@ async function* openaiCompletion({ endpoint, endpointAPIKey, signal, ...options 
 			'Authorization': `Bearer ${endpointAPIKey}`,
 		},
 		body: JSON.stringify({
-			...openaiConvertOptions(options),
+			...openaiConvertOptions(options, endpoint.toLowerCase().includes("openai.com")),
 			stream: true,
 		}),
 		signal,
@@ -854,7 +854,7 @@ function InputBox({ label, tooltip, tooltipSize, value, type, datalist, onValueC
 						</option>`)}
 				</datalist>`}
 			${tooltip && html`
-				<span class="tooltiptext ${tooltipSize || ""}">
+				<span class="tooltiptext ${tooltipSize || ''}">
 					${tooltip}
 				</span>`}
 		</label>`;
@@ -1887,7 +1887,7 @@ export function App() {
 					onValueChange=${switchEndpointAPI}
 					options=${[
 						{ name: 'llama.cpp', value: 0 },
-						{ name: 'oobabooga', value: 1 },
+						{ name: 'legacy oobabooga', value: 1 },
 						{ name: 'koboldcpp', value: 2 },
 						{ name: 'openai', value: 3 },
 					]}/>
