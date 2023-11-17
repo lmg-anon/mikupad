@@ -1,15 +1,15 @@
 # mikupad
 
-**mikupad** is a lightweight and efficient language model front-end powered by ReactJS, all packed into a single HTML file. This project is inspired by the likes of NovelAI and provides a simple yet powerful interface for generating text with the help of various backends, such as **llamacpp**, **oobabooga**, and **koboldcpp**.
+**mikupad** is a lightweight and efficient language model front-end powered by ReactJS, all packed into a single HTML file. This project is inspired by the likes of NovelAI and provides a simple yet powerful interface for generating text with the help of various backends.
 
 ## Features
 
-* **Multiple Backends**: Multiple backends are supported, namely **llamacpp**, **oobabooga**, and **koboldcpp**. You can seamlessly switch between these backends to get different text generation experiences.
-  * The OpenAI API is also available, but currently, its primary focus is on providing support for oobabooga since its old WebSocket backend has been deprecated.
+* **Multiple Backends**: Multiple backends are supported, namely **llamacpp**, **legacy oobabooga**, **koboldcpp**, and any other backend with **openai-compatible** APIs. You can seamlessly switch between these backends to get different text generation experiences.
+  * As of 10/10/2023 (commit [4aabff3](https://github.com/oobabooga/text-generation-webui/commit/4aabff3728e00ee2a4afa5e6ee8079bab0523dbd)), **oobabooga** uses a openai-compatible API, so make sure you use it instead of the legacy API.
 * **Session Persistence**: Your text generation sessions are automatically saved and restored. This means you can work on your text in multiple sittings and continue right where you left off. Import and export your sessions to share your creative work or switch devices effortlessly.
 * **Prediction Undo/Redo**: It's possible to undo and redo predictions, making it easy to experiment and fine-tune your generated text until it's just right.
 * **Token Probability** *(llamacpp/openai backend)*: When you hover over a token in the generated text, a list will show at most 10 tokens with their probabilities. This information can be a valuable aid in refining your text. Moreover, you can click on another token's probability to restart text generation from that point.
-  * If you're using oobabooga's OpenAI API extension, make sure to use an _HF sampler for this feature to function properly.
+  * If you're using oobabooga, make sure to use an _HF sampler for this feature to function properly.
 * **Dark Mode Switch**: Customize your environment to suit your preferences with a convenient dark mode switch.
 
 ## Getting Started
