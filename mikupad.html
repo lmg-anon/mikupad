@@ -567,6 +567,7 @@ async function* llamaCppCompletion({ endpoint, signal, ...options }) {
 		body: JSON.stringify({
 			...options,
 			stream: true,
+			cache_prompt: true,
 		}),
 		signal,
 	});
@@ -1482,6 +1483,7 @@ export function App() {
 				}),
 				n_predict: maxPredictTokens,
 				n_probs: 10,
+				stop: [],
 				signal: ac.signal,
 			})) {
 				ac.signal.throwIfAborted();
