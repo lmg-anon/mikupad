@@ -450,7 +450,7 @@ if (!(Symbol.asyncIterator in ReadableStream.prototype)) {
 	};
 }
 
-export async function getTokenCount({ endpoint, endpointAPI, signal, ...options }) {
+export async function getTokenCount({ endpoint, endpointAPI, endpointAPIKey, signal, ...options }) {
 	switch (endpointAPI) {
 		case 0: // llama.cpp
 			return await llamaCppTokenCount({ endpoint, signal, ...options });
@@ -459,7 +459,14 @@ export async function getTokenCount({ endpoint, endpointAPI, signal, ...options 
 		case 2: // koboldcpp
 			return await koboldCppTokenCount({ endpoint, signal, ...options });
 		case 3: // openai // TODO: Fix this for official OpenAI?
-			return await openaiOobaTokenCount({ endpoint, signal, ...options });
+			let tokenCount = 0;
+			tokenCount = await openaiOobaTokenCount({ endpoint, signal, ...options });
+			if (tokenCount != -1)
+				return tokenCount;
+			tokenCount = await openaiTabbyTokenCount({ endpoint, endpointAPIKey, signal, ...options });
+			if (tokenCount != -1)
+				return tokenCount;
+			return 0;
 	}
 }
 
@@ -750,7 +757,30 @@ async function openaiOobaTokenCount({ endpoint, signal, ...options }) {
 		return results[0].tokens;
 	} catch (e) {
 		reportError(e);
-		return 0;
+		return -1;
+	}
+}
+
+async function openaiTabbyTokenCount({ endpoint, endpointAPIKey, signal, ...options }) {
+	try {
+		const res = await fetch(new URL('/v1/token/encode', endpoint), {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				'Authorization': `Bearer ${endpointAPIKey}`,
+			},
+			body: JSON.stringify({
+				text: options.content
+			}),
+			signal,
+		});
+		if (!res.ok)
+			throw new Error(`HTTP ${res.status}`);
+		const tokens = await res.json();
+		return tokens.length;
+	} catch (e) {
+		reportError(e);
+		return -1;
 	}
 }
 
@@ -1438,6 +1468,7 @@ export function App() {
 			const tokenCount = await getTokenCount({
 				endpoint,
 				endpointAPI,
+				...(endpointAPI == 3 ? { endpointAPIKey } : {}),
 				content: ` ${prompt}`,
 				signal: ac.signal,
 			});
@@ -1594,6 +1625,7 @@ export function App() {
 				const tokenCount = await getTokenCount({
 					endpoint,
 					endpointAPI,
+					...(endpointAPI == 3 ? { endpointAPIKey } : {}),
 					content: ` ${promptText}`,
 					signal: ac.signal,
 				});
