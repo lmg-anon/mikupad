@@ -49,7 +49,7 @@ html {
 	color: var(--color-base-0);
 }
 
-html.dark-mode {
+html.serif-dark {
 	--color-base-0: oklch(0.95 0.04 30);
 	--color-base-10: color-mix(in oklch, var(--color-base-100) 10%, var(--color-base-0));
 	--color-base-20: color-mix(in oklch, var(--color-base-100) 80%, var(--color-base-0));
@@ -64,6 +64,34 @@ html.dark-mode {
 	--color-dark: var(--color-base-100);
 	--color-light: var(--color-base-0);
 
+	color-scheme: dark;
+}
+
+html.monospace-dark {
+    ---color-bg-dark: #282833;
+    --color-bg: #202020;
+	--color-text: #bababa;
+	--color-base-0: oklch(72.65% 0.0752 285.22);
+	--color-base-10: color-mix(in oklch, var(--color-base-100) 90%, var(--color-base-0));
+	--color-base-20: color-mix(in oklch, var(--color-base-100) 80%, var(--color-base-0));
+	--color-base-30: color-mix(in oklch, var(--color-base-100) 70%, var(--color-base-0));
+	--color-base-40: color-mix(in oklch, var(--color-base-100) 60%, var(--color-base-0));
+	--color-base-50: color-mix(in oklch, var(--color-base-100) 50%, var(--color-base-0));
+	--color-base-60: color-mix(in oklch, var(--color-base-100) 40%, var(--color-base-0));
+	--color-base-70: color-mix(in oklch, var(--color-base-100) 30%, var(--color-base-0));
+	--color-base-80: color-mix(in oklch, var(--color-base-100) 20%, var(--color-base-0));
+	--color-base-90: color-mix(in oklch, var(--color-base-100) 10%, var(--color-base-0));
+	--color-base-100: oklch(24.28% 0.015 285.22);
+	--color-dark: var(--color-base-100);
+	--color-light: var(--color-base-0);
+	--token-prob-box: #4a4a4a;
+
+	font-family: monospace;
+	font-size: 15px;
+
+	accent-color: var(--color-base-30);
+	background: var(--color-bg-dark);
+	color: var(--color-base-0);
 	color-scheme: dark;
 }
 
@@ -96,6 +124,10 @@ body {
 	margin: 0;
 	scrollbar-gutter: stable;
 	font: inherit;
+}
+html.monospace-dark #prompt-area, html.monospace-dark #prompt-overlay {
+	background: var(--color-bg);
+	color: var(--color-text);
 }
 
 #prompt-overlay {
@@ -133,17 +165,24 @@ body {
 	border-radius: 5px;
 	box-shadow: 0 1px 1px 1px #00000033;
 	/*transition: top 0.2s, left 0.2s;*/
+	z-index: 9999;
+}
+html.monospace-dark #probs {
+	background: var(--color-base-10);
+	border: 1px solid var(--token-prob-box);
+	border-radius: 4px;
+	box-shadow: none;
 }
 #probs > button {
 	cursor: pointer;
 	background: transparent;
 	color: var(--color-light);
 	border-radius: 0;
-	padding: 2px 3px;
+	padding: 4px 8px;
 	display: flex;
 	flex-direction: column;
 	flex: none;
-	font-size: 0.875rem;
+	font-size: 1rem;
 }
 #probs > button:first-child {
 	border-radius: 5px 0 0 5px;
@@ -160,10 +199,11 @@ body {
 	background: var(--color-base-50);
 }
 #probs > button > .prob {
-	font-size: 0.75rem;
+	font-size: 0.8rem;
 }
 
 #sidebar {
+	font-family: inherit;
 	width: 250px;
 	background: var(--color-base-50);
 	color: var(--color-light);
@@ -173,6 +213,10 @@ body {
 	gap: 4px;
 	overflow: auto;
 	max-height: calc(100vh - 8px);
+}
+html.monospace-dark #sidebar {
+	background: #282833;
+	color: var(--color-base-90);
 }
 
 .hbox {
@@ -210,8 +254,14 @@ body {
 	background: var(--color-base-30);
 	flex: none;
 }
+html.monospace-dark .InputBox > input, html.monospace-dark .SelectBox > select {
+	color: var(--color-base-0);
+}
 .InputBox > input:read-only {
 	background: var(--color-base-60);
+}
+html.monospace-dark .InputBox > input:read-only {
+	background: var(--color-base-30);
 }
 .InputBox > input:focus-visible {
 	outline: 1px solid var(--color-base-0);
@@ -221,6 +271,7 @@ body {
 }
 
 .Checkbox {
+	user-select: none;
 	margin: 0 5px 0 0;
 	vertical-align: middle;
 }
@@ -424,6 +475,13 @@ button.completing {
 
 .flex-separator {
 	margin-left: auto;
+}
+
+.horz-separator {
+	border-top: 3px dotted var(--color-base-60);
+}
+html.monospace-dark .horz-separator {
+	border-top: 3px dotted var(--color-base-20);
 }
 
 </style>
@@ -1404,7 +1462,8 @@ export function App() {
 	const [undoHovered, setUndoHovered] = useState(false);
 	const [showProbs, setShowProbs] = useState(true);
 	const [cancel, setCancel] = useState(null);
-	const [darkMode, setDarkMode] = usePersistentState('darkMode', false);
+	const [darkMode, _] = usePersistentState('darkMode', false); // legacy
+	const [theme, setTheme] = usePersistentState('theme', darkMode ? 1 : 0);
 	const [endpoint, setEndpoint] = useSessionState('endpoint', defaultPresets.endpoint);
 	const [endpointAPI, setEndpointAPI] = useSessionState('endpointAPI', defaultPresets.endpointAPI);
 	const [endpointAPIKey, setEndpointAPIKey] = useSessionState('endpointAPIKey', defaultPresets.endpointAPIKey);
@@ -1436,8 +1495,8 @@ export function App() {
 
 	const promptText = useMemo(() => joinPrompt(promptChunks), [promptChunks]);
 
-	// Update dark mode on the first render.
-	useMemo(() => !darkMode || switchDarkMode(darkMode, true), []);
+	// Update theme on the first render.
+	useMemo(() => !theme || switchTheme(theme, true), []);
 
 	async function predict(prompt = promptText, chunkCount = promptChunks.length) {
 		if (cancel) {
@@ -1845,14 +1904,19 @@ export function App() {
 		return isHttps && (url.protocol !== 'https:' && url.protocol !== 'wss:');
 	}
 
-	function switchDarkMode(value, force) {
-		if (value) {
-			document.documentElement.classList.add('dark-mode');
-		} else {
-			document.documentElement.classList.remove('dark-mode');
+	function switchTheme(value, force) {
+		document.documentElement.classList.remove('serif-dark');
+		document.documentElement.classList.remove('monospace-dark');
+		switch (value) {
+		case 1:
+			document.documentElement.classList.add('serif-dark');
+			break;
+		case 2:
+			document.documentElement.classList.add('monospace-dark');
+			break;
 		}
 		if (!force)
-			setDarkMode(value);
+			setTheme(value);
 	}
 
 	function sessionChanged() {
@@ -1901,8 +1965,16 @@ export function App() {
 					</button>`)}
 			</div>` : null}
 		<div id="sidebar">
-			<${Checkbox} label="Dark Mode"
-				value=${darkMode} onValueChange=${() => switchDarkMode(!darkMode, false)}/>
+			<${SelectBox}
+				label="Theme"
+				value=${theme}
+				onValueChange=${(value) => switchTheme(value, false)}
+				options=${[
+					{ name: 'Serif Light', value: 0 },
+					{ name: 'Serif Dark', value: 1 },
+					{ name: 'Monospace Dark', value: 2 },
+				]}/>
+			<div class="horz-separator"/>
 			<${CollapsibleGroup} label="Sessions">
 				<${Sessions} sessionStorage=${sessionStorage}
 					disabled=${!!cancel}
