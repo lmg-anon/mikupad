@@ -1141,7 +1141,7 @@ function Sessions({ sessionStorage, onSessionChange, disabled }) {
 								type="text"
 								value=${newSessionName}
 								onChange=${(e) => setNewSessionName(e.target.value)}
-								onKeyDown=${(e) => handleKeyDown(sessionId, e.key)}
+								onKeyDown=${(e) => handleKeyDown(undefined, e.key)}
 								onClick=${(e) => e.stopPropagation()}
 								autoFocus
 							/>
