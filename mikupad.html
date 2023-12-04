@@ -71,7 +71,7 @@ html.monospace-dark {
     ---color-bg-dark: #282833;
     --color-bg: #202020;
 	--color-text: #bababa;
-	--color-base-0: oklch(72.65% 0.0752 285.22);
+	--color-base-0: oklch(77.65% 0.0752 285.22);
 	--color-base-10: color-mix(in oklch, var(--color-base-100) 90%, var(--color-base-0));
 	--color-base-20: color-mix(in oklch, var(--color-base-100) 80%, var(--color-base-0));
 	--color-base-30: color-mix(in oklch, var(--color-base-100) 70%, var(--color-base-0));
@@ -216,7 +216,6 @@ html.monospace-dark #probs {
 }
 html.monospace-dark #sidebar {
 	background: #282833;
-	color: var(--color-base-90);
 }
 
 .hbox {
@@ -418,6 +417,9 @@ button.completing {
 	width: 100%;
 	background: var(--color-base-40);
 }
+html.monospace-dark .Sessions > ul {
+	background: var(--color-base-20);
+}
 .Sessions.disabled > ul {
 	background: var(--color-base-50);
 	pointer-events: auto;
@@ -443,8 +445,14 @@ button.completing {
 .Session:hover {
 	background-color: var(--color-base-60);
 }
+html.monospace-dark .Session:hover {
+	background-color: var(--color-base-40);
+}
 .Session.selected {
 	background-color: var(--color-base-30);
+}
+html.monospace-dark .Session.selected {
+	background-color: var(--color-base-10);
 }
 
 .Session > button {
