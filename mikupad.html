@@ -125,9 +125,23 @@ body {
 	scrollbar-gutter: stable;
 	font: inherit;
 }
-html.monospace-dark #prompt-area {
-	background: var(--color-bg);
-	color: var(--color-text);
+#memory-area, #an-area {
+	flex: 1;
+	border: none;
+	outline: none;
+	resize: none;
+	background: var(--color-base-100);
+	color: var(--color-base-10);
+	padding: 0.5em;
+	scrollbar-gutter: stable;
+	font: initial;
+}
+#memory-area {
+	min-height:9.5em;
+}
+#an-area {
+	min-height:3.5em;
+                          
 }
 
 #prompt-overlay {
@@ -232,13 +246,14 @@ html.monospace-dark #sidebar {
 	gap: 4px;
 }
 
-.InputBox, .SelectBox {
+.InputBox, .SelectBox, .TextArea {
 	display: flex;
+  position: relative;
 	flex-direction: column;
 	font-size: 0.75rem;
 	padding: 0 8px;
 }
-.InputBox > input, .SelectBox > select {
+.InputBox > input, .SelectBox > select, .TextArea > textarea {
 	appearance: none;
 	border: none;
 	outline: none;
@@ -328,6 +343,13 @@ button {
 	color: inherit;
 	background: var(--color-base-30);
 	border-radius: 2px;
+}
+button.textAreaSettings {
+  all: unset;
+  width:1.25em;
+  position:absolute;
+  top:calc(1.25em + 1px);
+  right:1px;
 }
 button:hover {
 	background: var(--color-base-40);
@@ -1394,6 +1416,10 @@ const defaultPresets = {
 	mirostatEta: 0.1,
 	ignoreEos: false,
 	openaiPresets: false,
+	contextLength: 4096,
+	memoryTokens: '',
+  anTokens: '',
+  anDepth: 3
 };
 
 function joinPrompt(prompt) {
@@ -1508,13 +1534,54 @@ export function App() {
 	const [tokens, setTokens] = useState(0);
 	const [predictStartTokens, setPredictStartTokens] = useState(0);
 	const [lastError, setLastError] = useState(undefined);
+	const [contextLength, setContextLength] = useSessionState('contextLength', defaultPresets.contextLength);
+	const [memoryTokens, setMemoryTokens] = useSessionState('memoryTokens', defaultPresets.memoryTokens);
+  const [anTokens, setAnTokens] = useSessionState('anTokens', defaultPresets.anTokens);
+  const [anDepth, setAnDepth] = useSessionState('anDepth', defaultPresets.anDepth);
 
 	const promptText = useMemo(() => joinPrompt(promptChunks), [promptChunks]);
 
 	// Update theme on the first render.
 	useMemo(() => !theme || switchTheme(theme, true), []);
 
-	async function predict(prompt = promptText, chunkCount = promptChunks.length) {
+  const modifiedPrompt = useMemo(() => {
+    // define used variables
+    const tokenRatio = 3.3;
+    const additionalContext = (memoryTokens + anTokens).length; // TODO add active WI
+    const estimatedPromptLength = Math.round(
+      promptText.length - contextLength * tokenRatio + additionalContext / tokenRatio) + 1;
+    
+    // truncate prompt
+    const truncPrompt = promptText.substring(estimatedPromptLength);
+    // assemble context in order
+    const permContextPrompt = memoryTokens.concat(promptText.substring(estimatedPromptLength));
+  
+    // Find the index of the newline character three lines up from the end
+    const newlineIndex = permContextPrompt
+      .split('\n')
+      .reverse()
+      .findIndex((line, index) => index < 3 && line.trim() === '');
+
+    // Insert author's note X newlines up from the bottom
+    if (newlineIndex !== -1) {
+      const lines = permContextPrompt.split('\n');
+      lines.splice(lines.length - newlineIndex - anDepth-1, 0, anTokens);
+      return lines.join('\n');
+    }
+
+    // If no newline is found, return the original string
+    return permContextPrompt;
+  }, [contextLength, promptText, memoryTokens, anTokens, anDepth]);
+
+	// Update dark mode on the first render.
+	useMemo(() => !darkMode || switchDarkMode(darkMode, true), []);
+  
+  function viewContext(context = modifiedPrompt) {
+    console.log(context)
+    console.log(anDepth)
+  };
+  
+	async function predict(prompt = modifiedPrompt, chunkCount = promptChunks.length) {
 		if (cancel) {
 			cancel?.();
 
@@ -2095,6 +2162,46 @@ export function App() {
 				${(!openaiPresets || endpointAPI != 3) && html`
 					<${Checkbox} label="Ignore <eos>"
 						disabled=${!!cancel} value=${ignoreEos} onValueChange=${setIgnoreEos}/>`}
+			</${CollapsibleGroup}>
+      <${CollapsibleGroup} label="Persistent Context">
+        <label className="TextArea">
+          Memory
+          <textarea
+          readOnly=${!!cancel}
+          placeholder="Anything written here will be injected at the head of the prompt. Tokens here DO count towards the Context Limit."
+          defaultValue=${memoryTokens}
+          value=${memoryTokens}
+          onInput=${(e) => setMemoryTokens(e.target.value)}			
+          id="memory-area"/>
+          <button
+					className="textAreaSettings"
+					disabled=${!!cancel}
+					onClick=${() => predict()}>
+					<svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="-1 -6 8 7" xmlns="http://www.w3.org/2000/svg"><path d="M0 0 3-3C3-4 3-5 5-5L4-4 5-3 6-4C6-2 5-2 4-2L1 1C0 2-1 1 0 0"></path></svg>
+          </button>
+        </label>
+        <label className="TextArea">
+          Author's Note
+          <textarea
+          readOnly=${!!cancel}
+          placeholder="Author's note"
+          defaultValue=${anTokens}
+          value=${anTokens}
+          onInput=${(e) => setAnTokens(e.target.value)}			
+          id="an-area"/>
+          <button
+					className="textAreaSettings"
+					disabled=${!!cancel}
+					onClick=${() => predict()}>
+					<svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="-1 -6 8 7" xmlns="http://www.w3.org/2000/svg"><path d="M0 0 3-3C3-4 3-5 5-5L4-4 5-3 6-4C6-2 5-2 4-2L1 1C0 2-1 1 0 0"></path></svg>
+          </button>
+        </label>
+        <button
+					id="viewContext"
+					disabled=${!!cancel}
+					onClick=${() => viewContext()}>
+					Current Context
+				</button>
 			</${CollapsibleGroup}>
 			${!!tokens && html`
 				<${InputBox} label="Tokens" value=${tokens} readOnly/>`}
