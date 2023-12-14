@@ -216,6 +216,32 @@ html.monospace-dark #probs {
 	font-size: 0.8rem;
 }
 
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5); /* Dimmed background color */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.modal-container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal {
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+}
+
 #sidebar {
 	font-family: inherit;
 	width: 250px;
@@ -1043,6 +1069,22 @@ function CollapsibleGroup({ label, expanded, children }) {
 		</div>`;
 }
 
+  function Modal({ isOpen, onClose, children, ...props }) {
+    if (!isOpen) {
+      return null;
+    }
+
+    return html`
+    <div className="modal-overlay" onClick=${onClose}>
+      <div className="modal-container">
+        <div className="modal" onClick=${(e) => e.stopPropagation()} ...${props}>
+          ${children}
+        </div>
+      </div>
+    </div>
+    `;
+  }
+
 function Sessions({ sessionStorage, onSessionChange, disabled }) {
 	const [version, setVersion] = useState(0);
 	const [newSessionName, setNewSessionName] = useState('');
@@ -1538,11 +1580,27 @@ export function App() {
 	const [memoryTokens, setMemoryTokens] = useSessionState('memoryTokens', defaultPresets.memoryTokens);
   const [anTokens, setAnTokens] = useSessionState('anTokens', defaultPresets.anTokens);
   const [anDepth, setAnDepth] = useSessionState('anDepth', defaultPresets.anDepth);
-
+  
+  const [modalState, setModalState] = useState({});
+  
+  const toggleModal = (modalKey) => {
+    setModalState((prevState) => ({
+      ...prevState,
+      [modalKey]: !prevState[modalKey],
+    }));
+  };
+  const closeModal = (modalKey) => {
+  setModalState((prevState) => ({
+    ...prevState,
+    [modalKey]: false,
+  }));
+};
+  
 	const promptText = useMemo(() => joinPrompt(promptChunks), [promptChunks]);
 
 	// Update theme on the first render.
 	useMemo(() => !theme || switchTheme(theme, true), []);
+  
 
   const modifiedPrompt = useMemo(() => {
     // define used variables
@@ -1578,8 +1636,8 @@ export function App() {
   
   function viewContext(context = modifiedPrompt) {
     console.log(context)
-    console.log(anDepth)
   };
+  
   
 	async function predict(prompt = modifiedPrompt, chunkCount = promptChunks.length) {
 		if (cancel) {
@@ -2176,7 +2234,8 @@ export function App() {
           <button
 					className="textAreaSettings"
 					disabled=${!!cancel}
-					onClick=${() => predict()}>
+					onClick=${() => toggleModal("memory")}>
+          
 					<svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="-1 -6 8 7" xmlns="http://www.w3.org/2000/svg"><path d="M0 0 3-3C3-4 3-5 5-5L4-4 5-3 6-4C6-2 5-2 4-2L1 1C0 2-1 1 0 0"></path></svg>
           </button>
         </label>
@@ -2192,7 +2251,7 @@ export function App() {
           <button
 					className="textAreaSettings"
 					disabled=${!!cancel}
-					onClick=${() => predict()}>
+					onClick=${() => toggleModal("an")}>
 					<svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="-1 -6 8 7" xmlns="http://www.w3.org/2000/svg"><path d="M0 0 3-3C3-4 3-5 5-5L4-4 5-3 6-4C6-2 5-2 4-2L1 1C0 2-1 1 0 0"></path></svg>
           </button>
         </label>
@@ -2200,7 +2259,7 @@ export function App() {
 					id="viewContext"
 					disabled=${!!cancel}
 					onClick=${() => viewContext()}>
-					Current Context
+					Print Context to Console
 				</button>
 			</${CollapsibleGroup}>
 			${!!tokens && html`
@@ -2232,7 +2291,17 @@ export function App() {
 			</div>
 			${!!lastError && html`
 				<span className="error-text">${lastError}</span>`}
-		</div>`;
+		</div>
+    <${Modal} isOpen=${modalState.memory} onClose=${() => closeModal("memory")}>
+        <p>This is the content of Modal 1!</p>
+        <Button label="Close Modal" onClick=${() => closeModal("memory")} />
+      </${Modal}>
+
+      <${Modal} isOpen=${modalState.an} onClose=${() => closeModal("an")}>
+        <p>This is the content of Modal 2!</p>
+        <Button label="Close Modal" onClick=${() => closeModal("an")} />
+      </${Modal}>
+    `;
 }
 
 createRoot(document.body).render(html`<${App}/>`);
