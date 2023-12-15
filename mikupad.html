@@ -125,7 +125,7 @@ body {
 	scrollbar-gutter: stable;
 	font: inherit;
 }
-#memory-area, #an-area {
+#memory-area, #an-area, .expanded-text-area-settings {
 	flex: 1;
 	border: none;
 	outline: none;
@@ -135,13 +135,19 @@ body {
 	padding: 0.5em;
 	scrollbar-gutter: stable;
 	font: initial;
+  border-radius: 2px;
 }
 #memory-area {
 	min-height:9.5em;
 }
 #an-area {
-	min-height:3.5em;
-                          
+	min-height:3.5em;                  
+}
+.expanded-text-area-settings {
+  margins: auto;
+	width:100%;
+  box-sizing: border-box;
+  height:25.5em;
 }
 
 #prompt-overlay {
@@ -237,10 +243,13 @@ html.monospace-dark #probs {
 
 .modal {
   background: var(--color-base-50);
-  width:50%;
+  width:75%;
   height:fit-content;
   padding: 1em;
   border-radius: 2px;
+}
+.button-modal-bottom {
+  float:right;
 }
 
 #sidebar {
@@ -1080,6 +1089,11 @@ function CollapsibleGroup({ label, expanded, children }) {
       <div className="modal-container">
         <div className="modal" onClick=${(e) => e.stopPropagation()} ...${props}>
           ${children}
+          <button
+          class="button-modal-bottom"
+					onClick=${onClose}>
+            Close
+          </button>
         </div>
       </div>
     </div>
@@ -1615,16 +1629,28 @@ export function App() {
     // assemble context in order
     const permContextPrompt = memoryTokens.concat(promptText.substring(estimatedPromptLength));
   
-    // Find the index of the newline character three lines up from the end
-    const newlineIndex = permContextPrompt
-      .split('\n')
-      .reverse()
-      .findIndex((line, index) => index < 3 && line.trim() === '');
+    // make injection depth valid
+    const truncPromptLen = truncPrompt.split('\n').length;
+    const injDepth = truncPromptLen >= anDepth ? anDepth : truncPromptLen
+    console.log(injDepth)
 
-    // Insert author's note X newlines up from the bottom
-    if (newlineIndex !== -1) {
+    // Insert author's note N newlines up from the bottom and return
+    if (anTokens !== '') {
       const lines = permContextPrompt.split('\n');
-      lines.splice(lines.length - newlineIndex - anDepth-1, 0, anTokens);
+      
+      const injIndex = lines.length-injDepth-1
+      lines.splice(injIndex+1,0,anTokens)
+      //const concatAn = lines.length-1 > injDepth ? lines[injIndex-1] + lines[injIndex] : lines[injIndex+1] + lines[injIndex+2];
+      if (injDepth < 1) {
+        const concatAn = lines[injIndex] + lines[injIndex+1]
+        lines.splice(injIndex,2,concatAn)
+      }
+      else {
+        const concatAn = lines[injIndex+1] + lines[injIndex+2]
+        lines.splice(injIndex+1,2,concatAn)
+      }
+      
+      //console.log(lines[lines.length])
       return lines.join('\n');
     }
 
@@ -2157,6 +2183,8 @@ export function App() {
 						disabled=${!!cancel} value=${openaiPresets} onValueChange=${setOpenaiPresets}/>`}
 				<${InputBox} label="Seed (-1 = random)" type="text" inputmode="numeric"
 					readOnly=${!!cancel} value=${seed} onValueChange=${setSeed}/>
+				<${InputBox} label="Max Context Length (estimate, characters * 3.3)" type="text" inputmode="numeric"
+					readOnly=${!!cancel} value=${contextLength} onValueChange=${setContextLength}/>
 				<${InputBox} label="Max Predict Tokens${endpointAPI != 0 ? ' (-1 = 1024)' : ' (-1 = infinite)'}" type="text" inputmode="numeric"
 					readOnly=${!!cancel} value=${maxPredictTokens} onValueChange=${setMaxPredictTokens}/>
 				<${InputBox} label="Temperature" type="number" step="0.01"
@@ -2244,7 +2272,7 @@ export function App() {
           Author's Note
           <textarea
           readOnly=${!!cancel}
-          placeholder="Author's note"
+          placeholder="Anything written here will be injected ${anDepth} newlines into context."
           defaultValue=${anTokens}
           value=${anTokens}
           onInput=${(e) => setAnTokens(e.target.value)}			
@@ -2259,8 +2287,8 @@ export function App() {
         <button
 					id="viewContext"
 					disabled=${!!cancel}
-					onClick=${() => viewContext()}>
-					Print Context to Console
+					onClick=${() => toggleModal("context")}>
+					Show Context
 				</button>
 			</${CollapsibleGroup}>
 			${!!tokens && html`
@@ -2294,23 +2322,42 @@ export function App() {
 				<span className="error-text">${lastError}</span>`}
 		</div>
     <${Modal} isOpen=${modalState.memory} onClose=${() => closeModal("memory")}>
-        <${InputBox} label="Server"
-					className="${isMixedContent() ? 'mixed-content' : ''}"
-					tooltip="${isMixedContent() ? 'This URL might be blocked due to mixed content. If the prediction fails, download mikupad.html and run it locally.' : ''}"
-					readOnly=${!!cancel}
-					value=${endpoint}
-					onValueChange=${setEndpoint}/>
-      </${Modal}>
+      <h2>Memory</h2>
+      <p>This text will be added at the very top of your context.</p>
+      <textarea
+      readOnly=${!!cancel}
+      placeholder="Anything written here will be injected at the head of the prompt. Tokens here DO count towards the Context Limit."
+      defaultValue=${memoryTokens}
+      value=${memoryTokens}
+      onInput=${(e) => setMemoryTokens(e.target.value)}
+      class="expanded-text-area-settings"
+      id="memory-area-settings"/>
+    </${Modal}>
 
       <${Modal} isOpen=${modalState.an} onClose=${() => closeModal("an")}>
-        <p>This is the content of Modal 2!</p>
-        <Button label="Close Modal" onClick=${() => closeModal("an")} />
+        <h2>Author's Note</h2>
+        <p>This text will be injected N non-empty newlines deep into your recent context.</p>
+        <${InputBox} label="AN Injection Depth (0-N)" type="number" step="1"
+					readOnly=${!!cancel} value=${anDepth} onValueChange=${setAnDepth}/>
+        <textarea
+        readOnly=${!!cancel}
+        placeholder="Anything written here will be injected ${anDepth} newlines into context."
+        defaultValue=${anTokens}
+        value=${anTokens}
+        onInput=${(e) => setAnTokens(e.target.value)}
+        class="expanded-text-area-settings"
+        id="expanded-an-settings"/>
       </${Modal}>
       
       <${Modal} isOpen=${modalState.context} onClose=${() => closeModal("context")}>
-        <p>This is the content of Modal 2!</p>
-        <Button label="Close Modal" onClick=${() => closeModal("context")} />
-      </${Modal}>
+        <h2>Context</h2>
+        <p>This is the prompt being sent to your large language model.</p>
+        <textarea
+        readOnly=${!!cancel}
+        value=${modifiedPrompt}
+        class="expanded-text-area-settings"
+        id="context-area-settings" readOnly/>
+        </${Modal}>
     `;
 }
 
