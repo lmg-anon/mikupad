@@ -68,8 +68,8 @@ html.serif-dark {
 }
 
 html.monospace-dark {
-		---color-bg-dark: #282833;
-		--color-bg: #202020;
+	---color-bg-dark: #282833;
+	--color-bg: #202020;
 	--color-text: #bababa;
 	--color-base-0: oklch(77.65% 0.0752 285.22);
 	--color-base-10: color-mix(in oklch, var(--color-base-100) 90%, var(--color-base-0));
@@ -1593,11 +1593,20 @@ export function App() {
 	const [lastError, setLastError] = useState(undefined);
 	const [contextLength, setContextLength] = useSessionState('contextLength', defaultPresets.contextLength);
 	const [memoryTokens, setMemoryTokens] = useSessionState('memoryTokens', defaultPresets.memoryTokens);
+  
 	const [anTokens, setAnTokens] = useSessionState('anTokens', defaultPresets.anTokens);
 	const [anDepth, setAnDepth] = useSessionState('anDepth', defaultPresets.anDepth);
+  const handleAnDepthChange = (value) => {
+    if (!isNaN(value) && value >= 0) {
+        setAnDepth(value);
+    }
+    else {
+        console.warn('A/N depth smaller than 0, setting to 0.');
+        setAnDepth(0);
+    }
+  };
 	
 	const [modalState, setModalState] = useState({});
-	
 	const toggleModal = (modalKey) => {
 		setModalState((prevState) => ({
 			...prevState,
@@ -1632,29 +1641,17 @@ export function App() {
 		// make injection depth valid
 		const truncPromptLen = truncPrompt.split('\n').length;
 		const injDepth = truncPromptLen >= anDepth ? anDepth : truncPromptLen
-		console.log(injDepth)
 
 		// Insert author's note N newlines up from the bottom and return
 		if (anTokens !== '') {
-			const lines = permContextPrompt.split('\n');
+			const lines = permContextPrompt.match(/.*\n?/g);
 			
 			const injIndex = lines.length-injDepth-1
-			lines.splice(injIndex+1,0,anTokens)
-			//const concatAn = lines.length-1 > injDepth ? lines[injIndex-1] + lines[injIndex] : lines[injIndex+1] + lines[injIndex+2];
-			if (injDepth < 1) {
-				const concatAn = lines[injIndex] + lines[injIndex+1]
-				lines.splice(injIndex,2,concatAn)
-			}
-			else {
-				const concatAn = lines[injIndex+1] + lines[injIndex+2]
-				lines.splice(injIndex+1,2,concatAn)
-			}
-			
-			//console.log(lines[lines.length])
-			return lines.join('\n');
+			lines.splice(injIndex,0,anTokens)
+			return lines.join('');
 		}
 
-		// If no newline is found, return the original string
+		// if no author's note, return original memory context
 		return permContextPrompt;
 	}, [contextLength, promptText, memoryTokens, anTokens, anDepth]);
 
@@ -2338,7 +2335,7 @@ export function App() {
 				<h2>Author's Note</h2>
 				<p>This text will be injected N non-empty newlines deep into your recent context.</p>
 				<${InputBox} label="AN Injection Depth (0-N)" type="number" step="1"
-					readOnly=${!!cancel} value=${anDepth} onValueChange=${setAnDepth}/>
+					readOnly=${!!cancel} value=${anDepth} onValueChange=${handleAnDepthChange}/>
 				<textarea
 				readOnly=${!!cancel}
 				placeholder="Anything written here will be injected ${anDepth} newlines into context."
