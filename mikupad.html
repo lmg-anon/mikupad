@@ -141,7 +141,7 @@ body {
 	min-height:9.5em;
 }
 #an-area {
-	min-height:3.5em;                  
+	min-height:3.5em;
 }
 .expanded-text-area-settings {
 	margins: auto;
@@ -1490,23 +1490,21 @@ const defaultPresets = {
 	ignoreEos: false,
 	openaiPresets: false,
 	contextLength: 4096,
-	memoryTokens: '',
-	anTokens: '',
+	memoryTokens: ({ "prefix":"", "text":"", "suffix":""}),
+	anTokens: ({ "prefix":"", "text":"", "suffix":""}),
 	anDepth: 3,
-  wi:({ 
-    "mikuPediaVersion": 1, 
-    "entries":
-    [
-      { "text":"DUMMY TEXT",
-        displayName: "New Entry",
-        "keys":[] },
-      { "text":"DUMMY TEXT TWOOOOOO",
-        displayName: "New Entry 2",
-        "keys":[] }
-    ]
-  })
+	wi:({ 
+		"mikuPediaVersion": 1, 
+		"entries":
+		[
+			{ "text":"DUMMY TEXT",
+			displayName: "New Entry",
+			"keys":[] },
+			{ "text":"DUMMY TEXT TWOOOOOO",
+			displayName: "New Entry 2",
+			"keys":[] }
+	  	]})
 };
-
 
 function joinPrompt(prompt) {
 	return prompt.map(p => p.content).join('');
@@ -1622,10 +1620,10 @@ export function App() {
 	const [lastError, setLastError] = useState(undefined);
 	const [contextLength, setContextLength] = useSessionState('contextLength', defaultPresets.contextLength);
   
-  // memory
+	// memory
 	const [memoryTokens, setMemoryTokens] = useSessionState('memoryTokens', defaultPresets.memoryTokens);
 	
-  // author's note
+	// author's note
 	const [anTokens, setAnTokens] = useSessionState('anTokens', defaultPresets.anTokens);
 	const [anDepth, setAnDepth] = useSessionState('anDepth', defaultPresets.anDepth);
 	const handleAnDepthChange = (value) => {
@@ -1656,8 +1654,16 @@ export function App() {
       };
     });
   }
-  
-  // modals
+
+	function handleAnTokensChange(key,value) {
+		setAnTokens((prevAnTokens) => ({ ...prevAnTokens, [key]: value }));
+	}
+	function handleMemoryTokensChange(key,value) {
+		setMemoryTokens((prevMemoryTokens) => ({ ...prevMemoryTokens, [key]: value }));
+	}
+
+
+
 	const [modalState, setModalState] = useState({});
 	const toggleModal = (modalKey) => {
 		setModalState((prevState) => ({
@@ -1666,32 +1672,40 @@ export function App() {
 		}));
 	};
 	const closeModal = (modalKey) => {
-    setModalState((prevState) => ({
-      ...prevState,
-      [modalKey]: false,
-    }));
-  };
-  
-  
-	
+		setModalState((prevState) => ({
+			...prevState,
+			[modalKey]: false,
+		}));
+	};
+
 	const promptText = useMemo(() => joinPrompt(promptChunks), [promptChunks]);
 
 	// Update theme on the first render.
 	useMemo(() => !theme || switchTheme(theme, true), []);
-	
+
 
 	const modifiedPrompt = useMemo(() => {
-		// define used variables
+		// assemble individual contexts if text not empty
+		const order = ["prefix","text","suffix"]
+		const assMemory = memoryTokens.text && memoryTokens.text !== ""
+	    ? order.map(key => memoryTokens[key]).join("").replace(/\\n/g,'\n')
+	    : "";
+		const assAn = anTokens.text && anTokens.text !== ""
+	    ? order.map(key => anTokens[key]).join("").replace(/\\n/g,'\n')
+	    : "";
+
+		// prompt length estimation
 		const tokenRatio = 3.3;
-		const additionalContext = (memoryTokens + anTokens).length; // TODO add active WI
+		const additionalContext = (assMemory + assAn).length; // TODO add active WI
 		const estimatedPromptLength = Math.round(
 			promptText.length - contextLength * tokenRatio + additionalContext / tokenRatio) + 1;
-		
+
 		// truncate prompt
 		const truncPrompt = promptText.substring(estimatedPromptLength);
+
 		// assemble context in order
-		const permContextPrompt = memoryTokens.concat(promptText.substring(estimatedPromptLength));
-	
+		const permContextPrompt = assMemory.concat(promptText.substring(estimatedPromptLength));
+
 		// make injection depth valid
 		const truncPromptLen = truncPrompt.split('\n').length;
 		const injDepth = truncPromptLen >= anDepth ? anDepth : truncPromptLen
@@ -1700,7 +1714,7 @@ export function App() {
 		if (anTokens !== '') {
 			const lines = permContextPrompt.match(/.*\n?/g);
 			const injIndex = lines.length-injDepth-1
-			lines.splice(injIndex,0,anTokens)
+			lines.splice(injIndex,0,assAn)
 			return lines.join('');
 		}
 
@@ -1710,12 +1724,8 @@ export function App() {
 
 	// Update dark mode on the first render.
 	useMemo(() => !darkMode || switchDarkMode(darkMode, true), []);
-	
-	function viewContext(context = modifiedPrompt) {
-		console.log(context)
-	};
-	
-	
+
+
 	async function predict(prompt = modifiedPrompt, chunkCount = promptChunks.length) {
 		if (cancel) {
 			cancel?.();
@@ -2306,15 +2316,15 @@ export function App() {
 					<textarea
 					readOnly=${!!cancel}
 					placeholder="Anything written here will be injected at the head of the prompt. Tokens here DO count towards the Context Limit."
-					defaultValue=${memoryTokens}
-					value=${memoryTokens}
-					onInput=${(e) => setMemoryTokens(e.target.value)}			
+					defaultValue=${memoryTokens.text}
+					value=${memoryTokens.text}
+					onInput=${(e) => handleMemoryTokensChange("text", e.target.value) }
 					id="memory-area"/>
 					<button
 					className="textAreaSettings"
 					disabled=${!!cancel}
 					onClick=${() => toggleModal("memory")}>
-					
+
 					<svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="-1 -5 8 7" xmlns="http://www.w3.org/2000/svg"><path d="M0 0 3-3C3-4 3-5 5-5L4-4 5-3 6-4C6-2 5-2 4-2L1 1C0 2-1 1 0 0"></path></svg>
 					</button>
 				</label>
@@ -2323,9 +2333,9 @@ export function App() {
 					<textarea
 					readOnly=${!!cancel}
 					placeholder="Anything written here will be injected ${anDepth} newlines into context."
-					defaultValue=${anTokens}
-					value=${anTokens}
-					onInput=${(e) => setAnTokens(e.target.value)}			
+					defaultValue=${anTokens.text}
+					value=${anTokens.text}
+					onInput=${(e) => handleAnTokensChange("text", e.target.value) }
 					id="an-area"/>
 					<button
 					className="textAreaSettings"
@@ -2334,7 +2344,7 @@ export function App() {
 					<svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="-1 -5 8 7" xmlns="http://www.w3.org/2000/svg"><path d="M0 0 3-3C3-4 3-5 5-5L4-4 5-3 6-4C6-2 5-2 4-2L1 1C0 2-1 1 0 0"></path></svg>
 					</button>
 				</label>
-        <button
+				<button
 					id="viewWorldInfo"
 					disabled=${!!cancel}
 					onClick=${() => toggleModal("wi")}>
@@ -2379,63 +2389,82 @@ export function App() {
 		</div>
 		<${Modal} isOpen=${modalState.memory} onClose=${() => closeModal("memory")}>
 			<h2>Memory</h2>
-			<p>This text will be added at the very top of your context.</p>
+			<p class="modal-description">
+				This text will be added at the very top of your context.<br/>
+				Prefix and suffix will be attached at the beginning or end of your memory respectively. \n for newlines.
+			</p>
+			<div className="hbox">
+				<${InputBox} label="Prefix" type="text" placeholder="[INST]"
+					readOnly=${!!cancel} value=${memoryTokens.prefix} onValueChange=${(value) => handleMemoryTokensChange("prefix", value)}/>
+				<${InputBox} label="Suffix" type="text" placeholder="[/INST]"
+					readOnly=${!!cancel} value=${memoryTokens.suffix} onValueChange=${(value) => handleMemoryTokensChange("suffix", value)}/>
+			</div>
 			<textarea
-        readOnly=${!!cancel}
-        placeholder="Anything written here will be injected at the head of the prompt. Tokens here DO count towards the Context Limit."
-        defaultValue=${memoryTokens}
-        value=${memoryTokens}
-        onInput=${(e) => setMemoryTokens(e.target.value)}
-        class="expanded-text-area-settings"
-        id="memory-area-settings"/>
+				readOnly=${!!cancel}
+				placeholder="Anything written here will be injected at the head of the prompt. Tokens here DO count towards the Context Limit."
+				defaultValue=${memoryTokens.text}
+				value=${memoryTokens.text}
+				onInput=${(e) => handleMemoryTokensChange("text", e.target.value) }
+				class="expanded-text-area-settings"
+				id="memory-area-settings"/>
 		</${Modal}>
 
-    <${Modal} isOpen=${modalState.an} onClose=${() => closeModal("an")}>
-      <h2>Author's Note</h2>
-      <p>This text will be injected N non-empty newlines deep into your recent context.</p>
-      <${InputBox} label="AN Injection Depth (0-N)" type="number" step="1"
-        readOnly=${!!cancel} value=${anDepth} onValueChange=${handleAnDepthChange}/>
-      <textarea
-        readOnly=${!!cancel}
-        placeholder="Anything written here will be injected ${anDepth} newlines into context."
-        defaultValue=${anTokens}
-        value=${anTokens}
-        onInput=${(e) => setAnTokens(e.target.value)}
-        class="expanded-text-area-settings"
-        id="expanded-an-settings"/>
-    </${Modal}>
-    
-    <${Modal} isOpen=${modalState.context} onClose=${() => closeModal("context")}>
-      <h2>Context</h2>
-      <p>This is the prompt being sent to your large language model.</p>
-      <textarea
-        readOnly=${!!cancel}
-        value=${modifiedPrompt}
-        class="expanded-text-area-settings"
-        id="context-area-settings" readOnly/>
-    </${Modal}>
-    
-  
-    <${Modal} isOpen=${modalState.wi} onClose=${() => closeModal("wi")}>
-      ${ (!modalState.wi) ? null : html`
-        <div className="LeftPanel">
-          ${wi.entries.map((entry, index) => html`
-            <div key=${index}>
-              <label>
-                <p>${entry.displayName}</p>
-                <textarea
-                  readOnly=${!!cancel}
-                  placeholder="World info text."
-                  defaultValue=${entry.text}
-                  onChange=${(e) => handleWiChange("text",index, e.target.value)}
-                  class="world-info-textarea" />
-              </label>
-            </div>
-          `)}
-        </div>
-      `}
-    </${Modal}>
-  `;
+		<${Modal} isOpen=${modalState.an} onClose=${() => closeModal("an")}>
+			<h2>Author's Note</h2>
+			<p class="modal-description">
+				This text will be injected N newlines deep into your recent context.<br/>
+				Prefix and suffix will be attached at the beginning or end of your Author's Note respectively. \n for newlines.
+			</p>
+			<div className="hbox">
+				<${InputBox} label="Prefix" type="text" placeholder="[INST]"
+					readOnly=${!!cancel} value=${anTokens.prefix} onValueChange=${(value) => handleAnTokensChange("prefix", value)}/>
+				<${InputBox} label="Suffix" type="text" placeholder="[/INST]"
+					readOnly=${!!cancel} value=${anTokens.suffix} onValueChange=${(value) => handleAnTokensChange("suffix", value)}/>
+				<${InputBox} label="AN Injection Depth (0-N)" type="number" step="1"
+					readOnly=${!!cancel} value=${anDepth} onValueChange=${handleAnDepthChange}/>
+			</div>
+
+			<textarea
+			readOnly=${!!cancel}
+			placeholder="Anything written here will be injected ${anDepth} newlines into context."
+			defaultValue=${anTokens.text}
+			value=${anTokens.text}
+			onInput=${(e) => handleAnTokensChange("text", e.target.value) }
+			class="expanded-text-area-settings"
+			id="expanded-an-settings"/>
+		</${Modal}>
+
+		<${Modal} isOpen=${modalState.context} onClose=${() => closeModal("context")}>
+			<h2>Context</h2>
+			<p class="modal-description">
+				This is the prompt being sent to your large language model.
+			</p>
+			<textarea
+			readOnly=${!!cancel}
+			value=${modifiedPrompt}
+			class="expanded-text-area-settings"
+			id="context-area-settings" readOnly/>
+		</${Modal}>
+		<${Modal} isOpen=${modalState.wi} onClose=${() => closeModal("wi")}>
+			${ (!modalState.wi) ? null : html`
+				<div className="LeftPanel">
+					${wi.entries.map((entry, index) => html`
+						<div key=${index}>
+							<label>
+								<p>${entry.displayName}</p>
+								<textarea
+									readOnly=${!!cancel}
+									placeholder="World info text."
+									defaultValue=${entry.text}
+									onChange=${(e) => handleWiChange("text",index, e.target.value)}
+									class="world-info-textarea" />
+							</label>
+						</div>
+					`)}
+				</div>
+			`}
+		</${Modal}>
+	`;
 }
 
 createRoot(document.body).render(html`<${App}/>`);
