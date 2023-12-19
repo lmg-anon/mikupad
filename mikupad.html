@@ -125,6 +125,10 @@ body {
 	scrollbar-gutter: stable;
 	font: inherit;
 }
+html.monospace-dark #prompt-area {
+	background: var(--color-bg);
+	color: var(--color-text);
+}
 #memory-area, #an-area, .expanded-text-area-settings {
 	flex: 1;
 	border: none;
@@ -242,14 +246,33 @@ html.monospace-dark #probs {
 }
 
 .modal {
+	position: relative;
 	background: var(--color-base-50);
 	width:75%;
 	height:fit-content;
 	padding: 1em;
-	border-radius: 2px;
+	border-radius: 5px;
 }
-.button-modal-bottom {
-	float:right;
+
+.button-modal-top {
+	all:unset;
+	position: absolute;
+	top:1em;
+	right:1em;
+	width:1.25em;
+	height:1.25em;
+	border-radius: 3px;
+}
+.modal-title {
+	font-size: 150%;
+	font-weight:bold;
+	margin-bottom: .25em;
+}
+
+hr {
+	border:unset;
+	border-top: 1px solid var(--color-base-40);
+	margin: 0.5em -1em;
 }
 
 #sidebar {
@@ -1079,7 +1102,7 @@ function CollapsibleGroup({ label, expanded, children }) {
 		</div>`;
 }
 
-	function Modal({ isOpen, onClose, children, ...props }) {
+	function Modal({ isOpen, onClose, title, description, children, ...props }) {
 		if (!isOpen) {
 			return null;
 		}
@@ -1088,11 +1111,14 @@ function CollapsibleGroup({ label, expanded, children }) {
 		<div className="modal-overlay" onClick=${onClose}>
 			<div className="modal-container">
 				<div className="modal" onClick=${(e) => e.stopPropagation()} ...${props}>
+					<div class="modal-title">${title}</div>
+					${ description=="" ? false : html`<div style=${{ whiteSpace: 'pre-line' }} class='modal-desc'>${description}</div>` }
+					<hr/>
 					${children}
 					<button
-					class="button-modal-bottom"
+					class="button-modal-top"
 					onClick=${onClose}>
-						Close
+						<svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="-1 -1 10 10" xmlns="http://www.w3.org/2000/svg"><path d="M 0 1 L 3 4 L 0 7 L 1 8 L 4 5 L 7 8 L 8 7 L 5 4 L 8 1 L 7 0 L 4 3 L 1 0 L 1 0 Z"></path></svg>
 					</button>
 				</div>
 			</div>
@@ -1672,11 +1698,6 @@ export function App() {
 		// if no author's note, return original memory context
 		return permContextPrompt;
 	}, [contextLength, promptText, memoryTokens, anTokens, anDepth]);
-
-	// Update dark mode on the first render.
-	useMemo(() => !darkMode || switchDarkMode(darkMode, true), []);
-
-
 
 	async function predict(prompt = modifiedPrompt, chunkCount = promptChunks.length) {
 		if (cancel) {
@@ -2284,7 +2305,7 @@ export function App() {
 					Author's Note
 					<textarea
 					readOnly=${!!cancel}
-					placeholder="Anything written here will be injected ${anDepth} newlines into context."
+					placeholder="Anything written here will be injected ${anDepth} newlines from bottom into context."
 					defaultValue=${anTokens.text}
 					value=${anTokens.text}
 					onInput=${(e) => handleAnTokensChange("text", e.target.value) }
@@ -2333,12 +2354,10 @@ export function App() {
 			${!!lastError && html`
 				<span className="error-text">${lastError}</span>`}
 		</div>
-		<${Modal} isOpen=${modalState.memory} onClose=${() => closeModal("memory")}>
-			<h2>Memory</h2>
-			<p class="modal-description">
-				This text will be added at the very top of your context.<br/>
-				Prefix and suffix will be attached at the beginning or end of your memory respectively. \n for newlines.
-			</p>
+		<${Modal} isOpen=${modalState.memory} onClose=${() => closeModal("memory")}
+		title="Memory"
+		description="This text will be added at the very top of your context.
+		Prefix and suffix will be attached at the beginning or end of your memory respectively. \\n for newlines in pre/suffix.">
 			<div className="hbox">
 				<${InputBox} label="Prefix" type="text" placeholder="[INST]"
 					readOnly=${!!cancel} value=${memoryTokens.prefix} onValueChange=${(value) => handleMemoryTokensChange("prefix", value)}/>
@@ -2355,12 +2374,10 @@ export function App() {
 				id="memory-area-settings"/>
 		</${Modal}>
 
-		<${Modal} isOpen=${modalState.an} onClose=${() => closeModal("an")}>
-			<h2>Author's Note</h2>
-			<p class="modal-description">
-				This text will be injected N newlines deep into your recent context.<br/>
-				Prefix and suffix will be attached at the beginning or end of your Author's Note respectively. \n for newlines.
-			</p>
+		<${Modal} isOpen=${modalState.an} onClose=${() => closeModal("an")}
+		title="Author's Note"
+		description="This text will be injected N newlines from the bottom of your prompt.
+		Prefix and suffix will be attached at the beginning or end of your author's note respectively. \\n for newlines in pre/suffix.">
 			<div className="hbox">
 				<${InputBox} label="Prefix" type="text" placeholder="[INST]"
 					readOnly=${!!cancel} value=${anTokens.prefix} onValueChange=${(value) => handleAnTokensChange("prefix", value)}/>
@@ -2369,10 +2386,9 @@ export function App() {
 				<${InputBox} label="AN Injection Depth (0-N)" type="number" step="1"
 					readOnly=${!!cancel} value=${anDepth} onValueChange=${handleAnDepthChange}/>
 			</div>
-
 			<textarea
 			readOnly=${!!cancel}
-			placeholder="Anything written here will be injected ${anDepth} newlines into context."
+			placeholder="Anything written here will be injected ${anDepth} newlines from bottom into context."
 			defaultValue=${anTokens.text}
 			value=${anTokens.text}
 			onInput=${(e) => handleAnTokensChange("text", e.target.value) }
@@ -2380,11 +2396,9 @@ export function App() {
 			id="expanded-an-settings"/>
 		</${Modal}>
 
-		<${Modal} isOpen=${modalState.context} onClose=${() => closeModal("context")}>
-			<h2>Context</h2>
-			<p class="modal-description">
-				This is the prompt being sent to your large language model.
-			</p>
+		<${Modal} isOpen=${modalState.context} onClose=${() => closeModal("context")}
+		title="Context"
+		description="This is the prompt being sent to your large language model.">
 			<textarea
 			readOnly=${!!cancel}
 			value=${modifiedPrompt}
