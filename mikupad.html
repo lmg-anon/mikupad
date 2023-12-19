@@ -1620,16 +1620,10 @@ export function App() {
 	const [contextLength, setContextLength] = useSessionState('contextLength', defaultPresets.contextLength);
 	const [memoryTokens, setMemoryTokens] = useSessionState('memoryTokens', defaultPresets.memoryTokens);
 
-	const [anTokens, setAnTokens] = useSessionState('anTokens', defaultPresets.anTokens);
-	const [anDepth, setAnDepth] = useSessionState('anDepth', defaultPresets.anDepth);
+	const [authorNoteTokens, setAuthorNoteTokens] = useSessionState('anTokens', defaultPresets.anTokens);
+	const [authorNoteDepth, setAuthorNoteDepth] = useSessionState('anDepth', defaultPresets.anDepth);
 	const handleAnDepthChange = (value) => {
-		if (!isNaN(value) && value >= 0) {
-				setAnDepth(value);
-		}
-		else {
-				console.warn('A/N depth smaller than 0, setting to 0.');
-				setAnDepth(0);
-		}
+		setAnDepth(value && !isNaN(+value) ? value : 0);
 	};
 
 	function handleAnTokensChange(key,value) {
@@ -1664,12 +1658,12 @@ export function App() {
 	const modifiedPrompt = useMemo(() => {
 		// assemble individual contexts if text not empty
 		const order = ["prefix","text","suffix"]
-		const assMemory = memoryTokens.text && memoryTokens.text !== ""
-	    ? order.map(key => memoryTokens[key]).join("").replace(/\\n/g,'\n')
-	    : "";
-		const assAn = anTokens.text && anTokens.text !== ""
-	    ? order.map(key => anTokens[key]).join("").replace(/\\n/g,'\n')
-	    : "";
+		const assembledMemory = memoryTokens.text && memoryTokens.text !== ""
+			? order.map(key => memoryTokens[key]).join("").replace(/\\n/g,'\n')
+			: "";
+		const assembledAuthorNote = authorNoteTokens.text && authorNoteTokens.text !== ""
+			? order.map(key => authorNoteTokens[key]).join("").replace(/\\n/g,'\n')
+			: "";
 
 		// prompt length estimation
 		const tokenRatio = 3.3;
