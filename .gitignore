@@ -1,9 +1,6 @@
 package-lock.json
 project/mikupad.html
 mikupad_compiled.html
-koboldcpp.exe
-.gitignore
-.mikupadorig.html
 
 # Logs
 logs
