@@ -125,7 +125,11 @@ body {
 	scrollbar-gutter: stable;
 	font: inherit;
 }
-#memory-area, #an-area, .expanded-text-area-settings {
+html.monospace-dark #prompt-area {
+	background: var(--color-bg);
+	color: var(--color-text);
+}
+#memory-area, #an-area, .expanded-text-area-settings, {
 	flex: 1;
 	border: none;
 	outline: none;
@@ -144,7 +148,7 @@ body {
 	min-height:3.5em;
 }
 .expanded-text-area-settings {
-	margins: auto;
+	margin: 8px 0 8px 0;
 	width:100%;
 	box-sizing: border-box;
 	height:25.5em;
@@ -228,7 +232,7 @@ html.monospace-dark #probs {
 	left: 0;
 	width: 100%;
 	height: 100%;
-	background: rgba(0, 0, 0, 0.5);
+	background: rgba(0, 0, 0, 0.65);
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -242,30 +246,85 @@ html.monospace-dark #probs {
 }
 
 .modal {
+	color: var(--color-base-100);
+	position: relative;
 	background: var(--color-base-50);
 	width:75%;
 	height:fit-content;
 	padding: 1em;
-	border-radius: 2px;
+	border-radius: 5px;
 }
-.modal-content {
+
+.button-modal-top {
+	all:unset;
+	position: absolute;
+	top:1em;
+	right:1em;
+	width:1.25em;
+	height:1.25em;
+	border-radius: 3px;
+}
+.modal-title {
+	font-size: 150%;
+	font-weight:bold;
+	margin-bottom: .25em;
+}
+
+hr {
+	border:unset;
+	border-top: 1px solid var(--color-base-40);
+	margin: 0.75em -1em 0.5em;
+}
+
+
+/* world info */
+.modal-wi-content {
 	display: flex;
+	max-height:75vh;
+	flex-direction:column;
+	overflow-y: auto;
 }
 
-.leftPanel {
-  flex: 1;
-  overflow-y: auto;
-  padding-right: 20px;
+#button-wi-new {
+	width: 100%;
+}
+.modal-wi-content{
+	margin-top:0.5em;
 }
 
-.rightPanel {
-  flex: 1;
-  padding-left: 20px;
+.wi-entry {
+	margin: 4px 0;
+}
+.wi-entry-buttons {
+	margin-right: 8px; /* because gap sucks */
 }
 
+.wi-textarea {
+	resize:vertical;
+}
+.wi-entry-controls {
+	display: grid;
+	grid-template-columns: min-content 1fr;
+	grid-template-rows: min-content 1fr;
+	border-top: 1px solid var(--color-base-40);
+  padding-top: 8px;
+	grid-template-areas:
+	  "wi-entry-filler wi-entry-name ."
+	  "wi-entry-buttons wi-entry-text ."
+}
+.wi-entry-filler { grid-area: wi-entry-filler; }
+.wi-entry-name { grid-area: wi-entry-name; }
+.wi-entry-buttons { grid-area: wi-entry-buttons; }
+.wi-entry-text { grid-area: wi-entry-text; }
 
-.button-modal-bottom {
-	float:right;
+.wi-entry-name input {
+	background: var(--color-base-60) !important;
+	font-weight:bold !important;
+	font-size: 1.2rem !important;
+}
+.wi-textarea {
+	background: var(--color-base-100) !important;
+	color: var(--color-base-10) !important;
 }
 
 #sidebar {
@@ -1095,20 +1154,24 @@ function CollapsibleGroup({ label, expanded, children }) {
 		</div>`;
 }
 
-	function Modal({ isOpen, onClose, children, ...props }) {
+	function Modal({ isOpen, onClose, title, description, children, ...props }) {
 		if (!isOpen) {
 			return null;
 		}
+		const [, forceUpdate] = useState();
 
 		return html`
 		<div className="modal-overlay" onClick=${onClose}>
 			<div className="modal-container">
 				<div className="modal" onClick=${(e) => e.stopPropagation()} ...${props}>
+					<div class="modal-title">${title}</div>
+					${ description=="" ? false : html`<div style=${{ whiteSpace: 'pre-line' }} class='modal-desc'>${description}</div>` }
+					<hr/>
 					${children}
 					<button
-					class="button-modal-bottom"
+					class="button-modal-top"
 					onClick=${onClose}>
-						Close
+						<svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="-1 -1 10 10" xmlns="http://www.w3.org/2000/svg"><path d="M 0 1 L 3 4 L 0 7 L 1 8 L 4 5 L 7 8 L 8 7 L 5 4 L 8 1 L 7 0 L 4 3 L 1 0 L 1 0 Z"></path></svg>
 					</button>
 				</div>
 			</div>
@@ -1493,17 +1556,10 @@ const defaultPresets = {
 	memoryTokens: ({ "prefix":"", "text":"", "suffix":""}),
 	anTokens: ({ "prefix":"", "text":"", "suffix":""}),
 	anDepth: 3,
-	wi:({ 
-		"mikuPediaVersion": 1, 
-		"entries":
-		[
-			{ "text":"DUMMY TEXT",
-			displayName: "New Entry",
-			"keys":[] },
-			{ "text":"DUMMY TEXT TWOOOOOO",
-			displayName: "New Entry 2",
-			"keys":[] }
-	  	]})
+	wi:({
+    "mikuPediaVersion": 1,
+    "entries": []
+	})
 };
 
 function joinPrompt(prompt) {
@@ -1619,11 +1675,8 @@ export function App() {
 	const [predictStartTokens, setPredictStartTokens] = useState(0);
 	const [lastError, setLastError] = useState(undefined);
 	const [contextLength, setContextLength] = useSessionState('contextLength', defaultPresets.contextLength);
-  
-	// memory
 	const [memoryTokens, setMemoryTokens] = useSessionState('memoryTokens', defaultPresets.memoryTokens);
-	
-	// author's note
+
 	const [anTokens, setAnTokens] = useSessionState('anTokens', defaultPresets.anTokens);
 	const [anDepth, setAnDepth] = useSessionState('anDepth', defaultPresets.anDepth);
 	const handleAnDepthChange = (value) => {
@@ -1635,14 +1688,99 @@ export function App() {
 				setAnDepth(0);
 		}
 	};
-  
+
+	function handleAnTokensChange(key,value) {
+		setAnTokens((prevAnTokens) => ({ ...prevAnTokens, [key]: value }));
+	}
+	function handleMemoryTokensChange(key,value) {
+		setMemoryTokens((prevMemoryTokens) => ({ ...prevMemoryTokens, [key]: value }));
+	}
+
 	// world info
-  const [wi, setWi] = useSessionState('wi', defaultPresets.wi);
+	function wiSessionStateFailsafe() {
+		const savedState = useMemo(() => {
+			const wiTemp = sessionStorage.getProperty("wi")
+			if ( !(wiTemp === undefined || wiTemp.length == 0) ) {
+				return defaultPresets.wi;
+			}
+			else {
+				return wiTemp
+			}
+		})
+	}
+
+	const [wi, setWi] = useSessionState('wi', defaultPresets.wi)
+  // const [wi, setWi] = useState({
+  //   "mikuPediaVersion": 1,
+  //   "entries":
+  //   [
+  //     { "displayName": "test1",
+	// 			"text":"DUMMY TEXT",
+  //       "keys":[] },
+  //     { "displayName": "test2",
+	// 			"text":"DUMMY TEXT TWOOOOOO",
+  //       "keys":[] }
+  //   ]
+  //})
+	//const [wi, setWi] = useState({})
+
+	// if ( !(wi.entries === undefined || wi.length == 0) ) {
+	// 	setWi(defaultPresets.wi)
+	// }
   const [selectedEntryIndex, setSelectedEntryIndex] = useState(null);
   const [selectedEntry, setSelectedEntry] = useState(null);
-  
-  function handleWiChange(key,index,value){
-    console.log(wi.entries[index])
+
+	function handleWiNew() {
+    console.log(wi.entries)
+    setWi((prevWi) => {
+      return {
+        ...prevWi,
+        entries: [ { "displayName":"New Entry","text":"","keys":[] },...prevWi.entries ],
+      };
+    });
+		refreshModal("wi")
+  }
+	function handleWiMove(index,move) {
+		const entries = wi.entries
+		if (index+move < 0 || index+move > entries.length-1 ) {
+			return
+		}
+		entries.splice(index+move, 0, entries.splice(index, 1)[0])
+		console.log(entries)
+    // setWi((prevWi) => {
+    //   return {
+    //     ...prevWi,
+    //     entries: [ { "displayName":"New Entry","text":"World Info Text","keys":[] },...prevWi.entries ],
+    //   };
+    // });
+		refreshModal("wi")
+  }
+	function handleWiDel(index) {
+		console.log(index)
+		console.log(wi.entries[index])
+		if (!window.confirm("Are you sure you want to delete the world info entry #" + (index + 1) + ": "+ wi.entries[index].displayName + "?\nThis action cannot be undone."))
+			return;
+		if (index > -1 && index < wi.entries.length) {
+			setWi((prevWi) => {
+				// remove selected index
+
+				// then return
+				return {
+					...prevWi,
+					entries: prevWi.entries.filter((_, i) => i !== index),
+				};
+			});
+		}
+		else {
+			alert("Index " + index + " out of range!")
+		}
+
+		// reload modal
+		refreshModal("wi")
+	};
+
+
+  function handleWiChange(key,index,value) {
     setWi((prevWi) => {
       const updatedEntries = [...prevWi.entries];
       const updatedEntry = { ...updatedEntries[index], [key]: value };
@@ -1653,16 +1791,15 @@ export function App() {
         entries: updatedEntries,
       };
     });
+		console.log(wi.entries[index])
   }
 
-	function handleAnTokensChange(key,value) {
-		setAnTokens((prevAnTokens) => ({ ...prevAnTokens, [key]: value }));
-	}
-	function handleMemoryTokensChange(key,value) {
-		setMemoryTokens((prevMemoryTokens) => ({ ...prevMemoryTokens, [key]: value }));
-	}
 
-
+	function showWI(){
+		console.log(wi)
+		console.log(wi.entries)
+		console.log(typeof wi.entries)
+	}
 
 	const [modalState, setModalState] = useState({});
 	const toggleModal = (modalKey) => {
@@ -1677,6 +1814,16 @@ export function App() {
 			[modalKey]: false,
 		}));
 	};
+
+
+	async function refreshModal(modalKey) {
+		// ABSOLUTE HACK
+		// I've tried everything I could think of to update it traditionally.
+		// I give up.
+		toggleModal(modalKey)
+		await new Promise(r => setTimeout(r, 1));
+		toggleModal(modalKey)
+	}
 
 	const promptText = useMemo(() => joinPrompt(promptChunks), [promptChunks]);
 
@@ -1721,10 +1868,6 @@ export function App() {
 		// if no author's note, return original memory context
 		return permContextPrompt;
 	}, [contextLength, promptText, memoryTokens, anTokens, anDepth]);
-
-	// Update dark mode on the first render.
-	useMemo(() => !darkMode || switchDarkMode(darkMode, true), []);
-
 
 	async function predict(prompt = modifiedPrompt, chunkCount = promptChunks.length) {
 		if (cancel) {
@@ -2332,7 +2475,7 @@ export function App() {
 					Author's Note
 					<textarea
 					readOnly=${!!cancel}
-					placeholder="Anything written here will be injected ${anDepth} newlines into context."
+					placeholder="Anything written here will be injected ${anDepth} newlines from bottom into context."
 					defaultValue=${anTokens.text}
 					value=${anTokens.text}
 					onInput=${(e) => handleAnTokensChange("text", e.target.value) }
@@ -2356,6 +2499,21 @@ export function App() {
 					onClick=${() => toggleModal("context")}>
 					Show Context
 				</button>
+
+				<!-- TEMPORARY DEBUG BUTTONS -->
+				<button
+					id="viewContext"
+					disabled=${!!cancel}
+					onClick=${() => showWI()}>
+					LOG WI
+				</button>
+				<button
+					id="viewContext"
+					disabled=${!!cancel}
+					onClick=${() => setWi(defaultPresets.wi)}>
+					RESET WI
+				</button>
+				<!-- TEMPORARY DEBUG BUTTONS -->
 			</${CollapsibleGroup}>
 			${!!tokens && html`
 				<${InputBox} label="Tokens" value=${tokens} readOnly/>`}
@@ -2387,12 +2545,10 @@ export function App() {
 			${!!lastError && html`
 				<span className="error-text">${lastError}</span>`}
 		</div>
-		<${Modal} isOpen=${modalState.memory} onClose=${() => closeModal("memory")}>
-			<h2>Memory</h2>
-			<p class="modal-description">
-				This text will be added at the very top of your context.<br/>
-				Prefix and suffix will be attached at the beginning or end of your memory respectively. \n for newlines.
-			</p>
+		<${Modal} isOpen=${modalState.memory} onClose=${() => closeModal("memory")}
+		title="Memory"
+		description="This text will be added at the very top of your context.
+		Prefix and suffix will be attached at the beginning or end of your memory respectively. \\n for newlines in pre/suffix.">
 			<div className="hbox">
 				<${InputBox} label="Prefix" type="text" placeholder="[INST]"
 					readOnly=${!!cancel} value=${memoryTokens.prefix} onValueChange=${(value) => handleMemoryTokensChange("prefix", value)}/>
@@ -2409,12 +2565,10 @@ export function App() {
 				id="memory-area-settings"/>
 		</${Modal}>
 
-		<${Modal} isOpen=${modalState.an} onClose=${() => closeModal("an")}>
-			<h2>Author's Note</h2>
-			<p class="modal-description">
-				This text will be injected N newlines deep into your recent context.<br/>
-				Prefix and suffix will be attached at the beginning or end of your Author's Note respectively. \n for newlines.
-			</p>
+		<${Modal} isOpen=${modalState.an} onClose=${() => closeModal("an")}
+		title="Author's Note"
+		description="This text will be injected N newlines from the bottom of your prompt.
+		Prefix and suffix will be attached at the beginning or end of your author's note respectively. \\n for newlines in pre/suffix.">
 			<div className="hbox">
 				<${InputBox} label="Prefix" type="text" placeholder="[INST]"
 					readOnly=${!!cancel} value=${anTokens.prefix} onValueChange=${(value) => handleAnTokensChange("prefix", value)}/>
@@ -2423,10 +2577,9 @@ export function App() {
 				<${InputBox} label="AN Injection Depth (0-N)" type="number" step="1"
 					readOnly=${!!cancel} value=${anDepth} onValueChange=${handleAnDepthChange}/>
 			</div>
-
 			<textarea
 			readOnly=${!!cancel}
-			placeholder="Anything written here will be injected ${anDepth} newlines into context."
+			placeholder="Anything written here will be injected ${anDepth} newlines from bottom into context."
 			defaultValue=${anTokens.text}
 			value=${anTokens.text}
 			onInput=${(e) => handleAnTokensChange("text", e.target.value) }
@@ -2434,31 +2587,74 @@ export function App() {
 			id="expanded-an-settings"/>
 		</${Modal}>
 
-		<${Modal} isOpen=${modalState.context} onClose=${() => closeModal("context")}>
-			<h2>Context</h2>
-			<p class="modal-description">
-				This is the prompt being sent to your large language model.
-			</p>
+		<${Modal} isOpen=${modalState.context} onClose=${() => closeModal("context")}
+		title="Context"
+		description="This is the prompt being sent to your large language model.">
 			<textarea
 			readOnly=${!!cancel}
 			value=${modifiedPrompt}
 			class="expanded-text-area-settings"
 			id="context-area-settings" readOnly/>
 		</${Modal}>
-		<${Modal} isOpen=${modalState.wi} onClose=${() => closeModal("wi")}>
+
+		<${Modal} isOpen=${modalState.wi} onClose=${() => closeModal("wi")}
+		title="World Info"
+		description="Additional information that is added when specific keywords are found in context.">
 			${ (!modalState.wi) ? null : html`
-				<div className="LeftPanel">
-					${wi.entries.map((entry, index) => html`
-						<div key=${index}>
-							<label>
-								<p>${entry.displayName}</p>
-								<textarea
-									readOnly=${!!cancel}
-									placeholder="World info text."
-									defaultValue=${entry.text}
-									onChange=${(e) => handleWiChange("text",index, e.target.value)}
-									class="world-info-textarea" />
-							</label>
+				<button id="button-wi-new" disabled=${!!cancel} onClick=${handleWiNew}>New Entry</button>
+				<div className="modal-wi-content">
+						${ !Array.isArray(wi.entries) ? null : wi.entries.map((entry, index) => html`
+						<div class="wi-entry" key=${index}>
+							<div class="wi-entry-controls">
+								<div class="wi-entry-filler" />
+								<div class="wi-entry-name">
+									<label class="InputBox">
+										Entry #${index+1}
+										<input
+											type="text"
+											placeholder="World Info Name"
+											defaultValue=${entry.displayName}
+											onChange=${(e) => handleWiChange("displayName",index, e.target.value)}
+										/>
+									</label>
+								</div>
+								<div class="wi-entry-buttons">
+									<button disabled=${!!cancel} onClick=${() => handleWiDel(index)}>del</button>
+									<button disabled=${!!cancel} onClick=${() => handleWiMove(index,-1)}>up</button>
+									<button disabled=${!!cancel} onClick=${() => handleWiMove(index,1)}>dn</button>
+								</div>
+								<div class="wi-entry-text">
+									<div class="hbox">
+										<label class="InputBox">
+											Keys (regex)
+											<input
+												type="text"
+												placeholder="Required to activate entry."
+												onChange=${(e) => handleWiChange("keys",index, e.target.value)}
+											/>
+										</label>
+										<label class="InputBox">
+											Search Range
+											<input
+												type="text"
+												inputmode="numeric"
+												defaultValue=${entry.search}
+												placeholder="2048"
+												onChange=${(e) => handleWiChange("search",index, e.target.value)}
+											/>
+										</label>
+									</div>
+									<label class="TextArea">
+										Text
+										<textarea
+											readOnly=${!!cancel}
+											placeholder="World info text."
+											defaultValue=${entry.text ? entry.text : ""}
+											onChange=${(e) => handleWiChange("text",index, e.target.value)}
+											class="wi-textarea" />
+									</label>
+								</div>
+							</div>
 						</div>
 					`)}
 				</div>
