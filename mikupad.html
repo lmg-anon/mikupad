@@ -1,14 +1,14 @@
 <!doctype html>
 <meta charset="utf-8">
 <!-- mikupad by Anon
-	--
-	-- To the extent possible under law, the person who associated CC0 with
-	-- mikupad has waived all copyright and related or neighboring rights
-	-- to mikupad.
-	--
-	-- You should have received a copy of the CC0 legalcode along with this
-	-- work.  If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
-	-->
+  --
+  -- To the extent possible under law, the person who associated CC0 with
+  -- mikupad has waived all copyright and related or neighboring rights
+  -- to mikupad.
+  --
+  -- You should have received a copy of the CC0 legalcode along with this
+  -- work.  If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
+  -->
 <title>mikupad</title>
 <script type="importmap">
 {
@@ -125,11 +125,14 @@ body {
 	scrollbar-gutter: stable;
 	font: inherit;
 }
-html.monospace-dark #prompt-area {
+html.monospace-dark #prompt-area,
+html.monospace-dark #memory-area,
+html.monospace-dark #an-area,
+html.monospace-dark .expanded-text-area-settings {
 	background: var(--color-bg);
 	color: var(--color-text);
 }
-#memory-area, #an-area, .expanded-text-area-settings, {
+#memory-area, #an-area, .expanded-text-area-settings {
 	flex: 1;
 	border: none;
 	outline: none;
@@ -138,7 +141,7 @@ html.monospace-dark #prompt-area {
 	color: var(--color-base-10);
 	padding: 0.5em;
 	scrollbar-gutter: stable;
-	font: initial;
+	font-family: inherit;
 	border-radius: 2px;
 }
 #memory-area {
@@ -246,7 +249,7 @@ html.monospace-dark #probs {
 }
 
 .modal {
-	color: var(--color-base-100);
+	color: var(--color-light);
 	position: relative;
 	background: var(--color-base-50);
 	width:75%;
@@ -431,7 +434,7 @@ html.monospace-dark .InputBox > input:read-only {
 	transform: translate(0, -45%);
 }
 .tooltip:hover .tooltiptext {
-		opacity: 1;
+	opacity: 1;
 }
 
 .error-text {
@@ -457,6 +460,7 @@ button {
 }
 button.textAreaSettings {
 	all: unset;
+	color: var(--color-base-50);
 	width:1.25em;
 	position:absolute;
 	top:calc(1.25em + 1px);
@@ -1158,7 +1162,6 @@ function CollapsibleGroup({ label, expanded, children }) {
 		if (!isOpen) {
 			return null;
 		}
-		const [, forceUpdate] = useState();
 
 		return html`
 		<div className="modal-overlay" onClick=${onClose}>
@@ -1554,8 +1557,8 @@ const defaultPresets = {
 	openaiPresets: false,
 	contextLength: 4096,
 	memoryTokens: ({ "prefix":"", "text":"", "suffix":""}),
-	anTokens: ({ "prefix":"", "text":"", "suffix":""}),
-	anDepth: 3,
+	authorNoteTokens: ({ "prefix":"", "text":"", "suffix":""}),
+	authorNoteDepth: 3
 	wi:({
     "mikuPediaVersion": 1,
     "entries": []
@@ -1677,20 +1680,14 @@ export function App() {
 	const [contextLength, setContextLength] = useSessionState('contextLength', defaultPresets.contextLength);
 	const [memoryTokens, setMemoryTokens] = useSessionState('memoryTokens', defaultPresets.memoryTokens);
 
-	const [anTokens, setAnTokens] = useSessionState('anTokens', defaultPresets.anTokens);
-	const [anDepth, setAnDepth] = useSessionState('anDepth', defaultPresets.anDepth);
-	const handleAnDepthChange = (value) => {
-		if (!isNaN(value) && value >= 0) {
-				setAnDepth(value);
-		}
-		else {
-				console.warn('A/N depth smaller than 0, setting to 0.');
-				setAnDepth(0);
-		}
+	const [authorNoteTokens, setAuthorNoteTokens] = useSessionState('authorNoteTokens', defaultPresets.authorNoteTokens);
+	const [authorNoteDepth, setAuthorNoteDepth] = useSessionState('authorNoteDepth', defaultPresets.authorNoteDepth);
+	const handleAuthorNoteDepthChange = (value) => {
+		setAuthorNoteDepth(!isNaN(+value) && value >= 0 ? value : 0);
 	};
 
-	function handleAnTokensChange(key,value) {
-		setAnTokens((prevAnTokens) => ({ ...prevAnTokens, [key]: value }));
+	function handleauthorNoteTokensChange(key,value) {
+		setAuthorNoteTokens((prevauthorNoteTokens) => ({ ...prevauthorNoteTokens, [key]: value }));
 	}
 	function handleMemoryTokensChange(key,value) {
 		setMemoryTokens((prevMemoryTokens) => ({ ...prevMemoryTokens, [key]: value }));
@@ -1834,40 +1831,41 @@ export function App() {
 	const modifiedPrompt = useMemo(() => {
 		// assemble individual contexts if text not empty
 		const order = ["prefix","text","suffix"]
-		const assMemory = memoryTokens.text && memoryTokens.text !== ""
-	    ? order.map(key => memoryTokens[key]).join("").replace(/\\n/g,'\n')
-	    : "";
-		const assAn = anTokens.text && anTokens.text !== ""
-	    ? order.map(key => anTokens[key]).join("").replace(/\\n/g,'\n')
-	    : "";
+		const assembledMemory = memoryTokens.text && memoryTokens.text !== ""
+			? order.map(key => memoryTokens[key]).join("").replace(/\\n/g,'\n')
+			: "";
+		const assembledAuthorNote = authorNoteTokens.text && authorNoteTokens.text !== ""
+			? order.map(key => authorNoteTokens[key]).join("").replace(/\\n/g,'\n')
+			: "";
 
 		// prompt length estimation
 		const tokenRatio = 3.3;
-		const additionalContext = (assMemory + assAn).length; // TODO add active WI
-		const estimatedPromptLength = Math.round(
+		const additionalContext = (assembledMemory + assembledAuthorNote).length; // TODO add active WI
+		const estimatedContextStart = Math.round(
 			promptText.length - contextLength * tokenRatio + additionalContext / tokenRatio) + 1;
 
 		// truncate prompt
-		const truncPrompt = promptText.substring(estimatedPromptLength);
-
-		// assemble context in order
-		const permContextPrompt = assMemory.concat(promptText.substring(estimatedPromptLength));
+		const truncPrompt = promptText.substring(estimatedContextStart);
 
 		// make injection depth valid
 		const truncPromptLen = truncPrompt.split('\n').length;
-		const injDepth = truncPromptLen >= anDepth ? anDepth : truncPromptLen
+		const injDepth = truncPromptLen > authorNoteDepth ? authorNoteDepth : truncPromptLen
 
-		// Insert author's note N newlines up from the bottom and return
-		if (anTokens !== '') {
-			const lines = permContextPrompt.match(/.*\n?/g);
-			const injIndex = lines.length-injDepth-1
-			lines.splice(injIndex,0,assAn)
-			return lines.join('');
-		}
+		const lines = truncPrompt.match(/.*\n?/g);
+		const injIndex = lines.length-injDepth-1
+		// inject an
+		lines.splice(injIndex,0,assembledAuthorNote)
+		// if an, return an context, else return original truncated context
+		const authorNotePrompt = assembledAuthorNote != ""
+			? lines.join('')
+			: truncPrompt;
+
+		// assemble context in order
+		const permContextPrompt = assembledMemory.concat(authorNotePrompt);
 
 		// if no author's note, return original memory context
 		return permContextPrompt;
-	}, [contextLength, promptText, memoryTokens, anTokens, anDepth]);
+	}, [contextLength, promptText, memoryTokens, authorNoteTokens, authorNoteDepth]);
 
 	async function predict(prompt = modifiedPrompt, chunkCount = promptChunks.length) {
 		if (cancel) {
@@ -2386,7 +2384,7 @@ export function App() {
 						disabled=${!!cancel} value=${openaiPresets} onValueChange=${setOpenaiPresets}/>`}
 				<${InputBox} label="Seed (-1 = random)" type="text" inputmode="numeric"
 					readOnly=${!!cancel} value=${seed} onValueChange=${setSeed}/>
-				<${InputBox} label="Max Context Length (estimate, characters * 3.3)" type="text" inputmode="numeric"
+				<${InputBox} tooltip="Currently not accurate to the token count, it will be used as an estimate." label="Max Context Length" type="text" inputmode="numeric"
 					readOnly=${!!cancel} value=${contextLength} onValueChange=${setContextLength}/>
 				<${InputBox} label="Max Predict Tokens${endpointAPI != 0 ? ' (-1 = 1024)' : ' (-1 = infinite)'}" type="text" inputmode="numeric"
 					readOnly=${!!cancel} value=${maxPredictTokens} onValueChange=${setMaxPredictTokens}/>
@@ -2475,10 +2473,10 @@ export function App() {
 					Author's Note
 					<textarea
 					readOnly=${!!cancel}
-					placeholder="Anything written here will be injected ${anDepth} newlines from bottom into context."
-					defaultValue=${anTokens.text}
-					value=${anTokens.text}
-					onInput=${(e) => handleAnTokensChange("text", e.target.value) }
+					placeholder="Anything written here will be injected ${authorNoteDepth} newlines from bottom into context."
+					defaultValue=${authorNoteTokens.text}
+					value=${authorNoteTokens.text}
+					onInput=${(e) => handleauthorNoteTokensChange("text", e.target.value) }
 					id="an-area"/>
 					<button
 					className="textAreaSettings"
@@ -2571,18 +2569,19 @@ export function App() {
 		Prefix and suffix will be attached at the beginning or end of your author's note respectively. \\n for newlines in pre/suffix.">
 			<div className="hbox">
 				<${InputBox} label="Prefix" type="text" placeholder="[INST]"
-					readOnly=${!!cancel} value=${anTokens.prefix} onValueChange=${(value) => handleAnTokensChange("prefix", value)}/>
+					readOnly=${!!cancel} value=${authorNoteTokens.prefix} onValueChange=${(value) => handleauthorNoteTokensChange("prefix", value)}/>
 				<${InputBox} label="Suffix" type="text" placeholder="[/INST]"
-					readOnly=${!!cancel} value=${anTokens.suffix} onValueChange=${(value) => handleAnTokensChange("suffix", value)}/>
+					readOnly=${!!cancel} value=${authorNoteTokens.suffix} onValueChange=${(value) => handleauthorNoteTokensChange("suffix", value)}/>
 				<${InputBox} label="AN Injection Depth (0-N)" type="number" step="1"
-					readOnly=${!!cancel} value=${anDepth} onValueChange=${handleAnDepthChange}/>
+					readOnly=${!!cancel} value=${authorNoteDepth} onValueChange=${handleAuthorNoteDepthChange}/>
 			</div>
+
 			<textarea
 			readOnly=${!!cancel}
-			placeholder="Anything written here will be injected ${anDepth} newlines from bottom into context."
-			defaultValue=${anTokens.text}
-			value=${anTokens.text}
-			onInput=${(e) => handleAnTokensChange("text", e.target.value) }
+			placeholder="Anything written here will be injected ${authorNoteDepth} newlines from bottom into context."
+			defaultValue=${authorNoteTokens.text}
+			value=${authorNoteTokens.text}
+			onInput=${(e) => handleauthorNoteTokensChange("text", e.target.value) }
 			class="expanded-text-area-settings"
 			id="expanded-an-settings"/>
 		</${Modal}>
