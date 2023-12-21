@@ -128,11 +128,18 @@ body {
 html.monospace-dark #prompt-area,
 html.monospace-dark #memory-area,
 html.monospace-dark #an-area,
-html.monospace-dark .expanded-text-area-settings {
+html.monospace-dark .expanded-text-area-settings,
+html.monospace-dark .wi-textarea {
 	background: var(--color-bg);
 	color: var(--color-text);
 }
-#memory-area, #an-area, .expanded-text-area-settings {
+.modal .wi-textarea {
+	resize:vertical;
+	background: var(--color-base-100);
+	color: var(--color-base-10);
+}
+
+#memory-area, #an-area, .expanded-text-area-settings, .wi-textarea {
 	flex: 1;
 	border: none;
 	outline: none;
@@ -341,12 +348,6 @@ hr {
   margin-bottom:4px;
 }
 
-.wi-textarea {
-	resize:vertical;
-	background: var(--color-base-100) !important;
-	color: var(--color-light); !important;
-}
-
 #sidebar {
 	font-family: inherit;
 	width: 250px;
@@ -399,6 +400,7 @@ html.monospace-dark #sidebar {
 	background: var(--color-base-30);
 	flex: none;
 }
+
 html.monospace-dark .InputBox > input, html.monospace-dark .SelectBox > select {
 	color: var(--color-base-0);
 }
