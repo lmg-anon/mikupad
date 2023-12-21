@@ -1198,6 +1198,34 @@ function CollapsibleGroup({ label, expanded, children }) {
 		</div>
 		`;
 	}
+  function ModalWI({ isOpen, onClose, title, description, children, modalWorldInfo, ...props }) {
+		if (!isOpen) {
+			return null;
+		} 
+    useEffect(() => {
+      // Code that relies on the updated state
+      console.log(modalWorldInfo);
+    }, [modalWorldInfo]);
+
+
+		return html`
+		<div className="modal-overlay" onClick=${onClose}>
+			<div className="modal-container">
+				<div className="modal" onClick=${(e) => e.stopPropagation()} ...${props}>
+					<div class="modal-title">${title}</div>
+					${ description=="" ? false : html`<div style=${{ whiteSpace: 'pre-line' }} class='modal-desc'>${description}</div>` }
+					<hr/>
+					${children}
+					<button
+					class="button-modal-top"
+					onClick=${onClose}>
+						<svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="-1 -1 10 10" xmlns="http://www.w3.org/2000/svg"><path d="M 0 1 L 3 4 L 0 7 L 1 8 L 4 5 L 7 8 L 8 7 L 5 4 L 8 1 L 7 0 L 4 3 L 1 0 L 1 0 Z"></path></svg>
+					</button>
+				</div>
+			</div>
+		</div>
+		`;
+	}
 	
 function Sessions({ sessionStorage, onSessionChange, disabled }) {
 	const [version, setVersion] = useState(0);
@@ -1573,6 +1601,7 @@ const defaultPresets = {
 	ignoreEos: false,
 	openaiPresets: false,
 	contextLength: 4096,
+  tokenRatio: 3.3,
 	memoryTokens: ({ "prefix":"", "text":"", "suffix":""}),
 	authorNoteTokens: ({ "prefix":"", "text":"", "suffix":""}),
 	authorNoteDepth: 3,
@@ -1695,6 +1724,7 @@ export function App() {
 	const [predictStartTokens, setPredictStartTokens] = useState(0);
 	const [lastError, setLastError] = useState(undefined);
 	const [contextLength, setContextLength] = useSessionState('contextLength', defaultPresets.contextLength);
+  const [tokenRatio, setTokenRatio] = useSessionState('tokenRatio', defaultPresets.tokenRatio);
 	const [memoryTokens, setMemoryTokens] = useSessionState('memoryTokens', defaultPresets.memoryTokens);
 
 	const [authorNoteTokens, setAuthorNoteTokens] = useSessionState('authorNoteTokens', defaultPresets.authorNoteTokens);
@@ -1724,10 +1754,9 @@ export function App() {
 	}
 
 	const [worldInfo, setWorldInfo] = useSessionState('worldInfo', defaultPresets.worldInfo)
-  const [selectedEntryIndex, setSelectedEntryIndex] = useState(null);
-  const [selectedEntry, setSelectedEntry] = useState(null);
-
-	function handleWorldInfoNew() {
+  //const [worldInfo, setWorldInfo] =  useState({})
+  
+	const handleWorldInfoNew = () => {
     console.log(worldInfo.entries)
     setWorldInfo((prevWorldInfo) => {
       return {
@@ -1735,9 +1764,10 @@ export function App() {
         entries: [ { "displayName":"New Entry","text":"","keys":[] },...prevWorldInfo.entries ],
       };
     });
-		refreshModal("wi")
+		//refreshModal("wi")
   }
-	function handleWorldInfoMove(index,move) {
+	const handleWorldInfoMove = (index,move) => {
+    // TODO SOMETHING WITH KEY NOT WORKING HERE
 		const modEntries = worldInfo.entries
 		if (index+move < 0 || index+move > modEntries.length-1 ) {
 			return
@@ -1750,18 +1780,15 @@ export function App() {
        entries: [ ...modEntries ],
      };
     });
-		refreshModal("wi")
+		//refreshModal("wi")
   }
-	function handleWorldInfoDel(index) {
+	const handleWorldInfoDel = (index) => {
 		console.log(index)
 		console.log(worldInfo.entries[index])
 		if (!window.confirm("Are you sure you want to delete the world info entry #" + (index + 1) + ": "+ worldInfo.entries[index].displayName + "?\nThis action cannot be undone."))
 			return;
 		if (index > -1 && index < worldInfo.entries.length) {
 			setWorldInfo((prevWorldInfo) => {
-				// remove selected index
-
-				// then return
 				return {
 					...prevWorldInfo,
 					entries: prevWorldInfo.entries.filter((_, i) => i !== index),
@@ -1773,17 +1800,17 @@ export function App() {
 		}
 
 		// reload modal
-		refreshModal("wi")
+		//refreshModal("wi")
 	};
 
 
-  function handleWiChange(key,index,value) {
+  const handleWorldInfoChange = (key,index,value) => {
     setWorldInfo((prevWorldInfo) => {
       const updatedEntries = [...prevWorldInfo.entries];
       console.log(key)
       console.log(value)
       const updatedEntry = key == "keys"
-        ? { ...updatedEntries[index], [key]: value.split(/(?<!\\), ?/).map(item => item.trim()) }
+        ? { ...updatedEntries[index], [key]: value.split(/(?<!\\), ?/) } //.map(item => item.trim())
         : { ...updatedEntries[index], [key]: value };
       updatedEntries[index] = updatedEntry;
       console.log(updatedEntry)
@@ -1793,7 +1820,6 @@ export function App() {
         entries: updatedEntries,
       };
     });
-		console.log(worldInfo.entries[index])
   }
 
 
@@ -1830,9 +1856,36 @@ export function App() {
 
 	// Update theme on the first render.
 	useMemo(() => !theme || switchTheme(theme, true), []);
+  
+  // compute separately as I imagine this can get expensive
+  const assembledWorldInfo = useMemo(() => {
+    // assemble non-empty wi
+    const validWorldInfo = !Array.isArray(worldInfo.entries) ? [] : worldInfo.entries.filter(entry => 
+      entry.keys.length > 0 && !(entry.keys.length == 1 && entry.keys[0] == "") && entry.text !== "");
+    console.log("valid wi")
+    console.log(validWorldInfo)
+    
+    // search prompt
+    const activeWorldInfo = validWorldInfo.filter(entry => {
+      if (validWorldInfo.length < 1) { return }
+      // truncate to search range. using promptText allows for search ranges larger than context
+      const searchPrompt = promptText.substring(promptText.length - entry.search * tokenRatio);
+      // search in range
+      return entry.keys.some(key => new RegExp(key,"i").test(searchPrompt));
+    });
+
+    const assembledWorldInfo = activeWorldInfo.length > 0
+      ? activeWorldInfo.map(entry => entry.text).join("\n")
+      : "";
+    console.log(activeWorldInfo)
+
+    return assembledWorldInfo
+  }, [worldInfo]);
 
 
 	const modifiedPrompt = useMemo(() => {
+    console.log("running modPrompt")
+    
 		// assemble an and memory contexts if text not empty
 		const order = ["prefix","text","suffix"]
 		const assembledMemory = memoryTokens.text && memoryTokens.text !== ""
@@ -1841,45 +1894,21 @@ export function App() {
 		const assembledAuthorNote = authorNoteTokens.text && authorNoteTokens.text !== ""
 			? order.map(key => authorNoteTokens[key]).join("").replace(/\\n/g,'\n')
 			: "";
-    // assemble non-empty wi
-    const validWorldInfo = worldInfo.entries.filter(entry => entry.keys.length > 0 && entry.text !== "");
-    console.log("valid wi")
-    console.log(validWorldInfo)
-
-		// prompt length estimation
-		const tokenRatio = 3.3;
-		const additionalContext = (assembledMemory + assembledAuthorNote).length; // TODO add active WI
+    
+    // prompt length estimation
+		const additionalContext = (assembledMemory + assembledAuthorNote + assembledWorldInfo).length;
 		const estimatedContextStart = Math.round(
 			promptText.length - contextLength * tokenRatio + additionalContext) + 1;
-      // I don't think the `/ tokenRatio` is necessary here, since we want the character length.
+      // I don't think the `/ tokenRatio` after additionalContext was necessary
+      // here, since we want the character length?
     
-		// truncate prompt for wi search
-		const tempTruncPrompt = promptText.substring(estimatedContextStart);
-    
-    // search truncated prompt
-    const activeWorldInfo = validWorldInfo.filter(entry => {
-      // truncate to search range. using promptText allows for search
-      // ranges larger than context if anyone wants that.
-      const searchPrompt = promptText.substring(promptText.length - entry.search*tokenRatio);
-      console.log(entry.displayName + "\n" + searchPrompt)
-      // search in range
-      // SOMETHING NOT WORKING HERE
-      return entry.keys.some(key => new RegExp(key,"i").test(searchPrompt));
-    });
-
-    const assembledWorldInfo = activeWorldInfo.length > 0
-			? activeWorldInfo.join("\n")
-			: "";
-    console.log(activeWorldInfo)
-    
-    // trunkate prompt again for assembly of all contexts
-    const truncPrompt = tempTruncPrompt.substring(Math.round(
-			estimatedContextStart + assembledWorldInfo.length));
+    // trunkate prompt to context limit
+		const truncPrompt = promptText.substring(estimatedContextStart);
     
 		// make injection depth valid
 		const truncPromptLen = truncPrompt.split('\n').length;
 		const injDepth = truncPromptLen > authorNoteDepth ? authorNoteDepth : truncPromptLen
-
+    
 		const lines = truncPrompt.match(/.*\n?/g);
 		const injIndex = lines.length-injDepth-1
 		// inject an
@@ -1894,7 +1923,7 @@ export function App() {
 
 		// if no author's note, return original memory context
 		return permContextPrompt;
-	}, [contextLength, promptText, memoryTokens, authorNoteTokens, authorNoteDepth]);
+	}, [contextLength, promptText, memoryTokens, authorNoteTokens, authorNoteDepth, assembledWorldInfo]);
 
 	async function predict(prompt = modifiedPrompt, chunkCount = promptChunks.length) {
 		if (cancel) {
@@ -2625,7 +2654,7 @@ export function App() {
 			id="context-area-settings" readOnly/>
 		</${Modal}>
 
-		<${Modal} isOpen=${modalState.wi} onClose=${() => closeModal("wi")}
+		<${ModalWI} isOpen=${modalState.wi} onClose=${() => closeModal("wi")} modalWorldInfo=${worldInfo}
 			title="World Info"
 			description="Additional information that is added when specific keywords are found in context.
 			World info will be added at the top of your context  below memory, in the order specified here.
@@ -2643,7 +2672,7 @@ export function App() {
 							readOnly=${!!cancel}
 							placeholder="Name of this entry"
 							value=${entry.displayName}
-							onChange=${(e) => handleWiChange("displayName",index, e.target.value)}
+              onInput=${(e) => handleWorldInfoChange("displayName",index, e.target.value)}
 							/>
 						</div>
 						<div class="wi-entry-buttons">
@@ -2661,12 +2690,11 @@ export function App() {
 							<div class="hbox">
 								<${InputBox}
 									label="Comma Separated RegEx Keys"
-									tooltip="aaa"
 									type="text"
 									readOnly=${!!cancel}
-									defaultValue=${entry.keys.join(', ')}
+									value=${entry.keys.join(',')}
 									placeholder="Required to activate entry"
-									onChange=${(e) => handleWiChange("keys",index, e.target.value)}
+                  onValueChange=${(value) => handleWorldInfoChange("keys",index,value)}
 									/>
 								<${InputBox}
 									label="Search Range"
@@ -2676,7 +2704,7 @@ export function App() {
 									inputmode="numeric"
 									value=${entry.search}
 									placeholder="2048"
-									onChange=${(e) => handleWiChange("search",index, e.target.value)}
+									onValueChange=${(value) => handleWorldInfoChange("search",index,value)}
 									/>
 							</div>
 							<label class="TextArea">
@@ -2685,7 +2713,8 @@ export function App() {
 									readOnly=${!!cancel}
 									placeholder="Information to be inserted into context when key is found"
 									value=${entry.text ? entry.text : ""}
-									onChange=${(e) => handleWiChange("text",index, e.target.value)}
+                  defaultValue=${entry.text ? entry.text : ""}
+									onInput=${(e) => handleWorldInfoChange("text",index, e.target.value)}
 									class="wi-textarea" />
 							</label>
 							</div>
@@ -2693,7 +2722,7 @@ export function App() {
 					</div>
 				`)}
 			</div>
-		</${Modal}>
+		</${ModalWI}>
 	`;
 }
 
