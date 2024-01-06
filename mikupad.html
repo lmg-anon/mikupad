@@ -2637,51 +2637,6 @@ export function App() {
 				onInput=${(e) => handleMemoryTokensChange("text", e.target.value) }
 				class="expanded-text-area-settings"
 				id="memory-area-settings"/>
-
-			<${CollapsibleGroup} label="Advanced Context Ordering">
-				<div>
-					You can use the following placeholders to order the context according to your needs:<br />
-					<table id="advancedContextPlaceholders">
-						<thead>
-						  <tr>
-							<th></th>
-							<th>Prefix</th>
-							<th>Text</th>
-							<th>Suffix</th>
-						  </tr>
-						</thead>
-						<tbody>
-						  <tr>
-							<th>Memory</th>
-							<td>{memPrefix}</td>
-							<td>{memText}</td>
-							<td>{memSuffix}</td>
-						  </tr>
-						  <tr>
-							<th>World Info</th>
-							<td>{wiPrefix}</td>
-							<td>{wiText}</td>
-							<td>{wiSuffix}</td>
-						  </tr>
-						  <tr>
-							<th>Prompt</th>
-							<td></td>
-							<td>{prompt}</td>
-							<td></td>
-						  </tr>
-						</tbody>
-					</table>
-					Any text that is not a placeholder will be added into the context as is.
-				</div>
-				<textarea
-					readOnly=${!!cancel}
-					placeholder=${defaultPresets.memoryTokens.contextOrder}
-					defaultValue=${memoryTokens.contextOrder}
-					value=${memoryTokens.contextOrder}
-					onInput=${(e) => handleMemoryTokensChange("contextOrder", e.target.value)}
-					class="expanded-text-area-settings"
-					id="advanced-context-order-settings"/>
-			</${CollapsibleGroup}>
 		</${Modal}>
 
 		<${Modal} isOpen=${modalState.an} onClose=${() => closeModal("an")}
@@ -2708,8 +2663,52 @@ export function App() {
 		</${Modal}>
 
 		<${Modal} isOpen=${modalState.context} onClose=${() => closeModal("context")}
-		title="Context"
-		description="This is the prompt being sent to your large language model.">
+			title="Context"
+			description="This is the prompt being sent to your large language model.">
+		<${CollapsibleGroup} label="Advanced Context Ordering">
+			<div>
+				You can use the following placeholders to order the context according to your needs:<br />
+				<table id="advancedContextPlaceholders">
+					<thead>
+					  <tr>
+						<th></th>
+						<th>Prefix</th>
+						<th>Text</th>
+						<th>Suffix</th>
+					  </tr>
+					</thead>
+					<tbody>
+					  <tr>
+						<th>Memory</th>
+						<td>{memPrefix}</td>
+						<td>{memText}</td>
+						<td>{memSuffix}</td>
+					  </tr>
+					  <tr>
+						<th>World Info</th>
+						<td>{wiPrefix}</td>
+						<td>{wiText}</td>
+						<td>{wiSuffix}</td>
+					  </tr>
+					  <tr>
+						<th>Prompt</th>
+						<td></td>
+						<td>{prompt}</td>
+						<td></td>
+					  </tr>
+					</tbody>
+				</table>
+				Any text that is not a placeholder will be added into the context as is.
+			</div>
+			<textarea
+				readOnly=${!!cancel}
+				placeholder=${defaultPresets.memoryTokens.contextOrder}
+				defaultValue=${memoryTokens.contextOrder}
+				value=${memoryTokens.contextOrder}
+				onInput=${(e) => handleMemoryTokensChange("contextOrder", e.target.value)}
+				class="expanded-text-area-settings"
+				id="advanced-context-order-settings"/>
+		</${CollapsibleGroup}>
 			<textarea
 			readOnly=${!!cancel}
 			value=${modifiedPrompt}
