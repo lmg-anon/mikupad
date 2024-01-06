@@ -277,13 +277,18 @@ html.monospace-dark #probs {
 }
 
 .modal {
-	color: var(--color-light);
-	position: relative;
-	background: var(--color-base-50);
-	width:75%;
-	height:fit-content;
-	padding: 1em;
-	border-radius: 5px;
+		color: var(--color-light);
+		position: relative;
+		background: var(--color-base-50);
+		width: 75%;
+		max-height: 80vh;
+		padding: 1em;
+		border-radius: 5px;
+		display: flex;
+		flex-direction: column;
+}
+.modal-content {
+	overflow-y: auto;
 }
 
 .button-modal-top {
@@ -309,15 +314,21 @@ hr {
 
 
 /* world info */
+
 .modal-wi-content {
 	display: flex;
-	max-height:75vh;
 	flex-direction:column;
 	overflow-y: auto;
 }
 
+#modal-wi-global{
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
 #button-wi-new {
-	width: 100%;
+		width: 100%;
 }
 .modal-wi-content{
 	margin-top:0.5em;
@@ -1216,7 +1227,9 @@ function CollapsibleGroup({ label, expanded, children }) {
 					<div class="modal-title">${title}</div>
 					${ description=="" ? false : html`<div style=${{ whiteSpace: 'pre-line' }} class='modal-desc'>${description}</div>` }
 					<hr/>
-					${children}
+					<div className="modal-content">
+						${children}
+					</div>
 					<button
 					class="button-modal-top"
 					onClick=${onClose}>
@@ -1924,22 +1937,22 @@ export function App() {
 		// add the final replacement
 		replacements["{prompt}"] = authorNotePrompt
 
-		memoryTokens.contextOrder = memoryTokens.contextOrder && memoryTokens.contextOrder !== ""
+		const workingContextOrder = memoryTokens.contextOrder && memoryTokens.contextOrder !== ""
 			? memoryTokens.contextOrder
 			: defaultPresets.memoryTokens.contextOrder;
 			
 		// assemble context in order:
 		// the context is (1) split by line, (2) all placeholders get replaced,
 		// (3) non-empty lines are joined back together.
-				const permContextPrompt = memoryTokens.contextOrder.split("\n").map(function (line) {
-						return line.replace(/\{[^}]+\}/g, function (placeholder) {
-				return replacements.hasOwnProperty(placeholder)
-					? replacements[placeholder]
-					: placeholder;
-						});
-				}).filter(function (line) {
-						return line.trim() !== ""; 
-				}).join("\n").replace(/\\n/g, '\n');
+				const permContextPrompt = workingContextOrder.split("\n").map(function (line) {
+				return line.replace(/\{[^}]+\}/g, function (placeholder) {
+		return replacements.hasOwnProperty(placeholder)
+			? replacements[placeholder]
+			: placeholder;
+				});
+		}).filter(function (line) {
+				return line.trim() !== ""; 
+		}).join("\n").replace(/\\n/g, '\n');
 
 		return permContextPrompt;
 	}, [contextLength, promptText, memoryTokens, authorNoteTokens, authorNoteDepth, assembledWorldInfo, worldInfo.prefix, worldInfo.suffix]);
@@ -2627,7 +2640,7 @@ export function App() {
 
 			<${CollapsibleGroup} label="Advanced Context Ordering">
 				<div>
-					You can use the following placeholders to order the context according to your usecase:<br />
+					You can use the following placeholders to order the context according to your needs:<br />
 					<table id="advancedContextPlaceholders">
 						<thead>
 						  <tr>
@@ -2667,7 +2680,7 @@ export function App() {
 					value=${memoryTokens.contextOrder}
 					onInput=${(e) => handleMemoryTokensChange("contextOrder", e.target.value)}
 					class="expanded-text-area-settings"
-					id="memory-area-settings"/>
+					id="advanced-context-order-settings"/>
 			</${CollapsibleGroup}>
 		</${Modal}>
 
@@ -2704,22 +2717,25 @@ export function App() {
 			id="context-area-settings" readOnly/>
 		</${Modal}>
 
-		<${Modal} isOpen=${modalState.wi} onClose=${() => closeModal("wi")} modalWorldInfo=${worldInfo}
+		<${Modal} isOpen=${modalState.wi} onClose=${() => closeModal("wi")}
 			title="World Info"
 			description="Additional information that is added when specific keywords are found in context.
 			World info will be added at the top of your memory, in the order specified here.
 			
 			Each entry will begin on a newline. Keys will be interpreted as case-insensitive regular expressions. Search Range specifies how many tokens back into the context will be searched for activation keys. Search range 0 to disable an entry.">
-			
-			<div>The prefix and suffix will be added at the beginning or end of all your active World Info entries respectively.</div>
-			<div className="hbox">
-				<${InputBox} label="Prefix" type="text" placeholder=""
-					readOnly=${!!cancel} value=${worldInfo.prefix} onValueChange=${(value) => handleWorldInfoAffixChange("prefix", value)}/>
-				<${InputBox} label="Suffix" type="text" placeholder="\n"
-					readOnly=${!!cancel} value=${worldInfo.suffix} onValueChange=${(value) => handleWorldInfoAffixChange("suffix", value)}/>
-			</div><br />
-			<button id="button-wi-new" disabled=${!!cancel} onClick=${handleWorldInfoNew}>New Entry</button>
-
+			<div id="modal-wi-global">
+				<${CollapsibleGroup} label="Prefix/Suffix">
+					The prefix and suffix will be added at the beginning or end of all your active World Info entries respectively.
+					<br />
+					<div className="hbox">
+						<${InputBox} label="Prefix" type="text" placeholder="\\n"
+							readOnly=${!!cancel} value=${worldInfo.prefix} onValueChange=${(value) => handleWorldInfoAffixChange("prefix", value)}/>
+						<${InputBox} label="Suffix" type="text" placeholder="\\n"
+							readOnly=${!!cancel} value=${worldInfo.suffix} onValueChange=${(value) => handleWorldInfoAffixChange("suffix", value)}/>
+					</div>
+				</${CollapsibleGroup}>
+				<button id="button-wi-new" disabled=${!!cancel} onClick=${handleWorldInfoNew}>New Entry</button>
+			</div>
 			<div className="modal-wi-content">
 				${ !Array.isArray(worldInfo.entries) ? null : worldInfo.entries.map((entry, index) => html`
 				<div class="wi-entry" key=${index}>
