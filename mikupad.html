@@ -157,6 +157,27 @@ html.monospace-dark .wi-textarea {
 #an-area {
 	min-height:3.5em;
 }
+.wi-textarea {
+	min-height: 4em;
+}
+
+#advancedContextPlaceholders {
+    background: var(--color-base-30);
+    margin: 1em auto;
+    padding: .25em;
+    border-radius: 2px;
+}
+#advancedContextPlaceholders tbody th {
+    text-align: right;
+}
+#advancedContextPlaceholders tbody td {
+    text-align: center;
+}
+#advancedContextPlaceholders td {
+	user-select:all;
+}
+
+
 .expanded-text-area-settings {
 	margin: 8px 0 8px 0;
 	width:100%;
@@ -1582,12 +1603,14 @@ const defaultPresets = {
 	openaiPresets: false,
 	contextLength: 4096,
 	tokenRatio: 3.3,
-	memoryTokens: ({ "prefix":"", "text":"", "suffix":""}),
+    memoryTokens: ({ "contextOrder":"{memPrefix}{wiPrefix}{wiText}{wiSuffix}{memText}{memSuffix}{prompt}","prefix":"", "text":"", "suffix":""}),
 	authorNoteTokens: ({ "prefix":"", "text":"", "suffix":""}),
 	authorNoteDepth: 3,
 	worldInfo:({
 		"mikuPediaVersion": 1,
-		"entries": []
+		"entries": [],
+		"prefix": "",
+		"suffix": ""
 	})
 };
 
@@ -1761,7 +1784,7 @@ export function App() {
 		}
 	};
 
-
+	
 	const handleWorldInfoChange = (key,index,value) => {
 		setWorldInfo((prevWorldInfo) => {
 			const updatedEntries = [...prevWorldInfo.entries];
@@ -1776,6 +1799,12 @@ export function App() {
 			};
 		});
 	}
+    const handleWorldInfoAffixChange = (key, value) => {
+        setWorldInfo((prevWorldInfo) => ({
+            ...prevWorldInfo,
+            [key]: value,
+        }));
+    }
 
 	const [modalState, setModalState] = useState({});
 	const toggleModal = (modalKey) => {
@@ -1834,7 +1863,7 @@ export function App() {
 		});
 		
 		const assembledWorldInfo = activeWorldInfo.length > 0
-			? activeWorldInfo.map(entry => entry.text).join("\n").concat("\n")
+			? activeWorldInfo.map(entry => entry.text).join("\n")
 			: "";
 
 		return assembledWorldInfo
@@ -1877,11 +1906,39 @@ export function App() {
 			: truncPrompt;
 
 		// assemble context in order
-		const permContextPrompt = assembledMemory + authorNotePrompt;
+		//const permContextPrompt = assembledMemory + authorNotePrompt;
 
-		// if no author's note, return original memory context
+		const replacements = {
+            "{wiPrefix}": memoryTokens.worldInfo && memoryTokens.worldInfo !== ""
+                ? worldInfo.prefix
+                : "", // wi prefix and suffix will be added whenever wi isn't empty
+			"{wiText}": memoryTokens.worldInfo,
+            "{wiSuffix}": memoryTokens.worldInfo && memoryTokens.worldInfo !== ""
+                ? worldInfo.suffix
+				: "",
+
+            "{memPrefix}": memoryTokens.text && memoryTokens.text !== "" || memoryTokens.worldInfo !== ""
+				? memoryTokens.prefix
+				: "", // memory prefix and suffix will be added whenever memory or wi aren't empty
+            "{memText}": memoryTokens.text,
+            "{memSuffix}": memoryTokens.text && memoryTokens.text !== "" || memoryTokens.worldInfo !== ""
+                ? memoryTokens.suffix
+				: "",
+
+            "{prompt}": authorNotePrompt
+		}
+
+        const permContextPrompt = memoryTokens.contextOrder.split("\n").map(function (line) {
+            return line.replace(/\{[^}]+\}/g, function (all) {
+                return replacements[all] !== undefined ? replacements[all] : "";
+            });
+        }).filter(function (line) {
+            return line.trim() !== ""; // exclude lines that are just empty or whitespace
+        }).join("\n").replace(/\\n/g, '\n'); // and finally put the context back together
+        console.log(permContextPrompt)
+
 		return permContextPrompt;
-	}, [contextLength, promptText, memoryTokens, authorNoteTokens, authorNoteDepth, assembledWorldInfo]);
+	}, [contextLength, promptText, memoryTokens, authorNoteTokens, authorNoteDepth, assembledWorldInfo, worldInfo.prefix, worldInfo.suffix]);
 
 	async function predict(prompt = modifiedPrompt, chunkCount = promptChunks.length) {
 		if (cancel) {
@@ -2563,6 +2620,51 @@ export function App() {
 				onInput=${(e) => handleMemoryTokensChange("text", e.target.value) }
 				class="expanded-text-area-settings"
 				id="memory-area-settings"/>
+
+			<${CollapsibleGroup} label="Advanced Context Ordering">
+				<div>
+					You can use the following placeholders to order the context according to your usecase:<br />
+					<table id="advancedContextPlaceholders">
+						<thead>
+						  <tr>
+							<th></th>
+							<th>Prefix</th>
+							<th>Text</th>
+							<th>Suffix</th>
+						  </tr>
+						</thead>
+						<tbody>
+						  <tr>
+							<th>Memory</th>
+							<td>{memPrefix}</td>
+							<td>{memText}</td>
+							<td>{memSuffix}</td>
+						  </tr>
+						  <tr>
+							<th>World Info</th>
+							<td>{wiPrefix}</td>
+							<td>{wiText}</td>
+							<td>{wiSuffix}</td>
+						  </tr>
+						  <tr>
+							<th>Prompt</th>
+							<td></td>
+							<td>{prompt}</td>
+							<td></td>
+						  </tr>
+						</tbody>
+					</table>
+					Any text that is not a placeholder will be added into the context as is.
+				</div>
+				<textarea
+					readOnly=${!!cancel}
+					placeholder=${defaultPresets.memoryTokens.contextOrder}
+					defaultValue=${memoryTokens.contextOrder}
+					value=${memoryTokens.contextOrder}
+					onInput=${(e) => handleMemoryTokensChange("contextOrder", e.target.value)}
+					class="expanded-text-area-settings"
+					id="memory-area-settings"/>
+			</${CollapsibleGroup}>
 		</${Modal}>
 
 		<${Modal} isOpen=${modalState.an} onClose=${() => closeModal("an")}
@@ -2604,7 +2706,16 @@ export function App() {
 			World info will be added at the top of your memory, in the order specified here.
 			
 			Each entry will begin on a newline. Keys will be interpreted as case-insensitive regular expressions. Search Range specifies how many tokens back into the context will be searched for activation keys. Search range 0 to disable an entry.">
+			
+			<div>The prefix and suffix will be added at the beginning or end of all your active World Info entries respectively.</div>
+			<div className="hbox">
+				<${InputBox} label="Prefix" type="text" placeholder=""
+					readOnly=${!!cancel} value=${worldInfo.prefix} onValueChange=${(value) => handleWorldInfoAffixChange("prefix", value)}/>
+				<${InputBox} label="Suffix" type="text" placeholder="\n"
+					readOnly=${!!cancel} value=${worldInfo.suffix} onValueChange=${(value) => handleWorldInfoAffixChange("suffix", value)}/>
+			</div><br />
 			<button id="button-wi-new" disabled=${!!cancel} onClick=${handleWorldInfoNew}>New Entry</button>
+
 			<div className="modal-wi-content">
 				${ !Array.isArray(worldInfo.entries) ? null : worldInfo.entries.map((entry, index) => html`
 				<div class="wi-entry" key=${index}>
