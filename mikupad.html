@@ -1,14 +1,14 @@
 <!doctype html>
 <meta charset="utf-8">
 <!-- mikupad by Anon
-  --
-  -- To the extent possible under law, the person who associated CC0 with
-  -- mikupad has waived all copyright and related or neighboring rights
-  -- to mikupad.
-  --
-  -- You should have received a copy of the CC0 legalcode along with this
-  -- work.  If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
-  -->
+	--
+	-- To the extent possible under law, the person who associated CC0 with
+	-- mikupad has waived all copyright and related or neighboring rights
+	-- to mikupad.
+	--
+	-- You should have received a copy of the CC0 legalcode along with this
+	-- work.  If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
+	-->
 <title>mikupad</title>
 <script type="importmap">
 {
@@ -162,16 +162,16 @@ html.monospace-dark .wi-textarea {
 }
 
 #advancedContextPlaceholders {
-    background: var(--color-base-30);
-    margin: 1em auto;
-    padding: .25em;
-    border-radius: 2px;
+		background: var(--color-base-30);
+		margin: 1em auto;
+		padding: .25em;
+		border-radius: 2px;
 }
 #advancedContextPlaceholders tbody th {
-    text-align: right;
+		text-align: right;
 }
 #advancedContextPlaceholders tbody td {
-    text-align: center;
+		text-align: center;
 }
 #advancedContextPlaceholders td {
 	user-select:all;
@@ -1603,7 +1603,7 @@ const defaultPresets = {
 	openaiPresets: false,
 	contextLength: 4096,
 	tokenRatio: 3.3,
-    memoryTokens: ({ "contextOrder":"{memPrefix}{wiPrefix}{wiText}{wiSuffix}{memText}{memSuffix}{prompt}","prefix":"", "text":"", "suffix":""}),
+		memoryTokens: ({ "contextOrder":"{memPrefix}{wiPrefix}{wiText}{wiSuffix}{memText}{memSuffix}{prompt}","prefix":"", "text":"", "suffix":""}),
 	authorNoteTokens: ({ "prefix":"", "text":"", "suffix":""}),
 	authorNoteDepth: 3,
 	worldInfo:({
@@ -1799,12 +1799,12 @@ export function App() {
 			};
 		});
 	}
-    const handleWorldInfoAffixChange = (key, value) => {
-        setWorldInfo((prevWorldInfo) => ({
-            ...prevWorldInfo,
-            [key]: value,
-        }));
-    }
+		const handleWorldInfoAffixChange = (key, value) => {
+				setWorldInfo((prevWorldInfo) => ({
+						...prevWorldInfo,
+						[key]: value,
+				}));
+		}
 
 	const [modalState, setModalState] = useState({});
 	const toggleModal = (modalKey) => {
@@ -1873,17 +1873,33 @@ export function App() {
 		// add world info to memory for easier assembly
 		memoryTokens["worldInfo"] = assembledWorldInfo;
 		
-		const order = ["prefix","worldInfo","text","suffix"]
-		// assemble an and memory contexts if text not empty
-		const assembledMemory = memoryTokens.text && memoryTokens.text !== "" || memoryTokens.worldInfo !== ""
-			? order.map(key => memoryTokens[key]).join("").replace(/\\n/g,'\n')
-			: "";
+		const order = ["prefix","text","suffix"]
 		const assembledAuthorNote = authorNoteTokens.text && authorNoteTokens.text !== ""
 			? order.map(key => authorNoteTokens[key]).join("").replace(/\\n/g,'\n')
 			: "";
+
+				// replacements for the contextOrder string
+				const replacements = {
+						"{wiPrefix}": memoryTokens.worldInfo && memoryTokens.worldInfo !== ""
+								? worldInfo.prefix
+								: "", // wi prefix and suffix will be added whenever wi isn't empty
+						"{wiText}": memoryTokens.worldInfo,
+						"{wiSuffix}": memoryTokens.worldInfo && memoryTokens.worldInfo !== ""
+								? worldInfo.suffix
+								: "",
+
+						"{memPrefix}": memoryTokens.text && memoryTokens.text !== "" || memoryTokens.worldInfo !== ""
+								? memoryTokens.prefix
+								: "", // memory prefix and suffix will be added whenever memory or wi aren't empty
+						"{memText}": memoryTokens.text,
+						"{memSuffix}": memoryTokens.text && memoryTokens.text !== "" || memoryTokens.worldInfo !== ""
+								? memoryTokens.suffix
+								: "",
+				}
 		
 		// prompt length estimation
-		const additionalContext = (assembledMemory + assembledAuthorNote + assembledWorldInfo).length;
+		const additionalContext = (Object.values(replacements)
+			.filter(value => typeof value === 'string').join('')).length;
 		const estimatedContextStart = Math.round(
 			promptText.length - contextLength * tokenRatio + additionalContext) + 1;
 			// I don't think the `/ tokenRatio` after additionalContext was necessary
@@ -1905,37 +1921,25 @@ export function App() {
 			? lines.join('')
 			: truncPrompt;
 
-		// assemble context in order
-		//const permContextPrompt = assembledMemory + authorNotePrompt;
+		// add the final replacement
+		replacements["{prompt}"] = authorNotePrompt
 
-		const replacements = {
-            "{wiPrefix}": memoryTokens.worldInfo && memoryTokens.worldInfo !== ""
-                ? worldInfo.prefix
-                : "", // wi prefix and suffix will be added whenever wi isn't empty
-			"{wiText}": memoryTokens.worldInfo,
-            "{wiSuffix}": memoryTokens.worldInfo && memoryTokens.worldInfo !== ""
-                ? worldInfo.suffix
-				: "",
-
-            "{memPrefix}": memoryTokens.text && memoryTokens.text !== "" || memoryTokens.worldInfo !== ""
-				? memoryTokens.prefix
-				: "", // memory prefix and suffix will be added whenever memory or wi aren't empty
-            "{memText}": memoryTokens.text,
-            "{memSuffix}": memoryTokens.text && memoryTokens.text !== "" || memoryTokens.worldInfo !== ""
-                ? memoryTokens.suffix
-				: "",
-
-            "{prompt}": authorNotePrompt
-		}
-
-        const permContextPrompt = memoryTokens.contextOrder.split("\n").map(function (line) {
-            return line.replace(/\{[^}]+\}/g, function (all) {
-                return replacements[all] !== undefined ? replacements[all] : "";
-            });
-        }).filter(function (line) {
-            return line.trim() !== ""; // exclude lines that are just empty or whitespace
-        }).join("\n").replace(/\\n/g, '\n'); // and finally put the context back together
-        console.log(permContextPrompt)
+		memoryTokens.contextOrder = memoryTokens.contextOrder && memoryTokens.contextOrder !== ""
+			? memoryTokens.contextOrder
+			: defaultPresets.memoryTokens.contextOrder;
+			
+		// assemble context in order:
+		// the context is (1) split by line, (2) all placeholders get replaced,
+		// (3) non-empty lines are joined back together.
+				const permContextPrompt = memoryTokens.contextOrder.split("\n").map(function (line) {
+						return line.replace(/\{[^}]+\}/g, function (placeholder) {
+				return replacements.hasOwnProperty(placeholder)
+					? replacements[placeholder]
+					: placeholder;
+						});
+				}).filter(function (line) {
+						return line.trim() !== ""; 
+				}).join("\n").replace(/\\n/g, '\n');
 
 		return permContextPrompt;
 	}, [contextLength, promptText, memoryTokens, authorNoteTokens, authorNoteDepth, assembledWorldInfo, worldInfo.prefix, worldInfo.suffix]);
