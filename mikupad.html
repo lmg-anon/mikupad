@@ -162,21 +162,24 @@ html.monospace-dark .wi-textarea {
 }
 
 #advancedContextPlaceholders {
-		background: var(--color-base-30);
-		margin: 1em auto;
-		padding: .25em;
-		border-radius: 2px;
+	background: var(--color-base-30);
+	margin: 1em auto;
+	padding: .25em;
+	border-radius: 2px;
+	width: fit-content;
 }
-#advancedContextPlaceholders tbody th {
-		text-align: right;
-}
-#advancedContextPlaceholders tbody td {
-		text-align: center;
+#advancedContextPlaceholders th,
+#advancedContextPlaceholders td {
+	text-align: center;
+	padding: 0.15em;
 }
 #advancedContextPlaceholders td {
 	user-select:all;
 }
 
+#advanced-context-order-settings {
+	height: 3.5em;
+}
 
 .expanded-text-area-settings {
 	margin: 8px 0 8px 0;
@@ -1740,7 +1743,6 @@ export function App() {
 	const [predictStartTokens, setPredictStartTokens] = useState(0);
 	const [lastError, setLastError] = useState(undefined);
 	const [contextLength, setContextLength] = useSessionState('contextLength', defaultPresets.contextLength);
-	const [tokenRatio, setTokenRatio] = useSessionState('tokenRatio', defaultPresets.tokenRatio);
 	const [memoryTokens, setMemoryTokens] = useSessionState('memoryTokens', defaultPresets.memoryTokens);
 
 	const [authorNoteTokens, setAuthorNoteTokens] = useSessionState('authorNoteTokens', defaultPresets.authorNoteTokens);
@@ -1840,6 +1842,7 @@ export function App() {
 	
 	// compute separately as I imagine this can get expensive
 	const assembledWorldInfo = useMemo(() => {
+
 		// assemble non-empty wi
 		const validWorldInfo = !Array.isArray(worldInfo.entries) ? [] : worldInfo.entries.filter(entry => 
 			entry.keys.length > 0 && !(entry.keys.length == 1 && entry.keys[0] == "") && entry.text !== "");
@@ -1853,7 +1856,7 @@ export function App() {
 				: Number(entry.search);
 			
 			// truncate to search range. using promptText allows for search ranges larger than context
-			const searchPrompt = promptText.substring(promptText.length - searchRange * tokenRatio);
+			const searchPrompt = promptText.substring(promptText.length - searchRange * defaultPresets.tokenRatio);
 			
 			// search in range
 			return entry.keys.some((key, index) => {
@@ -1914,7 +1917,7 @@ export function App() {
 		const additionalContext = (Object.values(replacements)
 			.filter(value => typeof value === 'string').join('')).length;
 		const estimatedContextStart = Math.round(
-			promptText.length - contextLength * tokenRatio + additionalContext) + 1;
+			promptText.length - contextLength * defaultPresets.tokenRatio + additionalContext) + 1;
 		
 		// trunkate prompt to context limit
 		const truncPrompt = promptText.substring(estimatedContextStart);
@@ -2666,36 +2669,38 @@ export function App() {
 		<${CollapsibleGroup} label="Advanced Context Ordering">
 			<div>
 				You can use the following placeholders to order the context according to your needs:<br />
-				<table id="advancedContextPlaceholders">
-					<thead>
-					  <tr>
-						<th></th>
-						<th>Prefix</th>
-						<th>Text</th>
-						<th>Suffix</th>
-					  </tr>
-					</thead>
-					<tbody>
-					  <tr>
-						<th>Memory</th>
-						<td>{memPrefix}</td>
-						<td>{memText}</td>
-						<td>{memSuffix}</td>
-					  </tr>
-					  <tr>
-						<th>World Info</th>
-						<td>{wiPrefix}</td>
-						<td>{wiText}</td>
-						<td>{wiSuffix}</td>
-					  </tr>
-					  <tr>
-						<th>Prompt</th>
-						<td></td>
-						<td>{prompt}</td>
-						<td></td>
-					  </tr>
-					</tbody>
-				</table>
+				<div id="advancedContextPlaceholders">
+					<table border="1" frame="void" rules="all">
+						<thead>
+						<tr>
+							<th></th>
+							<th>Prefix</th>
+							<th>Text</th>
+							<th>Suffix</th>
+						</tr>
+						</thead>
+						<tbody>
+						<tr>
+							<th>Memory</th>
+							<td>{memPrefix}</td>
+							<td>{memText}</td>
+							<td>{memSuffix}</td>
+						</tr>
+						<tr>
+							<th>World Info</th>
+							<td>{wiPrefix}</td>
+							<td>{wiText}</td>
+							<td>{wiSuffix}</td>
+						</tr>
+						<tr>
+							<th>Prompt</th>
+							<td></td>
+							<td>{prompt}</td>
+							<td></td>
+						</tr>
+						</tbody>
+					</table>
+				</div>
 				Any text that is not a placeholder will be added into the context as is.
 			</div>
 			<textarea
