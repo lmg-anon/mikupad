@@ -1815,10 +1815,10 @@ export function App() {
 		});
 	}
 		const handleWorldInfoAffixChange = (key, value) => {
-				setWorldInfo((prevWorldInfo) => ({
-						...prevWorldInfo,
-						[key]: value,
-				}));
+			setWorldInfo((prevWorldInfo) => ({
+				...prevWorldInfo,
+				[key]: value,
+			}));
 		}
 
 	const [modalState, setModalState] = useState({});
@@ -1896,21 +1896,21 @@ export function App() {
 
 		// replacements for the contextOrder string
 		const replacements = {
-				"{wiPrefix}": memoryTokens.worldInfo && memoryTokens.worldInfo !== ""
-						? worldInfo.prefix
-						: "", // wi prefix and suffix will be added whenever wi isn't empty
-				"{wiText}": memoryTokens.worldInfo,
-				"{wiSuffix}": memoryTokens.worldInfo && memoryTokens.worldInfo !== ""
-						? worldInfo.suffix
-						: "",
+			"{wiPrefix}": memoryTokens.worldInfo && memoryTokens.worldInfo !== ""
+				? worldInfo.prefix
+				: "", // wi prefix and suffix will be added whenever wi isn't empty
+			"{wiText}": memoryTokens.worldInfo,
+			"{wiSuffix}": memoryTokens.worldInfo && memoryTokens.worldInfo !== ""
+				? worldInfo.suffix
+				: "",
 
-				"{memPrefix}": memoryTokens.text && memoryTokens.text !== "" || memoryTokens.worldInfo !== ""
-						? memoryTokens.prefix
-						: "", // memory prefix and suffix will be added whenever memory or wi aren't empty
-				"{memText}": memoryTokens.text,
-				"{memSuffix}": memoryTokens.text && memoryTokens.text !== "" || memoryTokens.worldInfo !== ""
-						? memoryTokens.suffix
-						: "",
+			"{memPrefix}": memoryTokens.text && memoryTokens.text !== "" || memoryTokens.worldInfo !== ""
+				? memoryTokens.prefix
+				: "", // memory prefix and suffix will be added whenever memory or wi aren't empty
+			"{memText}": memoryTokens.text,
+			"{memSuffix}": memoryTokens.text && memoryTokens.text !== "" || memoryTokens.worldInfo !== ""
+				? memoryTokens.suffix
+				: "",
 		}
 		
 		// prompt length estimation
