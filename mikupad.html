@@ -277,15 +277,15 @@ html.monospace-dark #probs {
 }
 
 .modal {
-		color: var(--color-light);
-		position: relative;
-		background: var(--color-base-50);
-		width: 75%;
-		max-height: 80vh;
-		padding: 1em;
-		border-radius: 5px;
-		display: flex;
-		flex-direction: column;
+	color: var(--color-light);
+	position: relative;
+	background: var(--color-base-50);
+	width: 75%;
+	max-height: 80vh;
+	padding: 1em;
+	border-radius: 5px;
+	display: flex;
+	flex-direction: column;
 }
 .modal-content {
 	overflow-y: auto;
@@ -328,7 +328,7 @@ hr {
 }
 
 #button-wi-new {
-		width: 100%;
+	width: 100%;
 }
 .modal-wi-content{
 	margin-top:0.5em;
@@ -1616,7 +1616,7 @@ const defaultPresets = {
 	openaiPresets: false,
 	contextLength: 4096,
 	tokenRatio: 3.3,
-		memoryTokens: ({ "contextOrder":"{memPrefix}{wiPrefix}{wiText}{wiSuffix}{memText}{memSuffix}{prompt}","prefix":"", "text":"", "suffix":""}),
+	memoryTokens: ({ "contextOrder":"{memPrefix}{wiPrefix}{wiText}{wiSuffix}{memText}{memSuffix}{prompt}","prefix":"", "text":"", "suffix":""}),
 	authorNoteTokens: ({ "prefix":"", "text":"", "suffix":""}),
 	authorNoteDepth: 3,
 	worldInfo:({
@@ -1891,32 +1891,30 @@ export function App() {
 			? order.map(key => authorNoteTokens[key]).join("").replace(/\\n/g,'\n')
 			: "";
 
-				// replacements for the contextOrder string
-				const replacements = {
-						"{wiPrefix}": memoryTokens.worldInfo && memoryTokens.worldInfo !== ""
-								? worldInfo.prefix
-								: "", // wi prefix and suffix will be added whenever wi isn't empty
-						"{wiText}": memoryTokens.worldInfo,
-						"{wiSuffix}": memoryTokens.worldInfo && memoryTokens.worldInfo !== ""
-								? worldInfo.suffix
-								: "",
+		// replacements for the contextOrder string
+		const replacements = {
+				"{wiPrefix}": memoryTokens.worldInfo && memoryTokens.worldInfo !== ""
+						? worldInfo.prefix
+						: "", // wi prefix and suffix will be added whenever wi isn't empty
+				"{wiText}": memoryTokens.worldInfo,
+				"{wiSuffix}": memoryTokens.worldInfo && memoryTokens.worldInfo !== ""
+						? worldInfo.suffix
+						: "",
 
-						"{memPrefix}": memoryTokens.text && memoryTokens.text !== "" || memoryTokens.worldInfo !== ""
-								? memoryTokens.prefix
-								: "", // memory prefix and suffix will be added whenever memory or wi aren't empty
-						"{memText}": memoryTokens.text,
-						"{memSuffix}": memoryTokens.text && memoryTokens.text !== "" || memoryTokens.worldInfo !== ""
-								? memoryTokens.suffix
-								: "",
-				}
+				"{memPrefix}": memoryTokens.text && memoryTokens.text !== "" || memoryTokens.worldInfo !== ""
+						? memoryTokens.prefix
+						: "", // memory prefix and suffix will be added whenever memory or wi aren't empty
+				"{memText}": memoryTokens.text,
+				"{memSuffix}": memoryTokens.text && memoryTokens.text !== "" || memoryTokens.worldInfo !== ""
+						? memoryTokens.suffix
+						: "",
+		}
 		
 		// prompt length estimation
 		const additionalContext = (Object.values(replacements)
 			.filter(value => typeof value === 'string').join('')).length;
 		const estimatedContextStart = Math.round(
 			promptText.length - contextLength * tokenRatio + additionalContext) + 1;
-			// I don't think the `/ tokenRatio` after additionalContext was necessary
-			// here, since we want the character length?
 		
 		// trunkate prompt to context limit
 		const truncPrompt = promptText.substring(estimatedContextStart);
@@ -2774,8 +2772,9 @@ export function App() {
 									onValueChange=${(value) => handleWorldInfoChange("keys",index,value)}
 									/>
 								<${InputBox}
-									label="Search Range"
-									tooltip="0 to disable entry. Currently not accurate to the token count, it will be used as an estimate."
+									label="Search Range (0 = disabled)"
+									tooltip="Currently not accurate to the token count, it will be used as an estimate."
+
 									type="text"
 									readOnly=${!!cancel}
 									inputmode="numeric"
