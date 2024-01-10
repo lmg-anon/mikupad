@@ -1246,7 +1246,7 @@ function CollapsibleGroup({ label, expanded, children }) {
 		</div>
 		`;
 	}
-	
+
 function Sessions({ sessionStorage, onSessionChange, disabled }) {
 	const [version, setVersion] = useState(0);
 	const [newSessionName, setNewSessionName] = useState('');
@@ -1763,7 +1763,7 @@ export function App() {
 
 	// world info
 	const [worldInfo, setWorldInfo] = useSessionState('worldInfo', defaultPresets.worldInfo)
-	
+
 	const handleWorldInfoNew = () => {
 		setWorldInfo((prevWorldInfo) => {
 			return {
@@ -1802,7 +1802,7 @@ export function App() {
 		}
 	};
 
-	
+
 	const handleWorldInfoChange = (key,index,value) => {
 		setWorldInfo((prevWorldInfo) => {
 			const updatedEntries = [...prevWorldInfo.entries];
@@ -1842,14 +1842,14 @@ export function App() {
 
 	// Update theme on the first render.
 	useMemo(() => !theme || switchTheme(theme, true), []);
-	
+
 	// compute separately as I imagine this can get expensive
 	const assembledWorldInfo = useMemo(() => {
 
 		// assemble non-empty wi
-		const validWorldInfo = !Array.isArray(worldInfo.entries) ? [] : worldInfo.entries.filter(entry => 
+		const validWorldInfo = !Array.isArray(worldInfo.entries) ? [] : worldInfo.entries.filter(entry =>
 			entry.keys.length > 0 && !(entry.keys.length == 1 && entry.keys[0] == "") && entry.text !== "");
-		
+
 		// search prompt
 		const activeWorldInfo = validWorldInfo.filter(entry => {
 			if (validWorldInfo.length < 1) { return }
@@ -1857,17 +1857,17 @@ export function App() {
 			const searchRange = isNaN(entry.search) || entry.search === ""
 				? 2048
 				: Number(entry.search);
-			
+
 			// truncate to search range. using promptText allows for search ranges larger than context
 			const searchPrompt = promptText.substring(promptText.length - searchRange * defaultPresets.tokenRatio);
-			
+
 			// search in range
 			return entry.keys.some((key, index) => {
 				// don't waste resources on disabled entries
 				if (searchPrompt.length == 0) {
 					return
 				}
-				
+
 				// an invalid regex here can completely lock you out of mikupad until you clear
 				// localStorage, so this is necessary to handle that.
 				try {
@@ -1878,9 +1878,9 @@ export function App() {
 					return false;
 				}
 			});
-			
+
 		});
-		
+
 		const assembledWorldInfo = activeWorldInfo.length > 0
 			? activeWorldInfo.map(entry => entry.text).join("\n")
 			: "";
@@ -1891,7 +1891,7 @@ export function App() {
 	const modifiedPrompt = useMemo(() => {
 		// add world info to memory for easier assembly
 		memoryTokens["worldInfo"] = assembledWorldInfo;
-		
+
 		const order = ["prefix","text","suffix"]
 		const assembledAuthorNote = authorNoteTokens.text && authorNoteTokens.text !== ""
 			? order.map(key => authorNoteTokens[key]).join("").replace(/\\n/g,'\n')
@@ -1915,20 +1915,20 @@ export function App() {
 				? memoryTokens.suffix
 				: "",
 		}
-		
+
 		// prompt length estimation
 		const additionalContext = (Object.values(replacements)
 			.filter(value => typeof value === 'string').join('')).length;
 		const estimatedContextStart = Math.round(
 			promptText.length - contextLength * defaultPresets.tokenRatio + additionalContext) + 1;
-		
+
 		// trunkate prompt to context limit
 		const truncPrompt = promptText.substring(estimatedContextStart);
-		
+
 		// make injection depth valid
 		const truncPromptLen = truncPrompt.split('\n').length;
 		const injDepth = truncPromptLen > authorNoteDepth ? authorNoteDepth : truncPromptLen
-		
+
 		const lines = truncPrompt.match(/.*\n?/g);
 		const injIndex = lines.length-injDepth-1
 		// inject an
@@ -1944,7 +1944,7 @@ export function App() {
 		const workingContextOrder = memoryTokens.contextOrder && memoryTokens.contextOrder !== ""
 			? memoryTokens.contextOrder
 			: defaultPresets.memoryTokens.contextOrder;
-			
+
 		// assemble context in order:
 		// the context is (1) split by line, (2) all placeholders get replaced,
 		// (3) non-empty lines are joined back together.
@@ -1955,7 +1955,7 @@ export function App() {
 			: placeholder;
 				});
 		}).filter(function (line) {
-				return line.trim() !== ""; 
+				return line.trim() !== "";
 		}).join("\n").replace(/\\n/g, '\n');
 
 		return permContextPrompt;
@@ -2726,7 +2726,7 @@ export function App() {
 			title="World Info"
 			description="Additional information that is added when specific keywords are found in context.
 			World info will be added at the top of your memory, in the order specified here.
-			
+
 			Each entry will begin on a newline. Keys will be interpreted as case-insensitive regular expressions. Search Range specifies how many tokens back into the context will be searched for activation keys. Search range 0 to disable an entry.">
 			<div id="modal-wi-global">
 				<${CollapsibleGroup} label="Prefix/Suffix">
