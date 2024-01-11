@@ -720,7 +720,7 @@ if (!(Symbol.asyncIterator in ReadableStream.prototype)) {
 export async function getTokenCount({ endpoint, endpointAPI, endpointAPIKey, signal, ...options }) {
 	switch (endpointAPI) {
 		case 0: // llama.cpp
-			return await llamaCppTokenCount({ endpoint, signal, ...options });
+			return await llamaCppTokenCount({ endpoint, endpointAPIKey, signal, ...options });
 		case 1: // oobabooga
 			return await oobaTokenCount({ endpoint, signal, ...options });
 		case 2: // koboldcpp
@@ -749,7 +749,7 @@ export async function getModels({ endpoint, endpointAPI, endpointAPIKey, signal,
 export async function* completion({ endpoint, endpointAPI, endpointAPIKey, signal, ...options }) {
 	switch (endpointAPI) {
 		case 0: // llama.cpp
-			return yield* await llamaCppCompletion({ endpoint, signal, ...options });
+			return yield* await llamaCppCompletion({ endpoint, endpointAPIKey, signal, ...options });
 		case 1: // oobabooga
 			return yield* await oobaCompletion({ endpoint, signal, ...options });
 		case 2: // koboldcpp
@@ -817,11 +817,12 @@ async function* parseEventStream(eventStream) {
 	}
 }
 
-async function llamaCppTokenCount({ endpoint, signal, ...options }) {
+async function llamaCppTokenCount({ endpoint, endpointAPIKey, signal, ...options }) {
 	const res = await fetch(new URL('/tokenize', endpoint), {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
+			'Authorization': `Bearer ${endpointAPIKey}`,
 		},
 		body: JSON.stringify(options),
 		signal,
@@ -832,11 +833,12 @@ async function llamaCppTokenCount({ endpoint, signal, ...options }) {
 	return tokens.length + 1; // + 1 for BOS, I guess.
 }
 
-async function* llamaCppCompletion({ endpoint, signal, ...options }) {
+async function* llamaCppCompletion({ endpoint, endpointAPIKey, signal, ...options }) {
 	const res = await fetch(new URL('/completion', endpoint), {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
+			'Authorization': `Bearer ${endpointAPIKey}`,
 		},
 		body: JSON.stringify({
 			...options,
@@ -1991,7 +1993,7 @@ export function App() {
 			const tokenCount = await getTokenCount({
 				endpoint,
 				endpointAPI,
-				...(endpointAPI == 3 ? { endpointAPIKey } : {}),
+				...(endpointAPI == 3 || endpointAPI == 0 ? { endpointAPIKey } : {}),
 				content: ` ${prompt}`,
 				signal: ac.signal,
 			});
@@ -2007,7 +2009,7 @@ export function App() {
 			for await (const chunk of completion({
 				endpoint,
 				endpointAPI,
-				...(endpointAPI == 3 ? {
+				...(endpointAPI == 3 || endpointAPI == 0 ? {
 					endpointAPIKey,
 					model: endpointModel
 				} : {}),
@@ -2051,7 +2053,7 @@ export function App() {
 			if (e.name !== 'AbortError') {
 				reportError(e);
 				const errStr = e.toString();
-				if (endpointAPI == 3 && errStr.includes("401")) {
+				if ((endpointAPI == 3 || endpointAPI == 0) && errStr.includes("401")) {
 					setLastError("Error: Rejected API Key");
 					setRejectedAPIKey(true);
 				} else if (endpointAPI == 3 && errStr.includes("429")) {
@@ -2148,7 +2150,7 @@ export function App() {
 				const tokenCount = await getTokenCount({
 					endpoint,
 					endpointAPI,
-					...(endpointAPI == 3 ? { endpointAPIKey } : {}),
+					...(endpointAPI == 3 || endpointAPI == 0 ? { endpointAPIKey } : {}),
 					content: ` ${promptText}`,
 					signal: ac.signal,
 				});
@@ -2461,14 +2463,15 @@ export function App() {
 						{ name: 'koboldcpp', value: 2 },
 						{ name: 'openai-compatible', value: 3 },
 					]}/>
-				${endpointAPI == 3 && html`
+				${endpointAPI == 3 || endpointAPI == 0 && html`
 					<${InputBox} label="API Key" type="password"
 						className="${rejectedAPIKey ? 'rejected' : ''}"
 						tooltip="${rejectedAPIKey ? 'This API Key was rejected by the backend.' : ''}"
 						tooltipSize="short"
 						readOnly=${!!cancel}
 						value=${endpointAPIKey}
-						onValueChange=${setEndpointAPIKey}/>
+						onValueChange=${setEndpointAPIKey}/>`}
+				${endpointAPI == 3 && html`
 					<${InputBox} label="Model"
 						datalist=${openaiModels}
 						readOnly=${!!cancel}
