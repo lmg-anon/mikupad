@@ -88,6 +88,10 @@ html.nockoffAI {
 	--color-input: #0e0f21;
 	--color-sidebar: var(--color-base-100);
 	--color-prompt-area: #191b31;
+	--color-hover: #13152c;
+	--color-button: #22253f;
+	--color-disabled: #161833;
+	--color-button-hover: #282b44;
 
 	--token-prob-box: #4a4a4a;
 
@@ -170,6 +174,7 @@ html.monospace-dark .wi-textarea {
 	color: var(--color-text);
 }
 html.nockoffAI #prompt-area {
+	text-indent: 1em each-line;
 	background: var(--color-prompt-area);
 	color: var(--color-text);
 }
@@ -341,6 +346,17 @@ html.nockoffAI #probs {
 	display: flex;
 	flex-direction: column;
 }
+html.nockoffAI .modal {
+	background: var(--color-sidebar);
+	color:var(--color-base-50);
+}
+html.nockoffAI .modal-title {
+	color:var(--color-text);
+}
+html.nockoffAI  #context-order-desc,
+html.nockoffAI .modal-desc {
+	color:var(--color-base-80);
+}
 .modal-content {
 	overflow-y: auto;
 }
@@ -408,9 +424,12 @@ hr {
 	margin-bottom:8px;
 }
 .wi-entry-name input {
-	background: var(--color-base-60) !important;
+	background: var(--color-base-60);
 	font-weight:bold !important;
 	font-size: 1.2rem !important;
+}
+html.nockoffAI .wi-entry-name input {
+	background: var(--color-base-10) !important;
 }
 
 .wi-entry-buttons {
@@ -509,7 +528,7 @@ html.monospace-dark .InputBox > input:read-only {
 	background: var(--color-base-30);
 }
 html.nockoffAI .InputBox > input:read-only {
-	background: var(--color-base-90);
+	background: var(--color-disabled);
 }
 html.nockoffAI .SelectBox > select,
 html.nockoffAI .collapsible-header,
@@ -525,6 +544,9 @@ html.nockoffAI .horz-separator {
 }
 .SelectBox > select:disabled {
 	background: var(--color-base-60);
+}
+html.nockoffAI .SelectBox > select:disabled {
+	background: var(--color-disabled);
 }
 
 .Checkbox {
@@ -587,6 +609,14 @@ button {
 	background: var(--color-base-30);
 	border-radius: 2px;
 }
+html.nockoffAI button {
+	background: var(--color-button);
+	color: var(--color-base-90);
+}
+html.nockoffAI .Session button:not(:hover),
+html.nockoffAI button.textAreaSettings:not(:hover) {
+	background: none;
+}
 button.textAreaSettings {
 	all: unset;
 	color: var(--color-base-50);
@@ -598,11 +628,17 @@ button.textAreaSettings {
 button:hover {
 	background: var(--color-base-40);
 }
+html.nockoffAI button:hover {
+	background: var(--color-button-hover);
+}
 button:active {
 	background: var(--color-base-50);
 }
 button:disabled {
 	background: var(--color-base-60);
+}
+html.nockoffAI button:disabled {
+	background: var(--color-disabled);
 }
 button:focus-visible {
 	outline: 1px solid var(--color-base-0);
@@ -693,6 +729,9 @@ html.nockoffAI .Sessions > ul {
 	background: var(--color-base-50);
 	pointer-events: auto;
 }
+html.nockoffAI .Sessions.disabled > ul {
+	background: var(--color-disabled);
+}
 
 .Sessions > ul > li {
 	display: flex;
@@ -714,15 +753,24 @@ html.nockoffAI .Sessions > ul {
 html.nockoffAI .Session {
 	margin: 0.25rem;
 	padding: 0.25rem;
+	color: var(--color-base-70);
+}
+html.nockoffAI .Session > input {
+	background-color: var(--color-input);
+	outline: none;
 }
 html.nockoffAI .Session.selected {
-	background-color: var(--color-sidebar)
+	color: var(--color-text);
+	background-color: var(--color-prompt-area)
 }
 .Session:hover {
 	background-color: var(--color-base-60);
 }
 html.monospace-dark .Session:hover {
 	background-color: var(--color-base-40);
+}
+html.nockoffAI .Session:hover {
+	background-color: var(--color-hover);
 }
 .Session.selected {
 	background-color: var(--color-base-30);
@@ -2751,7 +2799,7 @@ export function App() {
 			title="Context"
 			description="This is the prompt being sent to your large language model.">
 		<${CollapsibleGroup} label="Advanced Context Ordering">
-			<div>
+			<div id="context-order-desc">
 				You can use the following placeholders to order the context according to your needs:<br />
 				<div id="advancedContextPlaceholders">
 					<table border="1" frame="void" rules="all">
