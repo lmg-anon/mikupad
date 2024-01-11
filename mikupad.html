@@ -67,6 +67,42 @@ html.serif-dark {
 	color-scheme: dark;
 }
 
+html.nockoffAI {
+	---color-bg-dark: #191b31;
+	--color-bg: #191b31;
+	
+	--color-text: #fff;
+	--color-base-0: #fff;
+	--color-base-10: color-mix(in oklch, var(--color-base-100) 90%, var(--color-base-0));
+	--color-base-20: color-mix(in oklch, var(--color-base-100) 80%, var(--color-base-0));
+	--color-base-30: color-mix(in oklch, var(--color-base-100) 70%, var(--color-base-0));
+	--color-base-40: color-mix(in oklch, var(--color-base-100) 60%, var(--color-base-0));
+	--color-base-50: color-mix(in oklch, var(--color-base-100) 50%, var(--color-base-0));
+	--color-base-60: color-mix(in oklch, var(--color-base-100) 40%, var(--color-base-0));
+	--color-base-70: color-mix(in oklch, var(--color-base-100) 30%, var(--color-base-0));
+	--color-base-80: color-mix(in oklch, var(--color-base-100) 20%, var(--color-base-0));
+	--color-base-90: color-mix(in oklch, var(--color-base-100) 10%, var(--color-base-0));
+	--color-base-100: #13152c;
+	--color-dark: var(--color-base-100);
+	--color-light: #fff;
+	--color-input: #0e0f21;
+	--color-sidebar: var(--color-base-100);
+	--color-prompt-area: #191b31;
+
+	--token-prob-box: #4a4a4a;
+
+	font-family: "Source Sans Pro", "Helvetica Neue", sans-serif;
+	font-size: 15.5px;
+
+	accent-color: var(--color-base-30);
+	background: var(--color-bg-dark);
+	color: var(--color-base-0);
+	color-scheme: dark;
+}
+html.nockoffAI body {
+	background: var(--color-prompt-area)
+}
+
 html.monospace-dark {
 	---color-bg-dark: #282833;
 	--color-bg: #202020;
@@ -131,6 +167,17 @@ html.monospace-dark #an-area,
 html.monospace-dark .expanded-text-area-settings,
 html.monospace-dark .wi-textarea {
 	background: var(--color-bg);
+	color: var(--color-text);
+}
+html.nockoffAI #prompt-area {
+	background: var(--color-prompt-area);
+	color: var(--color-text);
+}
+html.nockoffAI #memory-area,
+html.nockoffAI #an-area,
+html.nockoffAI .expanded-text-area-settings,
+html.nockoffAI .wi-textarea {
+	background: var(--color-input);
 	color: var(--color-text);
 }
 .modal .wi-textarea {
@@ -228,7 +275,8 @@ html.monospace-dark .wi-textarea {
 	/*transition: top 0.2s, left 0.2s;*/
 	z-index: 9999;
 }
-html.monospace-dark #probs {
+html.monospace-dark #probs,
+html.nockoffAI #probs {
 	background: var(--color-base-10);
 	border: 1px solid var(--token-prob-box);
 	border-radius: 4px;
@@ -407,6 +455,10 @@ hr {
 html.monospace-dark #sidebar {
 	background: #282833;
 }
+html.nockoffAI #sidebar {
+	background: var(--color-sidebar);
+	color: var(--color-base-50);
+}
 
 .hbox {
 	flex: none;
@@ -445,15 +497,29 @@ html.monospace-dark #sidebar {
 	flex: none;
 }
 
-html.monospace-dark .InputBox > input, html.monospace-dark .SelectBox > select {
-	color: var(--color-base-0);
+html.monospace-dark .InputBox > input, html.monospace-dark .SelectBox > select,
+html.nockoffAI .InputBox > input, html.nockoffAI .SelectBox > select {
+	color: var(--color-light);
 }
+
 .InputBox > input:read-only {
 	background: var(--color-base-60);
 }
 html.monospace-dark .InputBox > input:read-only {
 	background: var(--color-base-30);
 }
+html.nockoffAI .InputBox > input:read-only {
+	background: var(--color-base-90);
+}
+html.nockoffAI .SelectBox > select,
+html.nockoffAI .collapsible-header,
+html.nockoffAI .InputBox > input {
+	background: var(--color-input);
+}
+html.nockoffAI .horz-separator {
+	border-top: 3px dotted color-mix(in oklch, var(--color-base-100) 90%, var(--color-light));
+}
+
 .InputBox > input:focus-visible {
 	outline: 1px solid var(--color-base-0);
 }
@@ -620,6 +686,9 @@ button.completing {
 html.monospace-dark .Sessions > ul {
 	background: var(--color-base-20);
 }
+html.nockoffAI .Sessions > ul {
+	background: var(--color-input);
+}
 .Sessions.disabled > ul {
 	background: var(--color-base-50);
 	pointer-events: auto;
@@ -641,6 +710,13 @@ html.monospace-dark .Sessions > ul {
 	display: flex;
 	word-break: break-word;
 	user-select: none;
+}
+html.nockoffAI .Session {
+	margin: 0.25rem;
+	padding: 0.25rem;
+}
+html.nockoffAI .Session.selected {
+	background-color: var(--color-sidebar)
 }
 .Session:hover {
 	background-color: var(--color-base-60);
@@ -2370,12 +2446,16 @@ export function App() {
 	function switchTheme(value, force) {
 		document.documentElement.classList.remove('serif-dark');
 		document.documentElement.classList.remove('monospace-dark');
+		document.documentElement.classList.remove('nockoffAI');
 		switch (value) {
 		case 1:
 			document.documentElement.classList.add('serif-dark');
 			break;
 		case 2:
 			document.documentElement.classList.add('monospace-dark');
+			break;
+		case 3:
+			document.documentElement.classList.add('nockoffAI');
 			break;
 		}
 		if (!force)
@@ -2436,6 +2516,7 @@ export function App() {
 					{ name: 'Serif Light', value: 0 },
 					{ name: 'Serif Dark', value: 1 },
 					{ name: 'Monospace Dark', value: 2 },
+					{ name: 'nockoffAI', value: 3 },
 				]}/>
 			<div class="horz-separator"/>
 			<${CollapsibleGroup} label="Sessions">
