@@ -70,7 +70,7 @@ html.serif-dark {
 html.nockoffAI {
 	---color-bg-dark: #191b31;
 	--color-bg: #191b31;
-	
+
 	--color-text: #fff;
 	--color-base-0: #fff;
 	--color-base-10: color-mix(in oklch, var(--color-base-100) 90%, var(--color-base-0));
@@ -575,6 +575,7 @@ html.nockoffAI .SelectBox > select:disabled {
 	position: relative;
 }
 .tooltip .tooltiptext {
+	white-space: pre-wrap;
 	pointer-events: none;
 	width: 95%;
 	background-color: #000000AA;
@@ -590,8 +591,14 @@ html.nockoffAI .SelectBox > select:disabled {
 	z-index: 1;
 	transform: translate(0, -75%);
 }
+html.monospace-dark .tooltip .tooltiptext {
+	transform: translate(0, -65%);
+}
 .tooltip .tooltiptext.short {
 	transform: translate(0, -45%);
+}
+html.monospace-dark .tooltip .tooltiptext.short {
+	transform: translate(0, -65%);
 }
 .tooltip:hover .tooltiptext {
 	opacity: 1;
@@ -1753,6 +1760,7 @@ const defaultPresets = {
 	mirostat: 0,
 	mirostatTau: 5.0,
 	mirostatEta: 0.1,
+	stoppingStrings: "[]",
 	ignoreEos: false,
 	openaiPresets: false,
 	contextLength: 4096,
@@ -1880,6 +1888,8 @@ export function App() {
 	const [tokens, setTokens] = useState(0);
 	const [predictStartTokens, setPredictStartTokens] = useState(0);
 	const [lastError, setLastError] = useState(undefined);
+	const [stoppingStrings, setStoppingStrings] = useSessionState('stoppingStrings', defaultPresets.stoppingStrings);
+	const [stoppingStringsError, setStoppingStringsError] = useState(undefined);
 	const [contextLength, setContextLength] = useSessionState('contextLength', defaultPresets.contextLength);
 	const [memoryTokens, setMemoryTokens] = useSessionState('memoryTokens', defaultPresets.memoryTokens);
 
@@ -1937,7 +1947,6 @@ export function App() {
 		}
 	};
 
-
 	const handleWorldInfoChange = (key,index,value) => {
 		setWorldInfo((prevWorldInfo) => {
 			const updatedEntries = [...prevWorldInfo.entries];
@@ -1952,12 +1961,12 @@ export function App() {
 			};
 		});
 	}
-		const handleWorldInfoAffixChange = (key, value) => {
-			setWorldInfo((prevWorldInfo) => ({
-				...prevWorldInfo,
-				[key]: value,
-			}));
-		}
+	const handleWorldInfoAffixChange = (key, value) => {
+		setWorldInfo((prevWorldInfo) => ({
+			...prevWorldInfo,
+			[key]: value,
+		}));
+	}
 
 	const [modalState, setModalState] = useState({});
 	const toggleModal = (modalKey) => {
@@ -1975,12 +1984,8 @@ export function App() {
 
 	const promptText = useMemo(() => joinPrompt(promptChunks), [promptChunks]);
 
-	// Update theme on the first render.
-	useMemo(() => !theme || switchTheme(theme, true), []);
-
 	// compute separately as I imagine this can get expensive
 	const assembledWorldInfo = useMemo(() => {
-
 		// assemble non-empty wi
 		const validWorldInfo = !Array.isArray(worldInfo.entries) ? [] : worldInfo.entries.filter(entry =>
 			entry.keys.length > 0 && !(entry.keys.length == 1 && entry.keys[0] == "") && entry.text !== "");
@@ -2013,7 +2018,6 @@ export function App() {
 					return false;
 				}
 			});
-
 		});
 
 		const assembledWorldInfo = activeWorldInfo.length > 0
@@ -2172,10 +2176,12 @@ export function App() {
 				}),
 				n_predict: maxPredictTokens,
 				n_probs: 10,
-				stop: [],
+				stop: JSON.parse(stoppingStrings) || [],
 				signal: ac.signal,
 			})) {
 				ac.signal.throwIfAborted();
+				if (chunk.stopping_word)
+					chunk.content = chunk.stopping_word;
 				if (!chunk.content)
 					continue;
 				setPromptChunks(p => [...p, chunk]);
@@ -2218,6 +2224,32 @@ export function App() {
 		setUndoHovered(false);
 	}
 
+	useLayoutEffect(() => {
+		document.documentElement.classList.remove('serif-dark');
+		document.documentElement.classList.remove('monospace-dark');
+		document.documentElement.classList.remove('nockoffAI');
+		switch (theme) {
+		case 1:
+			document.documentElement.classList.add('serif-dark');
+			break;
+		case 2:
+			document.documentElement.classList.add('monospace-dark');
+			break;
+		case 3:
+			document.documentElement.classList.add('nockoffAI');
+			break;
+		}
+	}, [theme]);
+
+	useEffect(() => {
+		try {
+			JSON.parse(stoppingStrings);
+			setStoppingStringsError(undefined);
+		} catch (e) {
+			setStoppingStringsError(e.toString());
+		}
+	}, [stoppingStrings]);
+
 	useEffect(() => {
 		const adjustProbsPosition = () => {
 			const probsElement = document.getElementById('probs');
@@ -2252,7 +2284,7 @@ export function App() {
 
 	// Update the textarea in an uncontrolled way so the user doesn't lose their
 	// selection or cursor position during prediction
-	useEffect(() => {
+	useLayoutEffect(() => {
 		const elem = promptArea.current;
 		if (elem.value === promptText) {
 			return;
@@ -2502,25 +2534,6 @@ export function App() {
 		return isHttps && (url.protocol !== 'https:' && url.protocol !== 'wss:');
 	}
 
-	function switchTheme(value, force) {
-		document.documentElement.classList.remove('serif-dark');
-		document.documentElement.classList.remove('monospace-dark');
-		document.documentElement.classList.remove('nockoffAI');
-		switch (value) {
-		case 1:
-			document.documentElement.classList.add('serif-dark');
-			break;
-		case 2:
-			document.documentElement.classList.add('monospace-dark');
-			break;
-		case 3:
-			document.documentElement.classList.add('nockoffAI');
-			break;
-		}
-		if (!force)
-			setTheme(value);
-	}
-
 	function sessionChanged() {
 		// TODO: Store the undo/redo in the session.
 		redoStack.current = [];
@@ -2570,7 +2583,7 @@ export function App() {
 			<${SelectBox}
 				label="Theme"
 				value=${theme}
-				onValueChange=${(value) => switchTheme(value, false)}
+				onValueChange=${setTheme}
 				options=${[
 					{ name: 'Serif Light', value: 0 },
 					{ name: 'Serif Dark', value: 1 },
@@ -2623,6 +2636,12 @@ export function App() {
 					readOnly=${!!cancel} value=${contextLength} onValueChange=${setContextLength}/>
 				<${InputBox} label="Max Predict Tokens${endpointAPI != 0 ? ' (-1 = 1024)' : ' (-1 = infinite)'}" type="text" inputmode="numeric"
 					readOnly=${!!cancel} value=${maxPredictTokens} onValueChange=${setMaxPredictTokens}/>
+				<${InputBox} label="Stopping strings (JSON list)" type="text" pattern="^\\[.*?\\]$"
+					className="${stoppingStringsError ? 'rejected' : ''}"
+					tooltip="${stoppingStringsError ? stoppingStringsError : ''}"
+					readOnly=${!!cancel}
+					value=${stoppingStrings}
+					onValueChange=${setStoppingStrings}/>
 				<${InputBox} label="Temperature" type="number" step="0.01"
 					readOnly=${!!cancel} value=${temperature} onValueChange=${setTemperature}/>
 				${(!openaiPresets || endpointAPI != 3) && html`
@@ -2739,7 +2758,7 @@ export function App() {
 			<div className="buttons">
 				<button
 					className=${cancel ? (predictStartTokens === tokens ? 'processing' : 'completing') : ''}
-					disabled=${!!cancel}
+					disabled=${!!cancel || stoppingStringsError}
 					onClick=${() => predict()}>
 					Predict
 				</button>
