@@ -164,6 +164,10 @@ body {
 	margin: 0;
 	scrollbar-gutter: stable;
 	font: inherit;
+	box-sizing: content-box;
+	text-size-adjust: 100%;
+	-webkit-text-size-adjust: 100%;
+	-moz-text-size-adjust: 100%;
 }
 html.monospace-dark #prompt-area,
 html.monospace-dark #memory-area,
@@ -244,15 +248,20 @@ html.nockoffAI .wi-textarea {
 }
 
 #prompt-overlay {
+	word-break: break-word;
 	white-space: pre-wrap;
 	position: absolute;
 	left: 0;
 	top: 0;
 	right: 0;
 	bottom: 0;
+	transform: translate(0px, 0px);
 	background: transparent;
 	color: transparent;
 	pointer-events: none;
+	user-select: none;
+	-ms-user-select: none;
+	-webkit-user-select: none;
 	overflow: hidden;
 }
 
@@ -1548,7 +1557,7 @@ class SessionStorage {
 		this.nextId = +localStorage.getItem('nextSessionId');
 		this.dependents = {};
 		this.saveQueue = [];
-		this.saveTimer = setInterval(() => this.saveTimerHandler(), 1000);
+		this.saveTimer = setInterval(() => this.saveTimerHandler(), 500);
 		this.sessions = {};
 		this.selectedSession = +localStorage.getItem('selectedSessionId');
 		this.sessionTemplate = { ...defaultPresets };
@@ -2531,7 +2540,7 @@ export function App() {
 				id="prompt-area"
 				onInput=${onInput}
 				onScroll=${onScroll}/>
-			<div ref=${promptOverlay} id="prompt-overlay">
+			<div ref=${promptOverlay} id="prompt-overlay" aria-hidden>
 				${promptChunks.map((chunk, i) => {
 					const isCurrent = currentPromptChunk && currentPromptChunk.index === i;
 					const isNextUndo = undoHovered && !!undoStack.current.length && undoStack.current.at(-1) <= i;
