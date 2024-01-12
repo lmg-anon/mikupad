@@ -955,7 +955,7 @@ async function llamaCppTokenCount({ endpoint, endpointAPIKey, signal, ...options
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
-			'Authorization': `Bearer ${endpointAPIKey}`,
+			...(endpointAPIKey ? { 'Authorization': `Bearer ${endpointAPIKey}` } : {}),
 		},
 		body: JSON.stringify(options),
 		signal,
@@ -971,7 +971,7 @@ async function* llamaCppCompletion({ endpoint, endpointAPIKey, signal, ...option
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
-			'Authorization': `Bearer ${endpointAPIKey}`,
+			...(endpointAPIKey ? { 'Authorization': `Bearer ${endpointAPIKey}` } : {}),
 		},
 		body: JSON.stringify({
 			...options,
