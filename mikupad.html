@@ -67,6 +67,46 @@ html.serif-dark {
 	color-scheme: dark;
 }
 
+html.nockoffAI {
+	---color-bg-dark: #191b31;
+	--color-bg: #191b31;
+	
+	--color-text: #fff;
+	--color-base-0: #fff;
+	--color-base-10: color-mix(in oklch, var(--color-base-100) 90%, var(--color-base-0));
+	--color-base-20: color-mix(in oklch, var(--color-base-100) 80%, var(--color-base-0));
+	--color-base-30: color-mix(in oklch, var(--color-base-100) 70%, var(--color-base-0));
+	--color-base-40: color-mix(in oklch, var(--color-base-100) 60%, var(--color-base-0));
+	--color-base-50: color-mix(in oklch, var(--color-base-100) 50%, var(--color-base-0));
+	--color-base-60: color-mix(in oklch, var(--color-base-100) 40%, var(--color-base-0));
+	--color-base-70: color-mix(in oklch, var(--color-base-100) 30%, var(--color-base-0));
+	--color-base-80: color-mix(in oklch, var(--color-base-100) 20%, var(--color-base-0));
+	--color-base-90: color-mix(in oklch, var(--color-base-100) 10%, var(--color-base-0));
+	--color-base-100: #13152c;
+	--color-dark: var(--color-base-100);
+	--color-light: #fff;
+	--color-input: #0e0f21;
+	--color-sidebar: var(--color-base-100);
+	--color-prompt-area: #191b31;
+	--color-hover: #13152c;
+	--color-button: #22253f;
+	--color-disabled: #161833;
+	--color-button-hover: #282b44;
+
+	--token-prob-box: #4a4a4a;
+
+	font-family: "Source Sans Pro", "Helvetica Neue", sans-serif;
+	font-size: 15.5px;
+
+	accent-color: var(--color-base-30);
+	background: var(--color-bg-dark);
+	color: var(--color-base-0);
+	color-scheme: dark;
+}
+html.nockoffAI body {
+	background: var(--color-prompt-area)
+}
+
 html.monospace-dark {
 	---color-bg-dark: #282833;
 	--color-bg: #202020;
@@ -131,6 +171,18 @@ html.monospace-dark #an-area,
 html.monospace-dark .expanded-text-area-settings,
 html.monospace-dark .wi-textarea {
 	background: var(--color-bg);
+	color: var(--color-text);
+}
+html.nockoffAI #prompt-area {
+	text-indent: 1em each-line;
+	background: var(--color-prompt-area);
+	color: var(--color-text);
+}
+html.nockoffAI #memory-area,
+html.nockoffAI #an-area,
+html.nockoffAI .expanded-text-area-settings,
+html.nockoffAI .wi-textarea {
+	background: var(--color-input);
 	color: var(--color-text);
 }
 .modal .wi-textarea {
@@ -228,7 +280,8 @@ html.monospace-dark .wi-textarea {
 	/*transition: top 0.2s, left 0.2s;*/
 	z-index: 9999;
 }
-html.monospace-dark #probs {
+html.monospace-dark #probs,
+html.nockoffAI #probs {
 	background: var(--color-base-10);
 	border: 1px solid var(--token-prob-box);
 	border-radius: 4px;
@@ -292,6 +345,17 @@ html.monospace-dark #probs {
 	border-radius: 5px;
 	display: flex;
 	flex-direction: column;
+}
+html.nockoffAI .modal {
+	background: var(--color-sidebar);
+	color:var(--color-base-50);
+}
+html.nockoffAI .modal-title {
+	color:var(--color-text);
+}
+html.nockoffAI  #context-order-desc,
+html.nockoffAI .modal-desc {
+	color:var(--color-base-80);
 }
 .modal-content {
 	overflow-y: auto;
@@ -360,9 +424,12 @@ hr {
 	margin-bottom:8px;
 }
 .wi-entry-name input {
-	background: var(--color-base-60) !important;
+	background: var(--color-base-60);
 	font-weight:bold !important;
 	font-size: 1.2rem !important;
+}
+html.nockoffAI .wi-entry-name input {
+	background: var(--color-base-10) !important;
 }
 
 .wi-entry-buttons {
@@ -407,6 +474,10 @@ hr {
 html.monospace-dark #sidebar {
 	background: #282833;
 }
+html.nockoffAI #sidebar {
+	background: var(--color-sidebar);
+	color: var(--color-base-50);
+}
 
 .hbox {
 	flex: none;
@@ -445,20 +516,37 @@ html.monospace-dark #sidebar {
 	flex: none;
 }
 
-html.monospace-dark .InputBox > input, html.monospace-dark .SelectBox > select {
-	color: var(--color-base-0);
+html.monospace-dark .InputBox > input, html.monospace-dark .SelectBox > select,
+html.nockoffAI .InputBox > input, html.nockoffAI .SelectBox > select {
+	color: var(--color-light);
 }
+
 .InputBox > input:read-only {
 	background: var(--color-base-60);
 }
 html.monospace-dark .InputBox > input:read-only {
 	background: var(--color-base-30);
 }
+html.nockoffAI .InputBox > input:read-only {
+	background: var(--color-disabled);
+}
+html.nockoffAI .SelectBox > select,
+html.nockoffAI .collapsible-header,
+html.nockoffAI .InputBox > input {
+	background: var(--color-input);
+}
+html.nockoffAI .horz-separator {
+	border-top: 3px dotted color-mix(in oklch, var(--color-base-100) 90%, var(--color-light));
+}
+
 .InputBox > input:focus-visible {
 	outline: 1px solid var(--color-base-0);
 }
 .SelectBox > select:disabled {
 	background: var(--color-base-60);
+}
+html.nockoffAI .SelectBox > select:disabled {
+	background: var(--color-disabled);
 }
 
 .Checkbox {
@@ -521,6 +609,14 @@ button {
 	background: var(--color-base-30);
 	border-radius: 2px;
 }
+html.nockoffAI button {
+	background: var(--color-button);
+	color: var(--color-base-90);
+}
+html.nockoffAI .Session button:not(:hover),
+html.nockoffAI button.textAreaSettings:not(:hover) {
+	background: none;
+}
 button.textAreaSettings {
 	all: unset;
 	color: var(--color-base-50);
@@ -532,11 +628,17 @@ button.textAreaSettings {
 button:hover {
 	background: var(--color-base-40);
 }
+html.nockoffAI button:hover {
+	background: var(--color-button-hover);
+}
 button:active {
 	background: var(--color-base-50);
 }
 button:disabled {
 	background: var(--color-base-60);
+}
+html.nockoffAI button:disabled {
+	background: var(--color-disabled);
 }
 button:focus-visible {
 	outline: 1px solid var(--color-base-0);
@@ -620,9 +722,15 @@ button.completing {
 html.monospace-dark .Sessions > ul {
 	background: var(--color-base-20);
 }
+html.nockoffAI .Sessions > ul {
+	background: var(--color-input);
+}
 .Sessions.disabled > ul {
 	background: var(--color-base-50);
 	pointer-events: auto;
+}
+html.nockoffAI .Sessions.disabled > ul {
+	background: var(--color-disabled);
 }
 
 .Sessions > ul > li {
@@ -642,11 +750,27 @@ html.monospace-dark .Sessions > ul {
 	word-break: break-word;
 	user-select: none;
 }
+html.nockoffAI .Session {
+	margin: 0.25rem;
+	padding: 0.25rem;
+	color: var(--color-base-70);
+}
+html.nockoffAI .Session > input {
+	background-color: var(--color-input);
+	outline: none;
+}
+html.nockoffAI .Session.selected {
+	color: var(--color-text);
+	background-color: var(--color-prompt-area)
+}
 .Session:hover {
 	background-color: var(--color-base-60);
 }
 html.monospace-dark .Session:hover {
 	background-color: var(--color-base-40);
+}
+html.nockoffAI .Session:hover {
+	background-color: var(--color-hover);
 }
 .Session.selected {
 	background-color: var(--color-base-30);
@@ -2372,12 +2496,16 @@ export function App() {
 	function switchTheme(value, force) {
 		document.documentElement.classList.remove('serif-dark');
 		document.documentElement.classList.remove('monospace-dark');
+		document.documentElement.classList.remove('nockoffAI');
 		switch (value) {
 		case 1:
 			document.documentElement.classList.add('serif-dark');
 			break;
 		case 2:
 			document.documentElement.classList.add('monospace-dark');
+			break;
+		case 3:
+			document.documentElement.classList.add('nockoffAI');
 			break;
 		}
 		if (!force)
@@ -2438,6 +2566,7 @@ export function App() {
 					{ name: 'Serif Light', value: 0 },
 					{ name: 'Serif Dark', value: 1 },
 					{ name: 'Monospace Dark', value: 2 },
+					{ name: 'nockoffAI', value: 3 },
 				]}/>
 			<div class="horz-separator"/>
 			<${CollapsibleGroup} label="Sessions">
@@ -2673,7 +2802,7 @@ export function App() {
 			title="Context"
 			description="This is the prompt being sent to your large language model.">
 		<${CollapsibleGroup} label="Advanced Context Ordering">
-			<div>
+			<div id="context-order-desc">
 				You can use the following placeholders to order the context according to your needs:<br />
 				<div id="advancedContextPlaceholders">
 					<table border="1" frame="void" rules="all">
