@@ -2121,7 +2121,6 @@ export function App() {
 		setCancel(() => cancelThis);
 		setLastError(undefined);
 
-		let predictedChunkCount = 0;
 		try {
 			// sometimes "getTokenCount" can take a while because the server is busy
 			// so let's set the predictStartTokens beforehand.
@@ -2142,6 +2141,7 @@ export function App() {
 			undoStack.current.push(chunkCount);
 			redoStack.current = [];
 			setUndoHovered(false);
+			setRejectedAPIKey(false);
 
 			for await (const chunk of completion({
 				endpoint,
@@ -2636,7 +2636,7 @@ export function App() {
 					readOnly=${!!cancel} value=${contextLength} onValueChange=${setContextLength}/>
 				<${InputBox} label="Max Predict Tokens${endpointAPI != 0 ? ' (-1 = 1024)' : ' (-1 = infinite)'}" type="text" inputmode="numeric"
 					readOnly=${!!cancel} value=${maxPredictTokens} onValueChange=${setMaxPredictTokens}/>
-				<${InputBox} label="Stopping strings (JSON list)" type="text" pattern="^\\[.*?\\]$"
+				<${InputBox} label="Stopping strings (JSON array)" type="text" pattern="^\\[.*?\\]$"
 					className="${stoppingStringsError ? 'rejected' : ''}"
 					tooltip="${stoppingStringsError ? stoppingStringsError : ''}"
 					readOnly=${!!cancel}
