@@ -168,6 +168,7 @@ body {
 	text-size-adjust: 100%;
 	-webkit-text-size-adjust: 100%;
 	-moz-text-size-adjust: 100%;
+	white-space: break-spaces;
 }
 html.monospace-dark #prompt-area,
 html.monospace-dark #memory-area,
@@ -248,8 +249,7 @@ html.nockoffAI .wi-textarea {
 }
 
 #prompt-overlay {
-	word-break: break-word;
-	white-space: pre-wrap;
+	word-wrap: break-word;
 	position: absolute;
 	left: 0;
 	top: 0;
@@ -286,7 +286,6 @@ html.nockoffAI .wi-textarea {
 	transform: translate(-50%, -100%);
 	border-radius: 5px;
 	box-shadow: 0 1px 1px 1px #00000033;
-	/*transition: top 0.2s, left 0.2s;*/
 	z-index: 9999;
 }
 html.monospace-dark #probs,
@@ -562,6 +561,8 @@ html.nockoffAI .SelectBox > select:disabled {
 	user-select: none;
 	margin: 0 5px 0 0;
 	vertical-align: middle;
+	position: relative;
+  	bottom: .08em;
 }
 
 .InputBox > input.mixed-content {
@@ -640,6 +641,7 @@ button.textAreaSettings {
 	position:absolute;
 	top:calc(1.25em + 1px);
 	right:1px;
+	pointer-events: all;
 }
 button:hover {
 	background: var(--color-base-40);
@@ -1854,10 +1856,14 @@ export function App() {
 	const undoStack = useRef([]);
 	const redoStack = useRef([]);
 	const probsDelayTimer = useRef();
+	const keyState = useRef({});
 	const [currentPromptChunk, setCurrentPromptChunk] = useState(undefined);
 	const [undoHovered, setUndoHovered] = useState(false);
 	const [showProbs, setShowProbs] = useState(true);
 	const [cancel, setCancel] = useState(null);
+	const [spellCheck, setSpellCheck] = usePersistentState('spellCheck', false);
+	const [showProbsMode, setShowProbsMode] = usePersistentState('showProbsMode', 0);
+	const [highlightGenTokens, setHighlightGenTokens] = usePersistentState('highlightGenTokens', true);
 	const [darkMode, _] = usePersistentState('darkMode', false); // legacy
 	const [theme, setTheme] = usePersistentState('theme', darkMode ? 1 : 0);
 	const [endpoint, setEndpoint] = useSessionState('endpoint', defaultPresets.endpoint);
@@ -2251,6 +2257,9 @@ export function App() {
 	}, [stoppingStrings]);
 
 	useEffect(() => {
+		if (showProbsMode === -1)
+			return;
+
 		const adjustProbsPosition = () => {
 			const probsElement = document.getElementById('probs');
 			if (!probsElement) return;
@@ -2371,13 +2380,24 @@ export function App() {
 				cancel();
 				break;
 			default:
+				keyState.current = e;
 				return;
 			}
 			e.preventDefault();
 		}
+		function onKeyUp(e) {
+			const { altKey, ctrlKey, shiftKey, key, defaultPrevented } = e;
+			if (defaultPrevented)
+				return;
+			keyState.current = e;
+		}
 
 		window.addEventListener('keydown', onKeyDown);
-		return () => window.removeEventListener('keydown', onKeyDown);
+		window.addEventListener('keyup', onKeyUp);
+		return () => {
+			window.removeEventListener('keydown', onKeyDown);
+			window.removeEventListener('keyup', onKeyUp)
+		};
 	}, [predict, cancel]);
 
 	function onInput({ target }) {
@@ -2443,16 +2463,20 @@ export function App() {
 		promptOverlay.current.scrollTop = target.scrollTop;
 		promptOverlay.current.scrollLeft = target.scrollLeft;
 
-		const probsElement = document.getElementById('probs');
-		if (probsElement) {
-			const probsTop = getComputedStyle(probsElement).getPropertyValue('top');
-			probsElement.style.setProperty('--probs-top', `calc(${probsTop} + ${oldTop - newTop}px)`);
-		} else if (currentPromptChunk) {
-			currentPromptChunk.top += oldTop - newTop;
+		if (showProbsMode !== -1) {
+			const probsElement = document.getElementById('probs');
+			if (probsElement) {
+				const probsTop = getComputedStyle(probsElement).getPropertyValue('top');
+				probsElement.style.setProperty('--probs-top', `calc(${probsTop} + ${oldTop - newTop}px)`);
+			} else if (currentPromptChunk) {
+				currentPromptChunk.top += oldTop - newTop;
+			}
 		}
 	}
 
 	function onPromptMouseMove({ clientX, clientY }) {
+		if (showProbsMode === -1 && !highlightGenTokens)
+			return;
 		promptOverlay.current.style.pointerEvents = 'auto';
 		const elem = document.elementFromPoint(clientX, clientY);
 		const pc = elem?.closest?.('[data-promptchunk]');
@@ -2470,10 +2494,16 @@ export function App() {
 		const left = rect.x + rect.width / 2;
 		setCurrentPromptChunk(cur => {
 			const isCurrent = cur && cur.index === index && cur.top === top && cur.left === left;
-			if (!isCurrent || !showProbs) {
-				setShowProbs(false);
-				clearTimeout(probsDelayTimer.current);
-				probsDelayTimer.current = setTimeout(() => setShowProbs(true), 300);
+			switch (showProbsMode) {
+				case 0:
+					if (!isCurrent || !showProbs) {
+						setShowProbs(false);
+						clearTimeout(probsDelayTimer.current);
+						probsDelayTimer.current = setTimeout(() => setShowProbs(true), 300);
+					}
+					break;
+				case 1:
+					setShowProbs(keyState.current.ctrlKey);
 			}
 			return isCurrent ? cur : { index, top, left };
 		});
@@ -2550,22 +2580,31 @@ export function App() {
 			<textarea
 				ref=${promptArea}
 				readOnly=${!!cancel}
+				spellCheck=${spellCheck}
 				id="prompt-area"
 				onInput=${onInput}
 				onScroll=${onScroll}/>
-			<div ref=${promptOverlay} id="prompt-overlay" aria-hidden>
-				${promptChunks.map((chunk, i) => {
-					const isCurrent = currentPromptChunk && currentPromptChunk.index === i;
-					const isNextUndo = undoHovered && !!undoStack.current.length && undoStack.current.at(-1) <= i;
-					return html`
-						<span
-							key=${i}
-							data-promptchunk=${i}
-							className=${`${chunk.type === 'user' ? 'user' : 'machine'} ${isCurrent ? 'current' : ''} ${isNextUndo ? 'erase' : ''}`}>
-							${(chunk.content === '\n' ? ' \n' : chunk.content) + (i === promptChunks.length - 1 && chunk.content.endsWith('\n') ? '\u00a0' : '')}
-						</span>`;
-				})}
-			</div>
+					<div ref=${promptOverlay} id="prompt-overlay" aria-hidden>
+						<button
+							className="textAreaSettings"
+							disabled=${!!cancel}
+							onClick=${() => toggleModal("prompt")}>
+
+							<svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="-1 -5 8 7" xmlns="http://www.w3.org/2000/svg"><path d="M0 0 3-3C3-4 3-5 5-5L4-4 5-3 6-4C6-2 5-2 4-2L1 1C0 2-1 1 0 0"></path></svg>
+						</button>
+						${highlightGenTokens || showProbsMode !== -1 ? html`
+							${promptChunks.map((chunk, i) => {
+								const isCurrent = currentPromptChunk && currentPromptChunk.index === i;
+								const isNextUndo = undoHovered && !!undoStack.current.length && undoStack.current.at(-1) <= i;
+								return html`
+									<span
+										key=${i}
+										data-promptchunk=${i}
+										className=${`${!highlightGenTokens || chunk.type === 'user' ? 'user' : 'machine'} ${isCurrent ? 'current' : ''} ${isNextUndo ? 'erase' : ''}`}>
+										${(chunk.content === '\n' ? ' \n' : chunk.content) + (i === promptChunks.length - 1 && chunk.content.endsWith('\n') ? '\u00a0' : '')}
+									</span>`;
+							})}` : null}
+					</div>
 		</div>
 		${probs ? html`
 			<div
@@ -2636,7 +2675,7 @@ export function App() {
 					readOnly=${!!cancel} value=${contextLength} onValueChange=${setContextLength}/>
 				<${InputBox} label="Max Predict Tokens${endpointAPI != 0 ? ' (-1 = 1024)' : ' (-1 = infinite)'}" type="text" inputmode="numeric"
 					readOnly=${!!cancel} value=${maxPredictTokens} onValueChange=${setMaxPredictTokens}/>
-				<${InputBox} label="Stopping strings (JSON array)" type="text" pattern="^\\[.*?\\]$"
+				<${InputBox} label="Stopping Strings (JSON array)" type="text" pattern="^\\[.*?\\]$"
 					className="${stoppingStringsError ? 'rejected' : ''}"
 					tooltip="${stoppingStringsError ? stoppingStringsError : ''}"
 					readOnly=${!!cancel}
@@ -2783,6 +2822,28 @@ export function App() {
 			${!!lastError && html`
 				<span className="error-text">${lastError}</span>`}
 		</div>
+
+		<${Modal} isOpen=${modalState.prompt} onClose=${() => closeModal("prompt")}
+		title="Editor Preferences"
+		description=""
+		style=${{ 'width': '30%' }}>
+			<div className="vbox">
+				<${Checkbox} label="Enable spell checking"
+					disabled=${!!cancel} value=${spellCheck} onValueChange=${setSpellCheck}/>
+				<${Checkbox} label="Highlight generated tokens"
+					disabled=${!!cancel} value=${highlightGenTokens} onValueChange=${setHighlightGenTokens}/>
+				<${SelectBox}
+					label="Token probabilities"
+					value=${showProbsMode}
+					onValueChange=${setShowProbsMode}
+					options=${[
+						{ name: 'Show on hover', value: 0 },
+						{ name: 'Show on hover while holding CTRL', value: 1 },
+						{ name: 'Don\'t show', value: -1 },
+					]}/>
+			</div>
+		</${Modal}>
+
 		<${Modal} isOpen=${modalState.memory} onClose=${() => closeModal("memory")}
 		title="Memory"
 		description="This text will be added at the very top of your context.
