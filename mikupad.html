@@ -2600,7 +2600,7 @@ export function App() {
 									<span
 										key=${i}
 										data-promptchunk=${i}
-										className=${`${!highlightGenTokens || chunk.type === 'user' ? 'user' : 'machine'} ${isCurrent ? 'current' : ''} ${isNextUndo ? 'erase' : ''}`}>
+										className=${`${(!highlightGenTokens && !isCurrent) || chunk.type === 'user' ? 'user' : 'machine'} ${isCurrent ? 'current' : ''} ${isNextUndo ? 'erase' : ''}`}>
 										${(chunk.content === '\n' ? ' \n' : chunk.content) + (i === promptChunks.length - 1 && chunk.content.endsWith('\n') ? '\u00a0' : '')}
 									</span>`;
 							})}` : null}
