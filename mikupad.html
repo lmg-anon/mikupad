@@ -1775,7 +1775,8 @@ const defaultPresets = {
 		"entries": [],
 		"prefix": "",
 		"suffix": ""
-	})
+	}),
+	scrollTop: 0
 };
 
 function joinPrompt(prompt) {
@@ -1896,6 +1897,8 @@ export function App() {
 	const [lastError, setLastError] = useState(undefined);
 	const [stoppingStrings, setStoppingStrings] = useSessionState('stoppingStrings', defaultPresets.stoppingStrings);
 	const [stoppingStringsError, setStoppingStringsError] = useState(undefined);
+	const [savedScrollTop, setSavedScrollTop] = useSessionState('scrollTop', defaultPresets.scrollTop);
+
 	const [contextLength, setContextLength] = useSessionState('contextLength', defaultPresets.contextLength);
 	const [memoryTokens, setMemoryTokens] = useSessionState('memoryTokens', defaultPresets.memoryTokens);
 
@@ -2297,7 +2300,7 @@ export function App() {
 		const elem = promptArea.current;
 		if (elem.value === promptText) {
 			return;
-		} else if (promptText.startsWith(elem.value)) {
+		} else if (elem.value.length && promptText.startsWith(elem.value)) {
 			const oldHeight = elem.scrollHeight;
 			const atBottom = (elem.scrollTarget ?? elem.scrollTop) + elem.clientHeight + 1 > oldHeight;
 			const oldLen = elem.value.length;
@@ -2314,6 +2317,12 @@ export function App() {
 			elem.value = promptText;
 		}
 	}, [promptText]);
+
+	useLayoutEffect(() => {
+		promptArea.current.scrollTarget = undefined;
+		promptArea.current.scrollTop = savedScrollTop;
+		promptOverlay.current.scrollTop = savedScrollTop;
+	}, [savedScrollTop]);
 
 	useEffect(() => {
 		if (cancel)
@@ -2462,6 +2471,7 @@ export function App() {
 		const oldTop = promptOverlay.current.scrollTop;
 		promptOverlay.current.scrollTop = target.scrollTop;
 		promptOverlay.current.scrollLeft = target.scrollLeft;
+		setSavedScrollTop(newTop);
 
 		if (showProbsMode !== -1) {
 			const probsElement = document.getElementById('probs');
@@ -2564,7 +2574,7 @@ export function App() {
 		return isHttps && (url.protocol !== 'https:' && url.protocol !== 'wss:');
 	}
 
-	function sessionChanged() {
+	function onSessionChange() {
 		// TODO: Store the undo/redo in the session.
 		redoStack.current = [];
 		undoStack.current = [];
@@ -2633,7 +2643,7 @@ export function App() {
 			<${CollapsibleGroup} label="Sessions">
 				<${Sessions} sessionStorage=${sessionStorage}
 					disabled=${!!cancel}
-					onSessionChange=${sessionChanged}/>
+					onSessionChange=${onSessionChange}/>
 			</${CollapsibleGroup}>
 			<${CollapsibleGroup} label="Presets" expanded>
 				<${InputBox} label="Server"
