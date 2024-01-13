@@ -168,7 +168,8 @@ body {
 	text-size-adjust: 100%;
 	-webkit-text-size-adjust: 100%;
 	-moz-text-size-adjust: 100%;
-	white-space: break-spaces;
+	/*white-space: break-spaces;*/
+	word-wrap: break-word;
 }
 html.monospace-dark #prompt-area,
 html.monospace-dark #memory-area,
@@ -249,7 +250,7 @@ html.nockoffAI .wi-textarea {
 }
 
 #prompt-overlay {
-	word-wrap: break-word;
+	white-space: pre-wrap;
 	position: absolute;
 	left: 0;
 	top: 0;
