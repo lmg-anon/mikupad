@@ -2322,7 +2322,7 @@ export function App() {
 		promptArea.current.scrollTarget = undefined;
 		promptArea.current.scrollTop = savedScrollTop;
 		promptOverlay.current.scrollTop = savedScrollTop;
-	}, [savedScrollTop]);
+	}, [savedScrollTop, highlightGenTokens, showProbsMode]);
 
 	useEffect(() => {
 		if (cancel)
@@ -2589,7 +2589,6 @@ export function App() {
 		<div id="prompt-container" onMouseMove=${onPromptMouseMove}>
 			<button
 				className="textAreaSettings"
-				disabled=${!!cancel}
 				onClick=${() => toggleModal("prompt")}>
 
 				<svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="-1 -5 8 7" xmlns="http://www.w3.org/2000/svg"><path d="M0 0 3-3C3-4 3-5 5-5L4-4 5-3 6-4C6-2 5-2 4-2L1 1C0 2-1 1 0 0"></path></svg>
@@ -2839,9 +2838,9 @@ export function App() {
 		style=${{ 'width': '30%' }}>
 			<div className="vbox">
 				<${Checkbox} label="Enable spell checking"
-					disabled=${!!cancel} value=${spellCheck} onValueChange=${setSpellCheck}/>
+					value=${spellCheck} onValueChange=${setSpellCheck}/>
 				<${Checkbox} label="Highlight generated tokens"
-					disabled=${!!cancel} value=${highlightGenTokens} onValueChange=${setHighlightGenTokens}/>
+					value=${highlightGenTokens} onValueChange=${setHighlightGenTokens}/>
 				<${SelectBox}
 					label="Token probabilities"
 					value=${showProbsMode}
