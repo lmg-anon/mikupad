@@ -642,7 +642,6 @@ button.textAreaSettings {
 	position:absolute;
 	top:calc(1.25em + 1px);
 	right:1px;
-	pointer-events: all;
 }
 button:hover {
 	background: var(--color-base-40);
@@ -2588,6 +2587,13 @@ export function App() {
 
 	return html`
 		<div id="prompt-container" onMouseMove=${onPromptMouseMove}>
+			<button
+				className="textAreaSettings"
+				disabled=${!!cancel}
+				onClick=${() => toggleModal("prompt")}>
+
+				<svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="-1 -5 8 7" xmlns="http://www.w3.org/2000/svg"><path d="M0 0 3-3C3-4 3-5 5-5L4-4 5-3 6-4C6-2 5-2 4-2L1 1C0 2-1 1 0 0"></path></svg>
+			</button>
 			<textarea
 				ref=${promptArea}
 				readOnly=${!!cancel}
@@ -2595,27 +2601,20 @@ export function App() {
 				id="prompt-area"
 				onInput=${onInput}
 				onScroll=${onScroll}/>
-					<div ref=${promptOverlay} id="prompt-overlay" aria-hidden>
-						<button
-							className="textAreaSettings"
-							disabled=${!!cancel}
-							onClick=${() => toggleModal("prompt")}>
-
-							<svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="-1 -5 8 7" xmlns="http://www.w3.org/2000/svg"><path d="M0 0 3-3C3-4 3-5 5-5L4-4 5-3 6-4C6-2 5-2 4-2L1 1C0 2-1 1 0 0"></path></svg>
-						</button>
-						${highlightGenTokens || showProbsMode !== -1 ? html`
-							${promptChunks.map((chunk, i) => {
-								const isCurrent = currentPromptChunk && currentPromptChunk.index === i;
-								const isNextUndo = undoHovered && !!undoStack.current.length && undoStack.current.at(-1) <= i;
-								return html`
-									<span
-										key=${i}
-										data-promptchunk=${i}
-										className=${`${(!highlightGenTokens && !isCurrent) || chunk.type === 'user' ? 'user' : 'machine'} ${isCurrent ? 'current' : ''} ${isNextUndo ? 'erase' : ''}`}>
-										${(chunk.content === '\n' ? ' \n' : chunk.content) + (i === promptChunks.length - 1 && chunk.content.endsWith('\n') ? '\u00a0' : '')}
-									</span>`;
-							})}` : null}
-					</div>
+			<div ref=${promptOverlay} id="prompt-overlay" aria-hidden>
+				${highlightGenTokens || showProbsMode !== -1 ? html`
+					${promptChunks.map((chunk, i) => {
+						const isCurrent = currentPromptChunk && currentPromptChunk.index === i;
+						const isNextUndo = undoHovered && !!undoStack.current.length && undoStack.current.at(-1) <= i;
+						return html`
+							<span
+								key=${i}
+								data-promptchunk=${i}
+								className=${`${(!highlightGenTokens && !isCurrent) || chunk.type === 'user' ? 'user' : 'machine'} ${isCurrent ? 'current' : ''} ${isNextUndo ? 'erase' : ''}`}>
+								${(chunk.content === '\n' ? ' \n' : chunk.content) + (i === promptChunks.length - 1 && chunk.content.endsWith('\n') ? '\u00a0' : '')}
+							</span>`;
+					})}` : null}
+			</div>
 		</div>
 		${probs ? html`
 			<div
