@@ -16,7 +16,8 @@
 		"react": "https://esm.sh/react@18",
 		"react-dom/client": "https://esm.sh/react-dom@18/client?external=react",
 		"htm/react": "https://esm.sh/htm@3/react?external=react&react=18",
-		"event-iterator": "https://esm.sh/event-iterator@2.0.0"
+		"event-iterator": "https://esm.sh/event-iterator@2.0.0",
+		"scrollview-resize": "https://esm.sh/scrollview-resize@1.0.2"
 	}
 }
 </script>
@@ -841,6 +842,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { html } from 'htm/react';
 import { EventIterator } from 'event-iterator';
+import { SVResizeObserver } from 'scrollview-resize';
 
 // Polyfill for piece of shit Chromium
 if (!(Symbol.asyncIterator in ReadableStream.prototype)) {
@@ -1336,10 +1338,10 @@ function CollapsibleGroup({ label, expanded, children }) {
 
 	useEffect(() => {
 		setContentHeight(contentArea.current.scrollHeight);
-		var observer = new MutationObserver(() => {
+		const observer = new SVResizeObserver(() => {
 			setContentHeight(contentArea.current.scrollHeight);
 		});
-		observer.observe(contentArea.current, { subtree: true, childList: true });
+		observer.observe(contentArea.current);
 		return () => observer.disconnect();
 	}, []);
 

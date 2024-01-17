@@ -6,6 +6,7 @@
     "build": "parcel build"
   },
   "dependencies": {
+    "scrollview-resize" : "^1.0.2",
     "event-iterator": "^2.0.0",
     "htm": "^3.1.1",
     "react": "^18.2.0",
@@ -13,6 +14,7 @@
   },
   "devDependencies": {
     "@parcel/transformer-inline-string": "^2.9.3",
+    "scrollview-resize" : "^1.0.2",
     "event-iterator": "^2.0.0",
     "htm": "^3.1.1",
     "parcel": "^2.9.3",
