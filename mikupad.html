@@ -2321,6 +2321,8 @@ export function App() {
 	}, [promptText]);
 
 	useLayoutEffect(() => {
+		if (cancel)
+			return;
 		promptArea.current.scrollTarget = undefined;
 		promptArea.current.scrollTop = savedScrollTop;
 		promptOverlay.current.scrollTop = savedScrollTop;
