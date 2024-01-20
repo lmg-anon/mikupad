@@ -1830,8 +1830,6 @@ export function App() {
 	const [authorNoteTokens, setAuthorNoteTokens] = useSessionState('authorNoteTokens', defaultPresets.authorNoteTokens);
 	const [authorNoteDepth, setAuthorNoteDepth] = useSessionState('authorNoteDepth', defaultPresets.authorNoteDepth);
 
-	const [shouldCallPredict, setShouldCallPredict] = useState(false);
-
 	const handleAuthorNoteDepthChange = (value) => {
 		setAuthorNoteDepth(!isNaN(+value) && value >= 0 ? value : 0);
 	};
@@ -2165,9 +2163,11 @@ export function App() {
 
 	function undoAndPredict() {
 		if (!undoStack.current.length) return;
-		redoStack.current.push(promptChunks.slice(undoStack.current.at(-1)));
-		setPromptChunks(p => p.slice(0, undoStack.current.pop()));
-		setShouldCallPredict(true);
+		const lastGenerationChunks = undoStack.current.pop();
+    	const newPromptChunks = promptChunks.slice(0, lastGenerationChunks);
+   		setPromptChunks(newPromptChunks);
+
+	    predict(joinPrompt(newPromptChunks), newPromptChunks.length);
 	}
 
 	useLayoutEffect(() => {
@@ -2194,13 +2194,6 @@ export function App() {
 		}
 	}, [theme]);
 
-
-	useEffect(() => {
-		if (shouldCallPredict) {
-			predict();
-			setShouldCallPredict(false);
-		}
-	}, [promptChunks]); 
 
 	useEffect(() => {
 		try {
@@ -2798,9 +2791,7 @@ export function App() {
 						onClick=${() => undoAndPredict()}
 						onMouseEnter=${() => setUndoHovered(true)}
 						onMouseLeave=${() => setUndoHovered(false)}>
-						<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24">
-						<path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10h-2c0 4.418-3.582 8-8 8s-8-3.582-8-8 3.582-8 8-8c1.847 0 3.54.634 4.899 1.684l-1.399 1.682h4.5v-4.5l-1.5 1.5C14.306 4.175 13.196 4 12 4v2z" fill="var(--color-light)"/>
-						</svg>
+						<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 40.499 40.5"><path d="M39.622,21.746l-6.749,6.75c-0.562,0.562-1.326,0.879-2.122,0.879s-1.56-0.316-2.121-0.879l-6.75-6.75		c-1.171-1.171-1.171-3.071,0-4.242c1.171-1.172,3.071-1.172,4.242,0l1.832,1.832C27.486,13.697,22.758,9.25,17,9.25		c-6.064,0-11,4.935-11,11c0,6.064,4.936,11,11,11c1.657,0,3,1.343,3,3s-1.343,3-3,3c-9.373,0-17-7.626-17-17s7.627-17,17-17		c8.936,0,16.266,6.933,16.936,15.698l1.442-1.444c1.172-1.172,3.072-1.172,4.242,0C40.792,18.674,40.792,20.574,39.622,21.746z" fill="var(--color-light)"/></svg>
 					</button>`}
 				</div>
 
