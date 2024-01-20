@@ -2485,11 +2485,26 @@ export function App() {
 			...promptChunks.slice(0, i),
 			{
 				...promptChunks[i],
-				content: tok,
+				content: adjustTokenSpacing(promptChunks[i].content, tok),
 			},
 		];
 		setPromptChunks(newPrompt);
 		predict(joinPrompt(newPrompt), newPrompt.length);
+	}
+
+	function adjustTokenSpacing(tokenToReplace, newToken) {
+		let adjustedToken = newToken;
+
+		if (tokenToReplace.startsWith(' ') && !isEnglishPunctuationMark(newToken)) {
+			adjustedToken = ' ' + adjustedToken;
+		}
+
+		return adjustedToken;
+	}
+
+	function isEnglishPunctuationMark(token) {
+		const punctuationMarks = ['\'', ',', '.', '!', '?', ':', ';', '-', '"', ')', ']', '}', ')', '>', '/', '_', '|'];
+		return punctuationMarks.some(mark => token.startsWith(mark));
 	}
 
 	function switchEndpointAPI(value) {
