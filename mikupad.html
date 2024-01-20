@@ -480,6 +480,135 @@ html.nockoffAI .wi-entry-name input {
 	margin-bottom:4px;
 }
 
+/* logit bias */
+.hbox-button {
+	margin-top: auto;
+	width: 1.625rem;
+}
+.hbox-flex {
+	display: flex;
+	flex-direction: row;
+	gap: 8px;
+}
+.hbox-flex > .InputBox {
+  width: 100%;
+}
+.small-inputBox {
+	width: 8em;
+}
+.logitBiasContainer {
+	position: relative;
+}
+
+.overflow-container {
+	overflow-y:auto;
+}
+#logitBiasPower {
+	text-align: center;
+}
+
+#logitBiasSearchSuggestions {
+	--search-width: 95%;
+	position: absolute;
+	bottom:2.75em;
+	left: calc( (100% - var(--search-width)) / 2 );
+	width: var(--search-width);
+	background: var(--color-base-40);
+	min-height:0em;
+	margin: 0 auto 0;
+	border-radius: 5px;
+	box-shadow: 0 0 .5em black;
+}
+html.nockoffAI #logitBiasSearchSuggestions {
+	background: var(--color-disabled);
+}
+#logitBiasSearchSuggestions > .overflow-container {
+	max-height: 19.5em;
+	margin: .2em;
+}
+.lb-search-entry {
+	display: grid;
+	grid-template-columns: minmax(min-content, 1fr) min-content 5fr min-content;
+	gap: 8px;
+	padding: 0.25em;
+	margin: 0.2em;
+	background: var(--color-base-50);
+	border-radius: 3px;
+	word-break: break-all;
+}
+.lb-search-entry > * {
+	margin: auto 0 auto;
+}
+html.nockoffAI .lb-search-entry {
+	background: var(--color-base-10);
+	color: var(--color-text);
+}
+html.monospace-dark .lb-search-entry {
+	background: var(--color-base-20);
+}
+
+.lb-search-power {
+	text-align: right;
+}
+
+.lb-search-string,
+.lb-tokenCount {
+	font-family: monospace;
+	font-size: 0.8rem;
+}
+
+
+
+
+.lb-modal-grid-column {
+	display: grid;
+	gap: 8px;
+	max-height: 60vh;
+	padding-right: .75em;
+}
+.lb-modal-grid-row  {
+  display: grid;
+  grid-template-columns: 4em 1fr min-content;
+  grid-template-rows: 1fr min-content min-content;
+  gap: 0 8px;
+  grid-template-areas: 
+    "power input add"
+    ". tokens ."
+	"hr hr hr"; 
+}
+.lb-modal-power {
+	grid-area: power;
+	text-align: right;
+}
+.lb-modal-input { 
+	grid-area: input;
+	text-align: left;
+}
+.lb-modal-button { 
+	grid-area: add;
+}
+.lb-modal-tokenized { 
+	grid-area: tokens;
+	margin-top: auto;
+	display: grid;
+	align-content: center;
+	height: 1.625rem;
+}
+.lb-modal-biasList hr {
+	grid-area: hr;
+	width: 90%;
+	margin: 4px auto auto auto;
+}
+
+.lb-modal-biasList {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 8px;
+}
+
+
+
+
 #sidebar {
 	font-family: inherit;
 	width: 250px;
@@ -889,6 +1018,20 @@ export async function getTokenCount({ endpoint, endpointAPI, endpointAPIKey, sig
 	}
 }
 
+export async function getTokens({ endpoint, endpointAPI, endpointAPIKey, signal, ...options }) {
+	// currently only implemented for llama.cpp and koboldcpp
+	// to implement other APIs, make a function that takes an input of a string and
+	// returns a json object in the format of:
+	// { ids:[ array of token ids ], str:[ array of detokenized ids ] }
+	// example: { ids:[9288,4731],str:["test"," string"] }
+	switch (endpointAPI) {
+		case 0: // llama.cpp
+			return await llamaCppTokenize({ endpoint, endpointAPIKey, signal, ...options });
+		case 2: // koboldcpp
+			return await koboldCppTokenize({ endpoint, signal, ...options });
+	}
+}
+
 export async function getModels({ endpoint, endpointAPI, endpointAPIKey, signal, ...options }) {
 	switch (endpointAPI) {
 		case 3: // openai
@@ -981,6 +1124,50 @@ async function llamaCppTokenCount({ endpoint, endpointAPIKey, signal, ...options
 	return tokens.length + 1; // + 1 for BOS, I guess.
 }
 
+async function llamaCppTokenize({ endpoint, endpointAPIKey, signal, ...options }) {
+	const res = await fetch(new URL('/tokenize', endpoint), {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+			...(endpointAPIKey ? { 'Authorization': `Bearer ${endpointAPIKey}` } : {}),
+		},
+		body: JSON.stringify(options),
+		signal,
+	});
+	if (!res.ok)
+		throw new Error(`HTTP ${res.status}`);
+	const { tokens } = await res.json();
+
+	const strings = [];
+	for (let i=0; i<tokens.length; i++) {
+		const string = await llamaCppDetokenize({
+				endpoint,
+				endpointAPIKey,
+				tokens: [ tokens[i] ],
+				signal: signal,
+		}); // maybe batch all tokens together with a bos token between them
+			// something? don't know what's more efficient.
+		strings.push(string);
+	};
+	return {ids:tokens,str:strings};
+}
+async function llamaCppDetokenize({ endpoint, endpointAPIKey, signal, ...options }) {
+	const res = await fetch(new URL('/detokenize', endpoint), {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+			...(endpointAPIKey ? { 'Authorization': `Bearer ${endpointAPIKey}` } : {}),
+		},
+		body: JSON.stringify(options),
+		signal,
+	});
+	if (!res.ok)
+		throw new Error(`HTTP ${res.status}`);
+	const { content } = await res.json();
+	console.log("detokenized","." + content + ".")
+	return content
+}
+
 async function* llamaCppCompletion({ endpoint, endpointAPIKey, signal, ...options }) {
 	const res = await fetch(new URL('/completion', endpoint), {
 		method: 'POST',
@@ -1000,6 +1187,121 @@ async function* llamaCppCompletion({ endpoint, endpointAPIKey, signal, ...option
 	return yield* await parseEventStream(res.body);
 }
 
+async function oobaTokenCount({ endpoint, signal, ...options }) {
+	try {
+		endpoint = `http:${endpoint.split(":")[1]}:5000`; // HACK!
+		const res = await fetch(new URL('/api/v1/token-count', endpoint), {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+			},
+			body: JSON.stringify({
+				prompt: options.content
+			}),
+			signal,
+		});
+		if (!res.ok)
+			throw new Error(`HTTP ${res.status}`);
+		const { results } = await res.json();
+		return results[0].tokens;
+	} catch (e) {
+		reportError(e);
+		return 0;
+	}
+}
+
+async function oobaTokenize({ endpoint, signal, ...options }) {
+	try {
+		endpoint = `http:${endpoint.split(":")[1]}:5000`; // HACK!
+		const res = await fetch(new URL('/api/v1/token-count', endpoint), {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+			},
+			body: JSON.stringify({
+				prompt: options.content
+			}),
+			signal,
+		});
+		if (!res.ok)
+			throw new Error(`HTTP ${res.status}`);
+		const { results } = await res.json();
+		return results[0]; // TODO TEST
+	} catch (e) {
+		reportError(e);
+		return 0;
+	}
+}
+
+function oobaConvertOptions(options) {
+	const swapOption = (lhs, rhs) => {
+		if (lhs in options) {
+			options[rhs] = options[lhs];
+			delete options[lhs];
+		}
+	};
+	if (options.n_predict === -1) {
+		options.n_predict = 1024;
+	}
+	swapOption("n_ctx", "truncation_length");
+	swapOption("n_predict", "max_new_tokens");
+	swapOption("repeat_penalty", "repetition_penalty");
+	swapOption("repeat_last_n", "repetition_penalty_range");
+	swapOption("ignore_eos", "ban_eos_token");
+	swapOption("stop", "stopping_strings");
+	return options;
+}
+
+async function* oobaCompletion({ endpoint, signal, ...options }) {
+	const ws = new WebSocket(new URL('/api/v1/stream', endpoint));
+	let connected = false;
+
+	ws.onopen = () => {
+		connected = true;
+		ws.send(JSON.stringify(oobaConvertOptions(options)));
+	};
+
+	const wsStream = () => new EventIterator(
+		queue => {
+			ws.onmessage = queue.push;
+			ws.onclose = queue.stop;
+			ws.onerror = (e) => queue.fail(new Error(connected ? "WebSocket Error" : "Failed to connect"));
+			if (signal) {
+				signal.addEventListener("abort", queue.stop);
+			}
+
+			return () => {
+				ws.close();
+				if (signal) {
+					signal.removeEventListener("abort", queue.stop);
+				}
+			}
+		}
+	);
+
+	for await (const event of wsStream()) {
+		const data = JSON.parse(event.data);
+		console.log('event', data);
+
+		if (data.event === "text_stream") {
+			yield { content: data.text };
+		} else if (data.event === "stream_end") {
+			break;
+		}
+	}
+}
+
+async function oobaAbortCompletion({ endpoint }) {
+	try {
+		endpoint = `http:${endpoint.split(":")[1]}:5000`; // HACK!
+		await fetch(new URL('/api/v1/stop-stream', endpoint), {
+			method: 'POST',
+		});
+	} catch (e) {
+		reportError(e);
+	}
+}
+
 async function koboldCppTokenCount({ endpoint, signal, ...options }) {
 	const res = await fetch(new URL('/api/extra/tokencount', endpoint), {
 		method: 'POST',
@@ -1015,6 +1317,24 @@ async function koboldCppTokenCount({ endpoint, signal, ...options }) {
 		throw new Error(`HTTP ${res.status}`);
 	const { value } = await res.json();
 	return value;
+}
+
+async function koboldCppTokenize({ endpoint, signal, ...options }) {
+	const res = await fetch(new URL('/api/extra/tokencount', endpoint), {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+		},
+		body: JSON.stringify({
+			prompt: options.content
+		}),
+		signal,
+	});
+	if (!res.ok)
+		throw new Error(`HTTP ${res.status}`);
+	const { ids } = await res.json();
+	return {ids:ids,str:"Not implemented in KCCP"};
+	// that can't be right, surely there's a detokenize endpoint
 }
 
 function koboldCppConvertOptions(options) {
@@ -1698,6 +2018,7 @@ const defaultPresets = {
 		"prefix": "",
 		"suffix": ""
 	}),
+	logitBias:{ bias:{},model:"none" },
 	scrollTop: 0
 };
 
@@ -1823,6 +2144,131 @@ export function App() {
 	const [stoppingStrings, setStoppingStrings] = useSessionState('stoppingStrings', defaultPresets.stoppingStrings);
 	const [stoppingStringsError, setStoppingStringsError] = useState(undefined);
 	const [savedScrollTop, setSavedScrollTop] = useSessionState('scrollTop', defaultPresets.scrollTop);
+
+	const [logitBias, setLogitBias] = useSessionState('logitBias', defaultPresets.logitBias);
+	const [logitBiasSearchList, setLogitBiasSearchList] = useState([]);
+	const [logitBiasSorted, setLogitBiasSorted] = useState([]);
+	const [logitBiasSearchState, setLogitBiasSearchState] = useState(false);
+
+	const doNothing = () => { return } // very elegant.
+
+	const logitBiasAdd = async (index,posneg="",origValue="") => {
+		
+		const [biasTokens,biasPower] = (()=>{
+			switch (true) {
+				case index == "sidebar":
+					console.log("sidebar");
+					const biasTokens = document.querySelector("#logitBiasTokens").value;
+					const biasPower = document.querySelector("#logitBiasPower").value;
+					return [biasTokens,biasPower];
+
+				case !isNaN(+index):
+					try {
+						console.log("modal",index,posneg)
+						const biasTokens = document.querySelector("#lb-modal-"+posneg+" #lb-modal-input-"+index).value;
+						const biasPower = document.querySelector("#lb-modal-"+posneg+" #lb-modal-power-"+index).value;
+						return [biasTokens,biasPower];
+					}
+					catch {
+						console.warn("Attempted to modify an out of range index in logit bias modal")
+						return
+					}
+					return [false,false]
+
+				default:
+					console.log("switch defaulted")
+					return [false,false]
+			}
+		})();
+		
+		// abort if no input
+		if(!biasTokens) {return}
+
+		console.log("values",biasTokens,biasPower)
+
+		const modBias = logitBias.bias;
+		
+		// abort if power isn't a number
+		if (isNaN(+biasPower)) { return }
+		// delete entry if power 0 or empty
+		if (biasPower == 0 || biasPower == "" && logitBias[biasTokens]) {
+			console.log("delete",biasTokens)
+			setLogitBias((prevLogitBias) => {
+				delete modBias[biasTokens]
+				return { 
+					...prevLogitBias,
+					bias: {
+						...modBias
+					}
+				};
+			})
+			return
+		}
+		// if overwriting the string value of an entry, delete the original one
+		if (origValue && origValue != biasTokens) {
+			console.log("delete orig",origValue)
+			delete modBias[origValue]
+		}
+
+		const ac = new AbortController();
+		console.log("input","."+biasTokens+".",biasPower)
+
+		// in some models it will add spaces to the start of your input
+		const tokens = await getTokens({
+				endpoint,
+				endpointAPI,
+				...(endpointAPI == 3 || endpointAPI == 0 ? { endpointAPIKey } : {}),
+				content: `${biasTokens}`,
+				signal: ac.signal,
+		})
+		console.log("add",tokens)
+
+		setLogitBias((prevLogitBias) => ({
+			...prevLogitBias,
+			bias: {
+				...modBias,
+				[biasTokens]: {
+					ids: [ ...tokens.ids ],
+					strings: [ ...tokens.str ],
+					power: biasPower
+				}
+			}
+		}));
+
+		if (!isNaN(index)) {
+			toggleModal("bias");
+			toggleModal("bias");
+		}
+	};
+
+	const logitBiasSearch = async (value) => {
+		const filteredList = value ? Object.keys(logitBias.bias).filter(key => key.startsWith(value)) : []
+		const sorted = logitBiasSorted;
+		setLogitBiasSearchList(filteredList)
+	}
+
+
+	const logitBiasSort = useMemo(() => {
+
+		const biasListToSort = Object.entries(logitBias.bias);
+		const biasListSorted = biasListToSort
+			.sort((a, b) => parseInt(b[1].power) - parseInt(a[1].power));
+		
+		const resultArray = biasListSorted.map(([key]) => key);
+
+		setLogitBiasSorted(resultArray)
+	}, [logitBias]);
+
+
+
+
+	const debugLogitBias = useMemo(() => {
+		console.log(logitBias)
+	}, [logitBias]);
+
+	const debugLogitBiasSearch = useMemo(() => {
+		console.log("searchlist",logitBiasSearchList)
+	}, [logitBiasSearchList]);
 
 	const [contextLength, setContextLength] = useSessionState('contextLength', defaultPresets.contextLength);
 	const [memoryTokens, setMemoryTokens] = useSessionState('memoryTokens', defaultPresets.memoryTokens);
@@ -2693,6 +3139,60 @@ export function App() {
 				${(!openaiPresets || endpointAPI != 3) && html`
 					<${Checkbox} label="Ignore <eos>"
 						disabled=${!!cancel} value=${ignoreEos} onValueChange=${setIgnoreEos}/>`}
+
+				${(endpointAPI == 0 || endpointAPI == 2) && html`
+					<div className="hbox-flex logitBiasContainer">
+						<div class="small-inputBox">
+							<${InputBox} label="Bias" classList="logitBiasPower-container" type="number" max=100 min=-100 step="1"
+								readOnly=${!!cancel} onValueChange=${doNothing} defaultValue=0 id="logitBiasPower"/>
+						</div>
+						<label className="InputBox">
+							Token
+						<input label="Token" type="text" id="logitBiasTokens-container"
+							readOnly=${!!cancel} 
+							onInput=${(e) => {logitBiasSearch(e.target.value)} }
+							onFocus=${(e) => {logitBiasSearch(e.target.value); setLogitBiasSearchState(true)} }
+							onBlur=${() => setLogitBiasSearchState(false)}
+							defaultValue="testing " 
+							id="logitBiasTokens"/>
+							<button
+								className="textAreaSettings"
+								disabled=${!!cancel}
+								onClick=${() => toggleModal("bias")}>
+								<svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="-1 -5 8 7" xmlns="http://www.w3.org/2000/svg"><path d="M0 0 3-3C3-4 3-5 5-5L4-4 5-3 6-4C6-2 5-2 4-2L1 1C0 2-1 1 0 0"></path></svg>
+							</button>
+						</label>
+						<button disabled=${!!cancel} class="hbox-button" onClick=${() => logitBiasAdd("sidebar")}>+</button>
+						${logitBiasSearchState 
+							&& logitBiasSearchList.length > 0
+							&& html`<div id="logitBiasSearchSuggestions">
+							<div class="overflow-container">
+								${ !Array.isArray(logitBiasSearchList) ? null : logitBiasSorted.map((string, index) => {
+									if (logitBiasSearchList.includes(string)) {
+										return !logitBias.bias[string] ? null : html`
+											<div class="lb-search-entry" key=${index}>
+												<div class="lb-search-power">
+													${logitBias.bias[string].power}  
+												</div>
+												<div>></div>
+												<div class="lb-search-string">
+													[${logitBias.bias[string].strings.join("|")}]
+												</div>
+												<div class="lb-tokenCount">
+													(${logitBias.bias[string].ids.length})
+												</div>
+
+												
+											</div>`
+									}
+								}
+								)}
+
+							</div>
+						</div>`}
+						
+					</div>`}
+
 			</${CollapsibleGroup}>
 			<${CollapsibleGroup} label="Persistent Context">
 				<label className="TextArea">
@@ -2794,6 +3294,52 @@ export function App() {
 						{ name: 'Don\'t show', value: -1 },
 					]}/>
 			</div>
+		</${Modal}>
+
+		<${Modal} isOpen=${modalState.bias} onClose=${() => closeModal("bias")}
+		title="Logit Bias"
+		description="Make certain tokens more or less likely to be generated. Values range from -100 to 100.
+		-100 is a ban, +100 means the model will only generate that token. 0 is neutral.
+		Currently only works on the first token of multi-token phrases/words.
+		
+		Different models might tokenize words differently. Always Re-Tokenize when switching models!">
+			
+		${modalState.bias 
+			&& logitBiasSorted.length > 0
+			&& html`
+			<div class="lb-modal-biasList" >
+				<div class="overflow-container lb-modal-grid-column" id="lb-modal-positive">
+					${ logitBiasSorted.map((string, index) => {
+		
+							return !logitBias.bias[string] || logitBias.bias[string].power < 0 ? null : html`
+								<div class="lb-modal-entry lb-modal-grid-row" key=${index}>
+
+									<${InputBox} label="Bias" classList="lb-modal-power"
+										type="number" max=100 min=-100 step="1"
+										id="lb-modal-power-${index}"
+										readOnly=${!!cancel}
+										onValueChange=${doNothing}
+										defaultValue=${logitBias.bias[string].power}/>
+									<label className="InputBox">
+										Token
+									<input label="Token" type="text" class="lb-modal-stringInput"
+										readOnly=${!!cancel} 
+										defaultValue="${string}" 
+										id="lb-modal-input-${index}"/>
+									</label>
+									<div class="lb-modal-tokenized">
+										[${logitBias.bias[string].strings.join("|")}] (${logitBias.bias[string].ids.length})
+									</div>
+									<button disabled=${!!cancel} class="hbox-button lb-modal-button" onClick=${() => logitBiasAdd(index,"positive",string)}>+</button>
+									<hr/>
+								</div>`
+
+					}
+					)}
+
+				</div>
+			</div>`}
+
 		</${Modal}>
 
 		<${Modal} isOpen=${modalState.memory} onClose=${() => closeModal("memory")}
