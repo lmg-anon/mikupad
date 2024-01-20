@@ -2163,16 +2163,12 @@ export function App() {
 		setUndoHovered(false);
 	}
 
-
 	function undoAndPredict() {
 		if (!undoStack.current.length) return;
 		redoStack.current.push(promptChunks.slice(undoStack.current.at(-1)));
 		setPromptChunks(p => p.slice(0, undoStack.current.pop()));
 		setShouldCallPredict(true);
 	}
-
-
-	
 
 	useLayoutEffect(() => {
 		if (attachSidebar)
@@ -2787,16 +2783,13 @@ export function App() {
 					onClick=${() => predict()}>
 					Predict
 				</button>
-			
 				<button 
 					title="Cancel prediction (Escape)"
 					disabled=${!cancel}
 					onClick=${cancel}>
 					Cancel
 				</button>
-
 				<div className="shorts">
-
 				${!cancel && (!!undoStack.current.length || !!redoStack.current.length) && html`
 				<button 
 						title="Regenerate (Ctrl + R)"
