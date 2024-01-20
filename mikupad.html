@@ -142,6 +142,12 @@ body {
 	flex: auto;
 	flex-direction: row;
 }
+@media (min-width: calc(40.5em + 250px)) {
+	body.attachSidebar {
+		margin-right: auto;
+		margin-left: auto;
+	}
+}
 
 #prompt-container {
 	position: relative;
@@ -152,6 +158,12 @@ body {
 	flex: 1;
 	display: flex;
 	flex-direction: column;
+}
+@media (min-width: calc(40.5em + 250px)) {
+	body.attachSidebar #prompt-container {
+		min-width: 36em;
+		max-width: 36em;
+	}
 }
 
 #prompt-area, #prompt-overlay {
@@ -1865,6 +1877,7 @@ export function App() {
 	const [showProbs, setShowProbs] = useState(true);
 	const [cancel, setCancel] = useState(null);
 	const [spellCheck, setSpellCheck] = usePersistentState('spellCheck', false);
+	const [attachSidebar, setAttachSidebar] = usePersistentState('attachSidebar', false);
 	const [showProbsMode, setShowProbsMode] = usePersistentState('showProbsMode', 0);
 	const [highlightGenTokens, setHighlightGenTokens] = usePersistentState('highlightGenTokens', true);
 	const [darkMode, _] = usePersistentState('darkMode', false); // legacy
@@ -2234,6 +2247,13 @@ export function App() {
 		setPromptChunks(p => [...p, ...redoStack.current.pop()]);
 		setUndoHovered(false);
 	}
+
+	useLayoutEffect(() => {
+		if (attachSidebar)
+			document.body.classList.add('attachSidebar');
+		else
+			document.body.classList.remove('attachSidebar');
+	}, [attachSidebar]);
 
 	useLayoutEffect(() => {
 		document.documentElement.classList.remove('serif-dark');
@@ -2843,6 +2863,8 @@ export function App() {
 			<div className="vbox">
 				<${Checkbox} label="Enable spell checking"
 					value=${spellCheck} onValueChange=${setSpellCheck}/>
+				<${Checkbox} label="Attach sidebar"
+					value=${attachSidebar} onValueChange=${setAttachSidebar}/>
 				<${Checkbox} label="Highlight generated tokens"
 					value=${highlightGenTokens} onValueChange=${setHighlightGenTokens}/>
 				<${SelectBox}
