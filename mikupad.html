@@ -16,7 +16,6 @@
 		"react": "https://esm.sh/react@18",
 		"react-dom/client": "https://esm.sh/react-dom@18/client?external=react",
 		"htm/react": "https://esm.sh/htm@3/react?external=react&react=18",
-		"event-iterator": "https://esm.sh/event-iterator@2.0.0",
 		"scrollview-resize": "https://esm.sh/scrollview-resize@1.0.2"
 	}
 }
@@ -853,7 +852,6 @@ html.monospace-dark .horz-separator {
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { html } from 'htm/react';
-import { EventIterator } from 'event-iterator';
 import { SVResizeObserver } from 'scrollview-resize';
 
 // Polyfill for piece of shit Chromium
@@ -877,8 +875,6 @@ export async function getTokenCount({ endpoint, endpointAPI, endpointAPIKey, sig
 	switch (endpointAPI) {
 		case 0: // llama.cpp
 			return await llamaCppTokenCount({ endpoint, endpointAPIKey, signal, ...options });
-		case 1: // oobabooga
-			return await oobaTokenCount({ endpoint, signal, ...options });
 		case 2: // koboldcpp
 			return await koboldCppTokenCount({ endpoint, signal, ...options });
 		case 3: // openai // TODO: Fix this for official OpenAI?
@@ -906,8 +902,6 @@ export async function* completion({ endpoint, endpointAPI, endpointAPIKey, signa
 	switch (endpointAPI) {
 		case 0: // llama.cpp
 			return yield* await llamaCppCompletion({ endpoint, endpointAPIKey, signal, ...options });
-		case 1: // oobabooga
-			return yield* await oobaCompletion({ endpoint, signal, ...options });
 		case 2: // koboldcpp
 			return yield* await koboldCppCompletion({ endpoint, signal, ...options });
 		case 3: // openai
@@ -917,8 +911,6 @@ export async function* completion({ endpoint, endpointAPI, endpointAPIKey, signa
 
 export async function abortCompletion({ endpoint, endpointAPI }) {
 	switch (endpointAPI) {
-		case 1: // oobabooga
-			return await oobaAbortCompletion({ endpoint });
 		case 2: // koboldcpp
 			return await koboldCppAbortCompletion({ endpoint });
 		case 3: // openai (ooba)
@@ -1006,98 +998,6 @@ async function* llamaCppCompletion({ endpoint, endpointAPIKey, signal, ...option
 	if (!res.ok)
 		throw new Error(`HTTP ${res.status}`);
 	return yield* await parseEventStream(res.body);
-}
-
-async function oobaTokenCount({ endpoint, signal, ...options }) {
-	try {
-		endpoint = `http:${endpoint.split(":")[1]}:5000`; // HACK!
-		const res = await fetch(new URL('/api/v1/token-count', endpoint), {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json',
-			},
-			body: JSON.stringify({
-				prompt: options.content
-			}),
-			signal,
-		});
-		if (!res.ok)
-			throw new Error(`HTTP ${res.status}`);
-		const { results } = await res.json();
-		return results[0].tokens;
-	} catch (e) {
-		reportError(e);
-		return 0;
-	}
-}
-
-function oobaConvertOptions(options) {
-	const swapOption = (lhs, rhs) => {
-		if (lhs in options) {
-			options[rhs] = options[lhs];
-			delete options[lhs];
-		}
-	};
-	if (options.n_predict === -1) {
-		options.n_predict = 1024;
-	}
-	swapOption("n_ctx", "truncation_length");
-	swapOption("n_predict", "max_new_tokens");
-	swapOption("repeat_penalty", "repetition_penalty");
-	swapOption("repeat_last_n", "repetition_penalty_range");
-	swapOption("ignore_eos", "ban_eos_token");
-	swapOption("stop", "stopping_strings");
-	return options;
-}
-
-async function* oobaCompletion({ endpoint, signal, ...options }) {
-	const ws = new WebSocket(new URL('/api/v1/stream', endpoint));
-	let connected = false;
-
-	ws.onopen = () => {
-		connected = true;
-		ws.send(JSON.stringify(oobaConvertOptions(options)));
-	};
-
-	const wsStream = () => new EventIterator(
-		queue => {
-			ws.onmessage = queue.push;
-			ws.onclose = queue.stop;
-			ws.onerror = (e) => queue.fail(new Error(connected ? "WebSocket Error" : "Failed to connect"));
-			if (signal) {
-				signal.addEventListener("abort", queue.stop);
-			}
-
-			return () => {
-				ws.close();
-				if (signal) {
-					signal.removeEventListener("abort", queue.stop);
-				}
-			}
-		}
-	);
-
-	for await (const event of wsStream()) {
-		const data = JSON.parse(event.data);
-		console.log('event', data);
-
-		if (data.event === "text_stream") {
-			yield { content: data.text };
-		} else if (data.event === "stream_end") {
-			break;
-		}
-	}
-}
-
-async function oobaAbortCompletion({ endpoint }) {
-	try {
-		endpoint = `http:${endpoint.split(":")[1]}:5000`; // HACK!
-		await fetch(new URL('/api/v1/stop-stream', endpoint), {
-			method: 'POST',
-		});
-	} catch (e) {
-		reportError(e);
-	}
 }
 
 async function koboldCppTokenCount({ endpoint, signal, ...options }) {
@@ -2568,11 +2468,6 @@ export function App() {
 					url.protocol = "http:";
 				url.port = 8080;
 				break;
-			case 1: // oobabooga
-				if (url.protocol != 'ws:' && url.protocol != 'wss:')
-					url.protocol = "ws:";
-				url.port = 5005;
-				break;
 			case 2: // koboldcpp
 				if (url.protocol != 'http:' && url.protocol != 'https:')
 					url.protocol = "http:";
@@ -2682,7 +2577,7 @@ export function App() {
 					onValueChange=${switchEndpointAPI}
 					options=${[
 						{ name: 'llama.cpp', value: 0 },
-						{ name: 'legacy oobabooga', value: 1 },
+						/*{ name: 'legacy oobabooga', value: 1 },*/
 						{ name: 'koboldcpp', value: 2 },
 						{ name: 'openai-compatible', value: 3 },
 					]}/>
@@ -2723,7 +2618,7 @@ export function App() {
 						<${InputBox} label="Repeat last n" type="number" step="1"
 							readOnly=${!!cancel} value=${repeatLastN} onValueChange=${setRepeatLastN}/>
 					</div>`}
-				${(endpointAPI == 0 || endpointAPI == 1 || !openaiPresets || endpointAPI == 3) && html`
+				${(endpointAPI == 0 || !openaiPresets || endpointAPI == 3) && html`
 					${(endpointAPI != 1 && (!openaiPresets || endpointAPI != 3)) && html`
 						<${Checkbox} label="Penalize NL"
 							disabled=${!!cancel} value=${penalizeNl} onValueChange=${setPenalizeNl}/>`}
