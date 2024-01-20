@@ -1829,6 +1829,9 @@ export function App() {
 
 	const [authorNoteTokens, setAuthorNoteTokens] = useSessionState('authorNoteTokens', defaultPresets.authorNoteTokens);
 	const [authorNoteDepth, setAuthorNoteDepth] = useSessionState('authorNoteDepth', defaultPresets.authorNoteDepth);
+
+	const [shouldCallPredict, setShouldCallPredict] = useState(false);
+
 	const handleAuthorNoteDepthChange = (value) => {
 		setAuthorNoteDepth(!isNaN(+value) && value >= 0 ? value : 0);
 	};
@@ -2160,6 +2163,17 @@ export function App() {
 		setUndoHovered(false);
 	}
 
+
+	function undoAndPredict() {
+		if (!undoStack.current.length) return;
+		redoStack.current.push(promptChunks.slice(undoStack.current.at(-1)));
+		setPromptChunks(p => p.slice(0, undoStack.current.pop()));
+		setShouldCallPredict(true);
+	}
+
+
+	
+
 	useLayoutEffect(() => {
 		if (attachSidebar)
 			document.body.classList.add('attachSidebar');
@@ -2183,6 +2197,14 @@ export function App() {
 			break;
 		}
 	}, [theme]);
+
+
+	useEffect(() => {
+		if (shouldCallPredict) {
+			predict();
+			setShouldCallPredict(false);
+		}
+	}, [promptChunks]); 
 
 	useEffect(() => {
 		try {
@@ -2324,6 +2346,19 @@ export function App() {
 			case 'false:false:false:Escape':
 				cancel();
 				break;
+			case 'false:true:false:r':
+        	case 'false:false:true:r':
+				undoAndPredict();
+            	break;
+			case 'false:true:false:z':
+        	case 'false:false:true:z':
+				undo();
+            	break;
+			case 'false:true:false:y':
+        	case 'false:false:true:y':
+				redo();
+            	break;
+
 			default:
 				keyState.current = e;
 				return;
@@ -2343,7 +2378,7 @@ export function App() {
 			window.removeEventListener('keydown', onKeyDown);
 			window.removeEventListener('keyup', onKeyUp)
 		};
-	}, [predict, cancel]);
+	}, [predict, cancel, undoAndPredict, undo, redo]);
 
 	function onInput({ target }) {
 		setPromptChunks(oldPrompt => {
@@ -2746,15 +2781,39 @@ export function App() {
 				<${InputBox} label="Tokens" value=${tokens} readOnly/>`}
 			<div className="buttons">
 				<button
+					title="Run next prediction (Ctrl + Enter)"
 					className=${cancel ? (predictStartTokens === tokens ? 'processing' : 'completing') : ''}
 					disabled=${!!cancel || stoppingStringsError}
 					onClick=${() => predict()}>
 					Predict
 				</button>
-				<button disabled=${!cancel} onClick=${cancel}>Cancel</button>
+			
+				<button 
+					title="Cancel prediction (Escape)"
+					disabled=${!cancel}
+					onClick=${cancel}>
+					Cancel
+				</button>
+
+				<div className="shorts">
+
+				${!cancel && (!!undoStack.current.length || !!redoStack.current.length) && html`
+				<button 
+						title="Regenerate (Ctrl + R)"
+						disabled=${!undoStack.current.length}
+						onClick=${() => undoAndPredict()}
+						onMouseEnter=${() => setUndoHovered(true)}
+						onMouseLeave=${() => setUndoHovered(false)}>
+						<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24">
+						<path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10h-2c0 4.418-3.582 8-8 8s-8-3.582-8-8 3.582-8 8-8c1.847 0 3.54.634 4.899 1.684l-1.399 1.682h4.5v-4.5l-1.5 1.5C14.306 4.175 13.196 4 12 4v2z" fill="var(--color-light)"/>
+						</svg>
+					</button>`}
+				</div>
+
 				<div className="shorts">
 					${!cancel && (!!undoStack.current.length || !!redoStack.current.length) && html`
 						<button
+							title="Undo (Ctrl + Z)"
 							disabled=${!undoStack.current.length}
 							onClick=${() => undo()}
 							onMouseEnter=${() => setUndoHovered(true)}
@@ -2763,6 +2822,7 @@ export function App() {
 						</button>`}
 					${!cancel && (!!undoStack.current.length || !!redoStack.current.length) && html`
 						<button
+							title="Redo (Ctrl + Y)"
 							disabled=${!redoStack.current.length}
 							onClick=${() => redo()}>
 							<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24"><path d="M6.974 22.957c-10.957-11.421 2.326-20.865 10.384-13.309l-2.464 2.352h9.106v-8.947l-2.232 2.229c-14.794-13.203-31.51 7.051-14.794 17.675z" fill="var(--color-light)"/></svg>
