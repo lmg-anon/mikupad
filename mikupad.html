@@ -2785,7 +2785,7 @@ export function App() {
 				</button>
 				<div className="shorts">
 				${!cancel && (!!undoStack.current.length || !!redoStack.current.length) && html`
-				<button 
+					<button 
 						title="Regenerate (Ctrl + R)"
 						disabled=${!undoStack.current.length}
 						onClick=${() => undoAndPredict()}
