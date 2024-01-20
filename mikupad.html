@@ -562,6 +562,7 @@ html.monospace-dark .lb-search-entry {
 
 .lb-modal-grid-column {
 	display: grid;
+	grid-auto-rows: min-content;
 	gap: 8px;
 	max-height: 60vh;
 	padding-right: .75em;
@@ -569,7 +570,7 @@ html.monospace-dark .lb-search-entry {
 .lb-modal-grid-row  {
   display: grid;
   grid-template-columns: 4em 1fr min-content;
-  grid-template-rows: 1fr min-content min-content;
+  grid-template-rows: min-content min-content min-content;
   gap: 0 8px;
   grid-template-areas: 
     "power input add"
@@ -589,6 +590,8 @@ html.monospace-dark .lb-search-entry {
 }
 .lb-modal-tokenized { 
 	grid-area: tokens;
+	font-family: monospace;
+	font-size:0.85rem;
 	margin-top: auto;
 	display: grid;
 	align-content: center;
@@ -2146,6 +2149,7 @@ export function App() {
 	const [savedScrollTop, setSavedScrollTop] = useSessionState('scrollTop', defaultPresets.scrollTop);
 
 	const [logitBias, setLogitBias] = useSessionState('logitBias', defaultPresets.logitBias);
+	const [logitBiasTemp, setLogitBiasTemp] = useState([]);
 	const [logitBiasSearchList, setLogitBiasSearchList] = useState([]);
 	const [logitBiasSorted, setLogitBiasSorted] = useState([]);
 	const [logitBiasSearchState, setLogitBiasSearchState] = useState(false);
@@ -2153,7 +2157,6 @@ export function App() {
 	const doNothing = () => { return } // very elegant.
 
 	const logitBiasAdd = async (index,posneg="",origValue="") => {
-		
 		const [biasTokens,biasPower] = (()=>{
 			switch (true) {
 				case index == "sidebar":
@@ -2161,9 +2164,9 @@ export function App() {
 					const biasTokens = document.querySelector("#logitBiasTokens").value;
 					const biasPower = document.querySelector("#logitBiasPower").value;
 					return [biasTokens,biasPower];
-
 				case !isNaN(+index):
 					try {
+						// need to change handling here?
 						console.log("modal",index,posneg)
 						const biasTokens = document.querySelector("#lb-modal-"+posneg+" #lb-modal-input-"+index).value;
 						const biasPower = document.querySelector("#lb-modal-"+posneg+" #lb-modal-power-"+index).value;
@@ -2173,23 +2176,21 @@ export function App() {
 						console.warn("Attempted to modify an out of range index in logit bias modal")
 						return
 					}
-					return [false,false]
-
 				default:
 					console.log("switch defaulted")
 					return [false,false]
 			}
 		})();
 		
-		// abort if no input
+		// abort if no input or power is NaN
 		if(!biasTokens) {return}
+		if (isNaN(+biasPower)) { return }
 
 		console.log("values",biasTokens,biasPower)
 
 		const modBias = logitBias.bias;
 		
-		// abort if power isn't a number
-		if (isNaN(+biasPower)) { return }
+		
 		// delete entry if power 0 or empty
 		if (biasPower == 0 || biasPower == "" && logitBias[biasTokens]) {
 			console.log("delete",biasTokens)
@@ -2234,14 +2235,67 @@ export function App() {
 				}
 			}
 		}));
-
-		if (!isNaN(index)) {
-			toggleModal("bias");
-			toggleModal("bias");
-		}
+		//console.log("temp",logitBiasTemp)
+		// if (!isNaN(index)) {
+		// 	repopLogitBiasModal()
+		// }
 	};
 
-	const logitBiasSearch = async (value) => {
+	const updateLogitBiasTemp = (() => {
+		const tempArray = logitBiasSorted.map((string, index) =>  ({
+			value: string,
+			strings: logitBias.bias[string].strings,
+			power: logitBias.bias[string].power
+		}));
+		setLogitBiasTemp({
+			positive: tempArray.filter(item => item.power > 0),
+			negative: tempArray.filter(item => item.power < 0)
+		});
+	});
+
+	// const handleBiasTempChange = ((key,index,value) => {
+	// 	console.log("cur temp",logitBiasTemp)
+	// 	console.log("update temp",key, index, value)
+	// 	setLogitBiasTemp((prevLogitBiasTemp) => {
+	// 		const updatedTemp = prevLogitBiasTemp;
+	// 		updatedTemp[index][key] = String(value);
+	// 		return updatedTemp;
+	// 	})
+	// 	console.log("up temp",logitBiasTemp[index])
+	// })
+	const handleBiasTempChange = (posneg,key, index, value) => {
+		setLogitBiasTemp((prevLogitBiasTemp) => {
+			const rest = { ...prevLogitBiasTemp };
+			const updatedTemp = [ ...prevLogitBiasTemp[posneg] ];
+			 
+			updatedTemp[index] = {
+				...updatedTemp[index],
+				[key]: value,
+			};
+			return {
+				...rest,
+				[posneg]: updatedTemp
+			};
+		});
+		console.log("up temp",logitBiasTemp[index])
+	};
+
+	// const handleWorldInfoChange = (key,index,value) => {
+	// 	setWorldInfo((prevWorldInfo) => {
+	// 		const updatedEntries = [...prevWorldInfo.entries];
+	// 		const updatedEntry = key == "keys"
+	// 			? { ...updatedEntries[index], [key]: value.split(/(?<!\\), ?/) }
+	// 			: { ...updatedEntries[index], [key]: value };
+	// 		updatedEntries[index] = updatedEntry;
+
+	// 		return {
+	// 			...prevWorldInfo,
+	// 			entries: updatedEntries,
+	// 		};
+	// 	});
+	// }
+
+	const logitBiasSearch = (value) => {
 		const filteredList = value ? Object.keys(logitBias.bias).filter(key => key.startsWith(value)) : []
 		const sorted = logitBiasSorted;
 		setLogitBiasSearchList(filteredList)
@@ -2259,11 +2313,21 @@ export function App() {
 		setLogitBiasSorted(resultArray)
 	}, [logitBias]);
 
-
+	// const repopLogitBiasModal = (() => {
+	// 	try {
+	// 		const lbModalInputs = document.querySelectorAll(".lb-modal-power, .lb-modal-stringInput");
+	// 		lbModalInputs.forEach( input => {
+	// 			input.value = input.defaultValue;
+	// 		});
+	// 	}
+	// 	catch {
+	// 		return
+	// 	}
+	// });
 
 
 	const debugLogitBias = useMemo(() => {
-		console.log(logitBias)
+		console.log("logit bias",logitBias)
 	}, [logitBias]);
 
 	const debugLogitBiasSearch = useMemo(() => {
@@ -3158,7 +3222,7 @@ export function App() {
 							<button
 								className="textAreaSettings"
 								disabled=${!!cancel}
-								onClick=${() => toggleModal("bias")}>
+								onClick=${() => {updateLogitBiasTemp(); toggleModal("bias")}}>
 								<svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="-1 -5 8 7" xmlns="http://www.w3.org/2000/svg"><path d="M0 0 3-3C3-4 3-5 5-5L4-4 5-3 6-4C6-2 5-2 4-2L1 1C0 2-1 1 0 0"></path></svg>
 							</button>
 						</label>
@@ -3296,48 +3360,49 @@ export function App() {
 			</div>
 		</${Modal}>
 
-		<${Modal} isOpen=${modalState.bias} onClose=${() => closeModal("bias")}
+		<${Modal} isOpen=${modalState.bias} onClose=${() => {closeModal("bias")}}
 		title="Logit Bias"
 		description="Make certain tokens more or less likely to be generated. Values range from -100 to 100.
 		-100 is a ban, +100 means the model will only generate that token. 0 is neutral.
 		Currently only works on the first token of multi-token phrases/words.
 		
 		Different models might tokenize words differently. Always Re-Tokenize when switching models!">
-			
 		${modalState.bias 
-			&& logitBiasSorted.length > 0
 			&& html`
 			<div class="lb-modal-biasList" >
-				<div class="overflow-container lb-modal-grid-column" id="lb-modal-positive">
-					${ logitBiasSorted.map((string, index) => {
-		
-							return !logitBias.bias[string] || logitBias.bias[string].power < 0 ? null : html`
-								<div class="lb-modal-entry lb-modal-grid-row" key=${index}>
+				${ Object.keys(logitBiasTemp).map((key) => {
+					return html`
 
-									<${InputBox} label="Bias" classList="lb-modal-power"
-										type="number" max=100 min=-100 step="1"
-										id="lb-modal-power-${index}"
-										readOnly=${!!cancel}
-										onValueChange=${doNothing}
-										defaultValue=${logitBias.bias[string].power}/>
-									<label className="InputBox">
-										Token
-									<input label="Token" type="text" class="lb-modal-stringInput"
-										readOnly=${!!cancel} 
-										defaultValue="${string}" 
-										id="lb-modal-input-${index}"/>
-									</label>
-									<div class="lb-modal-tokenized">
-										[${logitBias.bias[string].strings.join("|")}] (${logitBias.bias[string].ids.length})
-									</div>
-									<button disabled=${!!cancel} class="hbox-button lb-modal-button" onClick=${() => logitBiasAdd(index,"positive",string)}>+</button>
-									<hr/>
-								</div>`
+					<div class="overflow-container lb-modal-grid-column" id="lb-modal-${key}">
+					${ logitBiasTemp[key].map((bias, index) => {
+						return html`
+						<div class="lb-modal-entry lb-modal-grid-row" key=${index}>
 
-					}
-					)}
+							<${InputBox} label="Bias" class="lb-modal-power"
+								type="number" max=100 min=-100 step="1"
+								id="lb-modal-power-${index}"
+								readOnly=${!!cancel}
+								onValueChange=${(value) => handleBiasTempChange(key,"power", index, value) }
+								value=${bias.power}/>
+							<label className="InputBox">
+								Token
+							<input label="Token" type="text" class="lb-modal-stringInput"
+								readOnly=${!!cancel} 
+								onInput=${(e) => handleBiasTempChange(key,"value", index, e.target.value) }
+								value=${bias.value}
+								id="lb-modal-input-${index}"/>
+							</label>
+							<div class="lb-modal-tokenized">
+								[${bias.strings.join("|")}] (${bias.strings.length})
+							</div>
+							<button disabled=${!!cancel} class="hbox-button lb-modal-button" onClick=${() => logitBiasAdd(index,"positive",bias.value)}>+</button>
+							<hr/>
+						</div>
 
+					`})}
 				</div>
+				`})}
+				
 			</div>`}
 
 		</${Modal}>
