@@ -2148,17 +2148,19 @@ export function App() {
 
 	function undo() {
 		if (!undoStack.current.length)
-			return;
+			return false;
 		redoStack.current.push(promptChunks.slice(undoStack.current.at(-1)));
 		setPromptChunks(p => p.slice(0, undoStack.current.pop()));
+		return true;
 	}
 
 	function redo() {
 		if (!redoStack.current.length)
-			return;
+			return false;
 		undoStack.current.push(promptChunks.length);
 		setPromptChunks(p => [...p, ...redoStack.current.pop()]);
 		setUndoHovered(false);
+		return true;
 	}
 
 	function undoAndPredict() {
@@ -2341,12 +2343,12 @@ export function App() {
 				break;
 			case 'false:true:false:z':
 			case 'false:false:true:z':
-				undo();
+				if (cancel || !undo()) return;
 				break;
 			case 'false:true:true:Z':
 			case 'false:true:false:y':
 			case 'false:false:true:y':
-				redo();
+				if (cancel || !redo()) return;
 				break;
 
 			default:
