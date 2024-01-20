@@ -2374,7 +2374,7 @@ export function App() {
 			window.removeEventListener('keydown', onKeyDown);
 			window.removeEventListener('keyup', onKeyUp)
 		};
-	}, [predict, cancel, undoAndPredict, undo, redo]);
+	}, [predict, cancel]);
 
 	function onInput({ target }) {
 		setPromptChunks(oldPrompt => {
