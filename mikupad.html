@@ -1829,6 +1829,7 @@ export function App() {
 
 	const [authorNoteTokens, setAuthorNoteTokens] = useSessionState('authorNoteTokens', defaultPresets.authorNoteTokens);
 	const [authorNoteDepth, setAuthorNoteDepth] = useSessionState('authorNoteDepth', defaultPresets.authorNoteDepth);
+
 	const handleAuthorNoteDepthChange = (value) => {
 		setAuthorNoteDepth(!isNaN(+value) && value >= 0 ? value : 0);
 	};
@@ -2147,17 +2148,28 @@ export function App() {
 
 	function undo() {
 		if (!undoStack.current.length)
-			return;
+			return false;
 		redoStack.current.push(promptChunks.slice(undoStack.current.at(-1)));
 		setPromptChunks(p => p.slice(0, undoStack.current.pop()));
+		return true;
 	}
 
 	function redo() {
 		if (!redoStack.current.length)
-			return;
+			return false;
 		undoStack.current.push(promptChunks.length);
 		setPromptChunks(p => [...p, ...redoStack.current.pop()]);
 		setUndoHovered(false);
+		return true;
+	}
+
+	function undoAndPredict() {
+		if (!undoStack.current.length) return;
+		const lastGenerationChunks = undoStack.current.pop();
+		const newPromptChunks = promptChunks.slice(0, lastGenerationChunks);
+   		setPromptChunks(newPromptChunks);
+
+		predict(joinPrompt(newPromptChunks), newPromptChunks.length);
 	}
 
 	useLayoutEffect(() => {
@@ -2183,6 +2195,7 @@ export function App() {
 			break;
 		}
 	}, [theme]);
+
 
 	useEffect(() => {
 		try {
@@ -2324,6 +2337,20 @@ export function App() {
 			case 'false:false:false:Escape':
 				cancel();
 				break;
+			case 'false:true:false:r':
+			case 'false:false:true:r':
+				undoAndPredict();
+				break;
+			case 'false:true:false:z':
+			case 'false:false:true:z':
+				if (cancel || !undo()) return;
+				break;
+			case 'false:true:true:Z':
+			case 'false:true:false:y':
+			case 'false:false:true:y':
+				if (cancel || !redo()) return;
+				break;
+
 			default:
 				keyState.current = e;
 				return;
@@ -2746,15 +2773,34 @@ export function App() {
 				<${InputBox} label="Tokens" value=${tokens} readOnly/>`}
 			<div className="buttons">
 				<button
+					title="Run next prediction (Ctrl + Enter)"
 					className=${cancel ? (predictStartTokens === tokens ? 'processing' : 'completing') : ''}
 					disabled=${!!cancel || stoppingStringsError}
 					onClick=${() => predict()}>
 					Predict
 				</button>
-				<button disabled=${!cancel} onClick=${cancel}>Cancel</button>
+				<button 
+					title="Cancel prediction (Escape)"
+					disabled=${!cancel}
+					onClick=${cancel}>
+					Cancel
+				</button>
+				<div className="shorts">
+				${!cancel && (!!undoStack.current.length || !!redoStack.current.length) && html`
+					<button 
+						title="Regenerate (Ctrl + R)"
+						disabled=${!undoStack.current.length}
+						onClick=${() => undoAndPredict()}
+						onMouseEnter=${() => setUndoHovered(true)}
+						onMouseLeave=${() => setUndoHovered(false)}>
+						<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 40.499 40.5"><path d="M39.622,21.746l-6.749,6.75c-0.562,0.562-1.326,0.879-2.122,0.879s-1.56-0.316-2.121-0.879l-6.75-6.75		c-1.171-1.171-1.171-3.071,0-4.242c1.171-1.172,3.071-1.172,4.242,0l1.832,1.832C27.486,13.697,22.758,9.25,17,9.25		c-6.064,0-11,4.935-11,11c0,6.064,4.936,11,11,11c1.657,0,3,1.343,3,3s-1.343,3-3,3c-9.373,0-17-7.626-17-17s7.627-17,17-17		c8.936,0,16.266,6.933,16.936,15.698l1.442-1.444c1.172-1.172,3.072-1.172,4.242,0C40.792,18.674,40.792,20.574,39.622,21.746z" fill="var(--color-light)"/></svg>
+					</button>`}
+				</div>
+
 				<div className="shorts">
 					${!cancel && (!!undoStack.current.length || !!redoStack.current.length) && html`
 						<button
+							title="Undo (Ctrl + Z)"
 							disabled=${!undoStack.current.length}
 							onClick=${() => undo()}
 							onMouseEnter=${() => setUndoHovered(true)}
@@ -2763,6 +2809,7 @@ export function App() {
 						</button>`}
 					${!cancel && (!!undoStack.current.length || !!redoStack.current.length) && html`
 						<button
+							title="Redo (Ctrl + Y)"
 							disabled=${!redoStack.current.length}
 							onClick=${() => redo()}>
 							<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24"><path d="M6.974 22.957c-10.957-11.421 2.326-20.865 10.384-13.309l-2.464 2.352h9.106v-8.947l-2.232 2.229c-14.794-13.203-31.51 7.051-14.794 17.675z" fill="var(--color-light)"/></svg>
