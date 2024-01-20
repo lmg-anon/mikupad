@@ -2164,10 +2164,10 @@ export function App() {
 	function undoAndPredict() {
 		if (!undoStack.current.length) return;
 		const lastGenerationChunks = undoStack.current.pop();
-    	const newPromptChunks = promptChunks.slice(0, lastGenerationChunks);
+		const newPromptChunks = promptChunks.slice(0, lastGenerationChunks);
    		setPromptChunks(newPromptChunks);
 
-	    predict(joinPrompt(newPromptChunks), newPromptChunks.length);
+		predict(joinPrompt(newPromptChunks), newPromptChunks.length);
 	}
 
 	useLayoutEffect(() => {
