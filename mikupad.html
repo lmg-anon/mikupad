@@ -1799,7 +1799,7 @@ export function App() {
 	const [maxPredictTokens, setMaxPredictTokens] = useSessionState('maxPredictTokens', defaultPresets.maxPredictTokens);
 	const [temperature, setTemperature] = useSessionState('temperature', defaultPresets.temperature);
 	const [dynaTempRange, setDynaTempRange] = useSessionState('dynaTempRange', defaultPresets.dynaTempRange);
-	const [dynaTempExp, setDynaTempExp] = useSessionState('dynaTempExp', defaultPresets.dynaTempMax);
+	const [dynaTempExp, setDynaTempExp] = useSessionState('dynaTempExp', defaultPresets.dynaTempExp);
 	const [repeatPenalty, setRepeatPenalty] = useSessionState('repeatPenalty', defaultPresets.repeatPenalty);
 	const [repeatLastN, setRepeatLastN] = useSessionState('repeatLastN', defaultPresets.repeatLastN);
 	const [penalizeNl, setPenalizeNl] = useSessionState('penalizeNl', defaultPresets.penalizeNl);
