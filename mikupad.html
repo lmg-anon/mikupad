@@ -1137,6 +1137,12 @@ function openaiConvertOptions(options, isOpenAI) {
 	if (isOpenAI && options.n_probs > 5) {
 		options.n_probs = 5;
 	}
+	if ("dynatemp_range" in options && options.dynatemp_range !== 0) {
+		// oobabooga specific.
+		options.dynatemp_low = Math.max(0, options.temperature - options.dynatemp_range);
+		options.dynatemp_high = Math.max(0, options.temperature + options.dynatemp_range);
+		delete options.dynatemp_range;
+	}
 	swapOption("n_ctx", "max_context_length");
 	swapOption("n_predict", "max_tokens");
 	swapOption("n_probs", "logprobs");
@@ -1663,6 +1669,8 @@ const defaultPresets = {
 	seed: -1,
 	maxPredictTokens: -1,
 	temperature: 0.7,
+	dynaTempRange: 0,
+	dynaTempExp: 0,
 	repeatPenalty: 1.1,
 	repeatLastN: 256,
 	penalizeNl: false,
@@ -1790,6 +1798,8 @@ export function App() {
 	const [seed, setSeed] = useSessionState('seed', defaultPresets.seed);
 	const [maxPredictTokens, setMaxPredictTokens] = useSessionState('maxPredictTokens', defaultPresets.maxPredictTokens);
 	const [temperature, setTemperature] = useSessionState('temperature', defaultPresets.temperature);
+	const [dynaTempRange, setDynaTempRange] = useSessionState('dynaTempRange', defaultPresets.dynaTempRange);
+	const [dynaTempExp, setDynaTempExp] = useSessionState('dynaTempExp', defaultPresets.dynaTempMax);
 	const [repeatPenalty, setRepeatPenalty] = useSessionState('repeatPenalty', defaultPresets.repeatPenalty);
 	const [repeatLastN, setRepeatLastN] = useSessionState('repeatLastN', defaultPresets.repeatLastN);
 	const [penalizeNl, setPenalizeNl] = useSessionState('penalizeNl', defaultPresets.penalizeNl);
@@ -2078,6 +2088,8 @@ export function App() {
 				...(seed != -1 ? { seed } : {}),
 				temperature,
 				...(!openaiPresets || endpointAPI != 3 ? {
+					dynatemp_range: dynaTempRange,
+					dynatemp_exponent: dynaTempExp,
 					repeat_penalty: repeatPenalty,
 					repeat_last_n: repeatLastN,
 					penalize_nl: penalizeNl,
@@ -2612,6 +2624,14 @@ export function App() {
 				<${InputBox} label="Temperature" type="number" step="0.01"
 					readOnly=${!!cancel} value=${temperature} onValueChange=${setTemperature}/>
 				${(!openaiPresets || endpointAPI != 3) && html`
+					${endpointAPI != 0 && html`
+						<div className="hbox">
+							<${InputBox} label="DynaTemp Range" type="number" step="0.01"
+								readOnly=${!!cancel} value=${dynaTempRange} onValueChange=${setDynaTempRange}/>
+							${endpointAPI != 2 && html`
+								<${InputBox} label="DynaTemp Exp" type="number" step="0.01"
+									readOnly=${!!cancel} value=${dynaTempExp} onValueChange=${setDynaTempExp}/>`}
+						</div>`}
 					<div className="hbox">
 						<${InputBox} label="Repeat penalty" type="number" step="0.01"
 							readOnly=${!!cancel} value=${repeatPenalty} onValueChange=${setRepeatPenalty}/>
