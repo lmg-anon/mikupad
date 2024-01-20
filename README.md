@@ -4,13 +4,16 @@
 
 ## Features
 
-* **Multiple Backends**: Multiple backends are supported, namely **llamacpp**, **legacy oobabooga**, **koboldcpp**, and any other backend with **openai-compatible** APIs. You can seamlessly switch between these backends to get different text generation experiences.
-  * As of 10/10/2023 (commit [4aabff3](https://github.com/oobabooga/text-generation-webui/commit/4aabff3728e00ee2a4afa5e6ee8079bab0523dbd)), **oobabooga** uses a openai-compatible API, so make sure you use it instead of the legacy API.
+* **Multiple Backends**: Multiple backends are supported, namely **llama.cpp**, **koboldcpp**, and any other backend with **OpenAI compatible** APIs. You can seamlessly switch between these backends to get different text generation experiences.
 * **Session Persistence**: Your text generation sessions are automatically saved and restored. This means you can work on your text in multiple sittings and continue right where you left off. Import and export your sessions to share your creative work or switch devices effortlessly.
+* **Persistent Context**:
+  * **Memory**: Seamlessly inject a text of your choice at the beginning of the context.
+  * **Author's Note**: Seamlessly inject a text of your choice at the end of the context, with adjustable depth.
+  * **World Info**: Dynamically include extra information in the context, triggered by specific keywords.
 * **Prediction Undo/Redo**: It's possible to undo and redo predictions, making it easy to experiment and fine-tune your generated text until it's just right.
 * **Token Probability** *(llamacpp/openai backend)*: When you hover over a token in the generated text, a list will show at most 10 tokens with their probabilities. This information can be a valuable aid in refining your text. Moreover, you can click on another token's probability to restart text generation from that point.
   * If you're using oobabooga, make sure to use an _HF sampler for this feature to function properly.
-* **Dark Mode Switch**: Customize your environment to suit your preferences with a convenient dark mode switch.
+* **Themes**: Customize your environment by choosing from a variety of themes.
 
 ## Getting Started
 
