@@ -1378,7 +1378,7 @@ function Sessions({ sessionStorage, onSessionChange, disabled }) {
 			reader.readAsText(file);
 		};
 		fileInput.func = (text) => {
-			const newId = sessionStorage.createSessionFromObject(JSON.parse(text));
+			const newId = sessionStorage.createSessionFromObject(JSON.parse(text), false);
 			sessionStorage.switchSession(newId);
 		};
 		document.body.appendChild(fileInput);
@@ -1399,6 +1399,16 @@ function Sessions({ sessionStorage, onSessionChange, disabled }) {
 		document.body.appendChild(element);
 		element.click();
 		document.body.removeChild(element);
+	};
+
+	const cloneSession = () => {
+		const sessionObj = { ...sessionStorage.sessions[sessionStorage.selectedSession] };
+		for (const [key, value] of Object.entries(sessionObj)) {
+			// This is done for compatibility with localStorage export files.
+			sessionObj[key] = JSON.stringify(value);
+		}
+		const newId = sessionStorage.createSessionFromObject(sessionObj, true);
+		sessionStorage.switchSession(newId);			
 	};
 
 	function handleKeyDown(sessionId, key) {
@@ -1477,6 +1487,7 @@ function Sessions({ sessionStorage, onSessionChange, disabled }) {
 				<button disabled=${disabled} onClick=${startCreateSession}>Create</button>
 				<button disabled=${disabled} onClick=${importSession}>Import</button>
 				<button disabled=${disabled} onClick=${exportSession}>Export</button>
+				<button disabled=${disabled} onClick=${cloneSession}>Clone</button>
 			</div>
 		</div>`;
 }
@@ -1634,7 +1645,7 @@ class SessionStorage {
 		return newId;
 	}
 
-	createSessionFromObject(obj) {
+	createSessionFromObject(obj, cloned) {
 		const newId = this.getNewId();
 		this.sessions[newId] = {};
 		for (const [propertyName, value] of Object.entries(obj)) {
@@ -1646,6 +1657,12 @@ class SessionStorage {
 			this.sessions[newId]['name'] = `MikuPad #${this.nextId + 1}`;
 			this.savePropertyToStorage(newId, 'name');
 		}
+
+		if (cloned) {
+			this.sessions[newId]['name'] = 'Cloned ' + this.sessions[newId]['name'];
+			this.savePropertyToStorage(newId, 'name');
+		}
+
 		onchange?.();
 		return newId;
 	}
