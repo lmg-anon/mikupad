@@ -2165,12 +2165,20 @@ export function App() {
 
 	function undoAndPredict() {
 		if (!undoStack.current.length) return;
-		const lastGenerationChunks = undoStack.current.pop();
-		const newPromptChunks = promptChunks.slice(0, lastGenerationChunks);
-   		setPromptChunks(newPromptChunks);
-
-		predict(joinPrompt(newPromptChunks), newPromptChunks.length);
+		const didUndo = undo();
+		if (didUndo) {
+			setTriggerPredict(true);
+		}
 	}
+	
+	const [triggerPredict, setTriggerPredict] = useState(false);
+	
+	useEffect(() => {
+		if (triggerPredict) {
+			predict();
+			setTriggerPredict(false);
+		}
+	}, [triggerPredict, predict]);
 
 	useLayoutEffect(() => {
 		if (attachSidebar)
