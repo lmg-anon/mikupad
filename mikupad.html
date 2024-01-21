@@ -2168,12 +2168,26 @@ export function App() {
 
 	function undoAndPredict() {
 		if (!undoStack.current.length) return;
-		const lastGenerationChunks = undoStack.current.pop();
-		const newPromptChunks = promptChunks.slice(0, lastGenerationChunks);
-   		setPromptChunks(newPromptChunks);
-
-		predict(joinPrompt(newPromptChunks), newPromptChunks.length);
+		// Trigger undo operation to update promptChunks
+		const didUndo = undo();
+		// If undo succeeded, set a flag that will trigger prediction in useEffect
+		if (didUndo) {
+			setTriggerPredict(true);
+		}
 	}
+	
+	// State to trigger predict after undo
+	const [triggerPredict, setTriggerPredict] = useState(false);
+	
+	// useEffect to call predict after promptChunks has been updated by undo
+	useEffect(() => {
+		if (triggerPredict) {
+			// Call predict with the modified prompt
+			predict();
+			// Reset the trigger
+			setTriggerPredict(false);
+		}
+	}, [triggerPredict, predict]);
 
 	useLayoutEffect(() => {
 		if (attachSidebar)
