@@ -1168,7 +1168,7 @@ async function llamaCppDetokenize({ endpoint, endpointAPIKey, signal, ...options
 	if (!res.ok)
 		throw new Error(`HTTP ${res.status}`);
 	const { content } = await res.json();
-	console.log("detokenized","." + content + ".")
+	//console.log("detokenized","." + content + ".")
 	return content
 }
 
@@ -1324,6 +1324,7 @@ async function koboldCppTokenCount({ endpoint, signal, ...options }) {
 }
 
 async function koboldCppTokenize({ endpoint, signal, ...options }) {
+	// console.log("kcpp",options.content)
 	const res = await fetch(new URL('/api/extra/tokencount', endpoint), {
 		method: 'POST',
 		headers: {
@@ -1337,8 +1338,10 @@ async function koboldCppTokenize({ endpoint, signal, ...options }) {
 	if (!res.ok)
 		throw new Error(`HTTP ${res.status}`);
 	const { ids } = await res.json();
-	return {ids:ids,str:"Not implemented in KCCP"};
-	// that can't be right, surely there's a detokenize endpoint
+	ids.shift() // kobold automatically adds a token, so we need to remove it
+	// console.log("shift",ids)
+	return {ids:ids,str:""};
+	
 }
 
 function koboldCppConvertOptions(options) {
@@ -2159,31 +2162,36 @@ export function App() {
 	const [logitBiasInput, setLogitBiasInput] = useState({power:"2",string:"string"});
 
 	const handleLogitBiasInput = (key,value) => {
-		console.log(key, value)
+		// console.log(key, value)
 		setLogitBiasInput((prevLogitBiasInput) => {
 			return {
 				...prevLogitBiasInput,
 				[key]: value
 			}
 		});
-		console.log(logitBiasInput)
+		// console.log(logitBiasInput)
 
 	}
 
-	const logitBiasAdd = async (biasPower="",biasTokens="",origValue="") => {
-		console.log("values",biasPower,biasTokens,origValue)
-		console.log(logitBiasInput)
+	const logitBiasAdd = async (biasPower="",biasString="",origValue="") => {
+		setLastError(undefined)
+		console.log("values",biasPower,biasString,origValue)
+		// console.log(logitBiasInput)
 		// abort if no input or power is NaN
-		if(!biasTokens) {return}
-		if (isNaN(+biasPower)) { return }
+		if(!biasString) {return}
+		console.log("power",biasPower)
+		if (isNaN(+biasPower) || biasPower == "") { 
+			setLastError("Error: Bias is NaN")
+			return
+		}
 
 		const modBias = logitBias.bias;	
 		
 		// delete entry if power 0 or empty
-		if (biasPower == 0 || biasPower == "" && logitBias[biasTokens]) {
-			console.log("delete",biasTokens)
+		if (biasPower == 0 && logitBias[biasString]) {
+			console.log("delete",biasString)
 			setLogitBias((prevLogitBias) => {
-				delete modBias[biasTokens]
+				delete modBias[biasString]
 				return { 
 					...prevLogitBias,
 					bias: {
@@ -2194,21 +2202,20 @@ export function App() {
 			return
 		}
 		// if overwriting the string value of an entry, delete the original one
-		if (origValue && origValue != biasTokens) {
+		if (origValue && origValue != biasString) {
 			console.log("delete orig",origValue)
 			delete modBias[origValue]
 		}
 
 		const ac = new AbortController();
-		console.log("input","."+biasTokens+".",biasPower)
+		// console.log("input","."+biasString+".",biasPower)
 
-		setLastError(undefined)
 		try {
 			const tokens = await getTokens({
 				endpoint,
 				endpointAPI,
 				...(endpointAPI == 3 || endpointAPI == 0 ? { endpointAPIKey } : {}),
-				content: `${biasTokens}`,
+				content: `${biasString}`,
 				signal: ac.signal,
 			})
 			console.log("add",tokens)
@@ -2216,10 +2223,10 @@ export function App() {
 				...prevLogitBias,
 				bias: {
 					...modBias,
-					[biasTokens]: {
+					[biasString]: {
 						ids: [ ...tokens.ids ],
 						strings: [ ...tokens.str ],
-						power: biasPower
+						power: Number(biasPower)
 					}
 				}
 			}));
@@ -2240,32 +2247,56 @@ export function App() {
 			return
 		}
 	};
-
-	const updateLogitBiasParam = useEffect(() => {
-		console.log("endpoint",endpointAPI)
-		if (endpoint == 0) {
-			// const param = logitBias.bias.map((entry, index) => {
-			// 	return [Number(entry.ids),Number(entry.power)];
-			// })	
-			
-
+	const logitBiasRetokenize = async () => { // I don't understand why this doesn't work.
+		for (const key in logitBias.bias) {
+			console.log("retok",key,logitBias.bias[key])
+			await logitBiasAdd(Number(logitBias.bias[key].power),key);
+			await new Promise(r => setTimeout(r, 200));
 		}
+	};
+
+
+
+	const llamaCppSetLogitBiasParams = () => {
 		const param = [];
+		// TODO grab multi-token strings here and put them in a separate state variable
 		Object.keys(logitBias.bias).forEach(entry => {
-			console.log("help me",logitBias.bias[entry])
+			// console.log("help me",logitBias.bias[entry])
 			param.push([Number(logitBias.bias[entry].ids[0]),Number(logitBias.bias[entry].power)]);
 		})
 		console.log("params",param)
 		setLogitBiasParam(param)
-
+	};
+	const koboldCppSetLogitBiasParams = () => {
+		const param = {};
+		Object.keys(logitBias.bias).forEach(entry => {
+			param[Number(logitBias.bias[entry].ids[0])] = Number(logitBias.bias[entry].power)
+			// console.log(logitBias.bias[entry].ids[0])
+			// console.log("help me",param)
+		})
+		console.log("params",param)
+		setLogitBiasParam(param)
+	};
+	const updateLogitBiasParam = useEffect(() => {
+		// console.log("endpoint",endpointAPI)
+		switch (endpointAPI) {
+			case 0:
+				llamaCppSetLogitBiasParams()
+				break;
+			
+			case 2:
+				koboldCppSetLogitBiasParams()
+				break;
+		}
 	}, [logitBias, endpointAPI]);
 
 
-	function updateLogitBiasTemp() {
+	const updateLogitBiasTemp = () => {
 		const tempArray = logitBiasSorted.map((string, index) =>  ({
 			value: string,
 			valueBack: string,
 			strings: logitBias.bias[string].strings,
+			tokens: logitBias.bias[string].ids.length,
 			power: logitBias.bias[string].power
 		}));
 		setLogitBiasTemp({
@@ -2279,7 +2310,7 @@ export function App() {
 	},[logitBiasSorted]);
 
 	const handleBiasTempChange = (posneg, key, index, value) => {
-		console.log("up temp",key, value)
+		// console.log("up temp",key, value)
 		setLogitBiasTemp((prevLogitBiasTemp) => {
 			const rest = { ...prevLogitBiasTemp };
 			const updatedTemp = [ ...prevLogitBiasTemp[posneg] ];
@@ -3228,9 +3259,8 @@ export function App() {
 						<div class="small-inputBox">
 							<${InputBox} label="Bias" classList="logitBiasPower-container"
 								type="enumber"  max=100 min=-100 step=1
-								pattern='^-?[0-9]*$'
 								readOnly=${!!cancel}
-								onValueChange=${(value) => { console.log("aa",value);handleLogitBiasInput("power",value)} }
+								onValueChange=${(value) => { handleLogitBiasInput("power",value)} }
 								value=${logitBiasInput.power} 
 								id="logitBiasPower"/>
 						</div>
@@ -3406,13 +3436,39 @@ export function App() {
 
 		<${Modal} isOpen=${modalState.bias} onClose=${() => {updateLogitBiasTemp(); closeModal("bias")}}
 		title="Logit Bias"
-		description="Make certain tokens more or less likely to be generated. Values range from -100 to 100.
-		-100 is a ban, +100 means the model will only generate that token. 0 is neutral.
+		description="Make certain tokens more or less likely to be generated. 
 		Currently only works on the first token of multi-token phrases/words.
 		
 		Different models might tokenize words differently. Always Re-Tokenize when switching models!">
 		${modalState.bias 
 			&& html`
+					<div className="hbox-flex logitBiasContainer">
+						<button style=${{"margin-top":"auto"}}
+							id="retokenize" disabled=${!!cancel}
+							onClick=${logitBiasRetokenize}>
+								Retokenize
+						</button>
+						<div class="small-inputBox">
+							<${InputBox} label="Bias" classList="logitBiasPower-container"
+								type="enumber"  max=100 min=-100 step=1
+								readOnly=${!!cancel}
+								onValueChange=${(value) => { handleLogitBiasInput("power",value)} }
+								value=${logitBiasInput.power} 
+								id="logitBiasPower"/>
+						</div>
+						<label className="InputBox">
+							Token
+						<input label="Token" type="text" id="logitBiasTokens-container"
+							readOnly=${!!cancel} 
+							onInput=${(e) => {logitBiasSearch(e.target.value); handleLogitBiasInput("string",e.target.value)} }
+							value=${logitBiasInput.string} 
+							id="logitBiasTokens"/>
+						</label>
+						<button disabled=${!!cancel} class="hbox-button" onClick=${() => logitBiasAdd(logitBiasInput.power,logitBiasInput.string)}>+</button>
+					</div>
+			${!!lastError && html`
+				<div style=${{"margin":"8px auto"}} className="error-text">${lastError}</div>`}
+			<hr style=${{"width":"95%","margin":"8px auto"}} />
 			<div class="lb-modal-biasList" >
 				${ Object.keys(logitBiasTemp).map((key) => {
 					return html`
@@ -3426,21 +3482,21 @@ export function App() {
 								type="enumber" inputmode="numeric" max=100 min=-100 step=1
 								id="lb-modal-power-${index}"
 								readOnly=${!!cancel}
-								onValueChange=${(value) => handleBiasTempChange(key,"power", index, value) }
+								onValueChange=${(value) => {console.log(value); handleBiasTempChange(key,"power", index, value)} }
 								value=${bias.power}/>
-								<!-- I'm going to lose my mind, why does this ONLY take numbers -->
-								
-								
 							<label className="InputBox">
 								Token
-								<input label="Token" type="text" class="lb-modal-stringInput"
+								<input label="String" type="text" class="lb-modal-stringInput"
 									readOnly=${!!cancel} 
 									onInput=${(e) => handleBiasTempChange(key,"value", index, e.target.value) }
 									value=${bias.value}
 									id="lb-modal-input-${index}"/>
 							</label>
 							<div class="lb-modal-tokenized">
-								[${bias.strings.join("|")}] (${bias.strings.length})
+								${endpointAPI == 0
+									? "["+bias.strings.join("|")+"] "
+									: "["+bias.value+"]" } (${bias.tokens} tokens)
+								
 							</div>
 							<button disabled=${!!cancel} class="hbox-button lb-modal-button" onClick=${() => logitBiasAdd(bias.power, bias.value, bias.valueBack)}>+</button>
 							<hr/>
