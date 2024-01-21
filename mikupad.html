@@ -2202,11 +2202,6 @@ export function App() {
 			setLastError("Error: Bias is NaN")
 			return
 		}
-		//biasPower = Number(biasPower)
-
-
-		//biasPower = (endpointAPI == 0 && Number(biasPower) < -99) ? false : biasPower;
-		// don't know what format kobold wants for ban
 
 
 		const modBias = logitBias.bias;	
@@ -3516,7 +3511,7 @@ export function App() {
 						<div class="lb-modal-entry lb-modal-grid-row" key=${index}>
 
 							<${InputBox} label="Bias" class="lb-modal-power"
-								type="enumber" inputmode="numeric" max=100 min=-100 step=1
+								type="enumber" max=100 min=-100 step=1
 								id="lb-modal-power-${index}"
 								readOnly=${!!cancel}
 								onValueChange=${(value) => {console.log(value); handleBiasTempChange(key,"power", index, value)} }
