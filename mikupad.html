@@ -1788,6 +1788,7 @@ export function App() {
 	const [attachSidebar, setAttachSidebar] = usePersistentState('attachSidebar', false);
 	const [showProbsMode, setShowProbsMode] = usePersistentState('showProbsMode', 0);
 	const [highlightGenTokens, setHighlightGenTokens] = usePersistentState('highlightGenTokens', true);
+	const [preserveCursorPosition, setPreserveCursorPosition] = usePersistentState('preserveCursorPosition', true);
 	const [darkMode, _] = usePersistentState('darkMode', false); // legacy
 	const [theme, setTheme] = usePersistentState('theme', darkMode ? 1 : 0);
 	const [endpoint, setEndpoint] = useSessionState('endpoint', defaultPresets.endpoint);
@@ -2248,6 +2249,12 @@ export function App() {
 		if (elem.value === promptText) {
 			return;
 		} else if (elem.value.length && promptText.startsWith(elem.value)) {
+			const isTextSelected = elem.selectionStart !== elem.selectionEnd;
+			if (!isTextSelected && !preserveCursorPosition)
+			{
+				elem.value = promptText;
+				return;
+			}
 			const oldHeight = elem.scrollHeight;
 			const atBottom = (elem.scrollTarget ?? elem.scrollTop) + elem.clientHeight + 1 > oldHeight;
 			const oldLen = elem.value.length;
@@ -2831,6 +2838,8 @@ export function App() {
 					value=${attachSidebar} onValueChange=${setAttachSidebar}/>
 				<${Checkbox} label="Highlight generated tokens"
 					value=${highlightGenTokens} onValueChange=${setHighlightGenTokens}/>
+					<${Checkbox} label="Preserve cursor position after prediction"
+					value=${preserveCursorPosition} onValueChange=${setPreserveCursorPosition}/>
 				<${SelectBox}
 					label="Token probabilities"
 					value=${showProbsMode}
