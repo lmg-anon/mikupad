@@ -2202,6 +2202,12 @@ export function App() {
 			setLastError("Error: Bias is NaN")
 			return
 		}
+		//biasPower = Number(biasPower)
+
+
+		//biasPower = (endpointAPI == 0 && Number(biasPower) < -99) ? false : biasPower;
+		// don't know what format kobold wants for ban
+
 
 		const modBias = logitBias.bias;	
 		
@@ -2244,7 +2250,7 @@ export function App() {
 					[biasString]: {
 						ids: [ ...tokens.ids ],
 						strings: [ ...tokens.str ],
-						power: Number(biasPower)
+						power: biasPower
 					}
 				}
 			}));
@@ -2279,8 +2285,9 @@ export function App() {
 		const param = [];
 		// TODO grab multi-token strings here and put them in a separate state variable
 		Object.keys(logitBias.bias).forEach(entry => {
-			// console.log("help me",logitBias.bias[entry])
-			param.push([Number(logitBias.bias[entry].ids[0]),Number(logitBias.bias[entry].power)]);
+			// set banned tokens to false
+			const power = logitBias.bias[entry].power < -99 ? false : logitBias.bias[entry].power;
+			param.push([Number(logitBias.bias[entry].ids[0]),power]);
 		})
 		console.log("params",param)
 		setLogitBiasParam(param)
@@ -2290,7 +2297,6 @@ export function App() {
 		Object.keys(logitBias.bias).forEach(entry => {
 			param[Number(logitBias.bias[entry].ids[0])] = Number(logitBias.bias[entry].power)
 			// console.log(logitBias.bias[entry].ids[0])
-			// console.log("help me",param)
 		})
 		console.log("params",param)
 		setLogitBiasParam(param)
