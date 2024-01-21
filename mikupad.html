@@ -2250,15 +2250,14 @@ export function App() {
 			return;
 		} else if (elem.value.length && promptText.startsWith(elem.value)) {
 			const isTextSelected = elem.selectionStart !== elem.selectionEnd;
-			if (!isTextSelected && !preserveCursorPosition)
-			{
-				elem.value = promptText;
-				return;
-			}
 			const oldHeight = elem.scrollHeight;
 			const atBottom = (elem.scrollTarget ?? elem.scrollTop) + elem.clientHeight + 1 > oldHeight;
 			const oldLen = elem.value.length;
-			elem.setRangeText(promptText.slice(oldLen), oldLen, oldLen, 'preserve');
+			if (!isTextSelected && !preserveCursorPosition) {
+				elem.value = promptText;
+			} else {
+				elem.setRangeText(promptText.slice(oldLen), oldLen, oldLen, 'preserve');
+			}
 			const newHeight = elem.scrollHeight;
 			if (atBottom && oldHeight !== newHeight) {
 				elem.scrollTarget = newHeight - elem.clientHeight;
