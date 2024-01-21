@@ -1378,7 +1378,7 @@ function Sessions({ sessionStorage, onSessionChange, disabled }) {
 			reader.readAsText(file);
 		};
 		fileInput.func = (text) => {
-			const newId = sessionStorage.createSessionFromObject(JSON.parse(text));
+			const newId = sessionStorage.createSessionFromObject(JSON.parse(text), false);
 			sessionStorage.switchSession(newId);
 		};
 		document.body.appendChild(fileInput);
@@ -1399,6 +1399,16 @@ function Sessions({ sessionStorage, onSessionChange, disabled }) {
 		document.body.appendChild(element);
 		element.click();
 		document.body.removeChild(element);
+	};
+
+	const cloneSession = () => {
+		const sessionObj = { ...sessionStorage.sessions[sessionStorage.selectedSession] };
+		for (const [key, value] of Object.entries(sessionObj)) {
+			// This is done for compatibility with localStorage export files.
+			sessionObj[key] = JSON.stringify(value);
+		}
+		const newId = sessionStorage.createSessionFromObject(sessionObj, true);
+		sessionStorage.switchSession(newId);			
 	};
 
 	function handleKeyDown(sessionId, key) {
@@ -1477,6 +1487,7 @@ function Sessions({ sessionStorage, onSessionChange, disabled }) {
 				<button disabled=${disabled} onClick=${startCreateSession}>Create</button>
 				<button disabled=${disabled} onClick=${importSession}>Import</button>
 				<button disabled=${disabled} onClick=${exportSession}>Export</button>
+				<button disabled=${disabled} onClick=${cloneSession}>Clone</button>
 			</div>
 		</div>`;
 }
@@ -1634,7 +1645,7 @@ class SessionStorage {
 		return newId;
 	}
 
-	createSessionFromObject(obj) {
+	createSessionFromObject(obj, cloned) {
 		const newId = this.getNewId();
 		this.sessions[newId] = {};
 		for (const [propertyName, value] of Object.entries(obj)) {
@@ -1646,6 +1657,12 @@ class SessionStorage {
 			this.sessions[newId]['name'] = `MikuPad #${this.nextId + 1}`;
 			this.savePropertyToStorage(newId, 'name');
 		}
+
+		if (cloned) {
+			this.sessions[newId]['name'] = 'Cloned ' + this.sessions[newId]['name'];
+			this.savePropertyToStorage(newId, 'name');
+		}
+
 		onchange?.();
 		return newId;
 	}
@@ -1788,6 +1805,7 @@ export function App() {
 	const [attachSidebar, setAttachSidebar] = usePersistentState('attachSidebar', false);
 	const [showProbsMode, setShowProbsMode] = usePersistentState('showProbsMode', 0);
 	const [highlightGenTokens, setHighlightGenTokens] = usePersistentState('highlightGenTokens', true);
+	const [preserveCursorPosition, setPreserveCursorPosition] = usePersistentState('preserveCursorPosition', true);
 	const [darkMode, _] = usePersistentState('darkMode', false); // legacy
 	const [theme, setTheme] = usePersistentState('theme', darkMode ? 1 : 0);
 	const [endpoint, setEndpoint] = useSessionState('endpoint', defaultPresets.endpoint);
@@ -2162,15 +2180,23 @@ export function App() {
 		setUndoHovered(false);
 		return true;
 	}
+	
+	const [triggerPredict, setTriggerPredict] = useState(false);
 
 	function undoAndPredict() {
 		if (!undoStack.current.length) return;
-		const lastGenerationChunks = undoStack.current.pop();
-		const newPromptChunks = promptChunks.slice(0, lastGenerationChunks);
-   		setPromptChunks(newPromptChunks);
-
-		predict(joinPrompt(newPromptChunks), newPromptChunks.length);
+		const didUndo = undo();
+		if (didUndo) {
+			setTriggerPredict(true);
+		}
 	}
+	
+	useEffect(() => {
+		if (triggerPredict) {
+			predict();
+			setTriggerPredict(false);
+		}
+	}, [triggerPredict, predict]);
 
 	useLayoutEffect(() => {
 		if (attachSidebar)
@@ -2248,10 +2274,15 @@ export function App() {
 		if (elem.value === promptText) {
 			return;
 		} else if (elem.value.length && promptText.startsWith(elem.value)) {
+			const isTextSelected = elem.selectionStart !== elem.selectionEnd;
 			const oldHeight = elem.scrollHeight;
 			const atBottom = (elem.scrollTarget ?? elem.scrollTop) + elem.clientHeight + 1 > oldHeight;
 			const oldLen = elem.value.length;
-			elem.setRangeText(promptText.slice(oldLen), oldLen, oldLen, 'preserve');
+			if (!isTextSelected && !preserveCursorPosition) {
+				elem.value = promptText;
+			} else {
+				elem.setRangeText(promptText.slice(oldLen), oldLen, oldLen, 'preserve');
+			}
 			const newHeight = elem.scrollHeight;
 			if (atBottom && oldHeight !== newHeight) {
 				elem.scrollTarget = newHeight - elem.clientHeight;
@@ -2420,8 +2451,6 @@ export function App() {
 				...(newValue ? [{ type: 'user', content: newValue }] : []),
 				...end,
 			];
-			if (cancel)
-				predict(joinPrompt(newPrompt), newPrompt.length);
 			return newPrompt;
 		});
 	}
@@ -2491,7 +2520,7 @@ export function App() {
 			},
 		];
 		setPromptChunks(newPrompt);
-		predict(joinPrompt(newPrompt), newPrompt.length);
+		setTriggerPredict(true);
 	}
 
 	function adjustTokenSpacing(tokenToReplace, newToken) {
@@ -2846,6 +2875,8 @@ export function App() {
 					value=${attachSidebar} onValueChange=${setAttachSidebar}/>
 				<${Checkbox} label="Highlight generated tokens"
 					value=${highlightGenTokens} onValueChange=${setHighlightGenTokens}/>
+				<${Checkbox} label="Preserve cursor position after prediction"
+					value=${preserveCursorPosition} onValueChange=${setPreserveCursorPosition}/>
 				<${SelectBox}
 					label="Token probabilities"
 					value=${showProbsMode}
