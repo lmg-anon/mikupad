@@ -2162,6 +2162,8 @@ export function App() {
 		setUndoHovered(false);
 		return true;
 	}
+	
+	const [triggerPredict, setTriggerPredict] = useState(false);
 
 	function undoAndPredict() {
 		if (!undoStack.current.length) return;
@@ -2170,8 +2172,6 @@ export function App() {
 			setTriggerPredict(true);
 		}
 	}
-	
-	const [triggerPredict, setTriggerPredict] = useState(false);
 	
 	useEffect(() => {
 		if (triggerPredict) {
@@ -2428,8 +2428,6 @@ export function App() {
 				...(newValue ? [{ type: 'user', content: newValue }] : []),
 				...end,
 			];
-			if (cancel)
-				predict(joinPrompt(newPrompt), newPrompt.length);
 			return newPrompt;
 		});
 	}
@@ -2499,7 +2497,7 @@ export function App() {
 			},
 		];
 		setPromptChunks(newPrompt);
-		predict(joinPrompt(newPrompt), newPrompt.length);
+		setTriggerPredict(true);
 	}
 
 	function switchEndpointAPI(value) {
