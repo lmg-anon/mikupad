@@ -21,7 +21,9 @@
 }
 </script>
 <style>
-
+:root {
+	--prompt-container-width: 36em; /* Default value */
+	}
 html {
 	--color-miku: #009bb3;
 	--color-base-0: oklch(0.20 0.02 60);
@@ -151,7 +153,7 @@ body {
 #prompt-container {
 	position: relative;
 	font-size: 1.125rem;
-	max-width: 36em;
+	max-width: var(--prompt-container-width);
 	margin-right: auto;
 	margin-left: auto;
 	flex: 1;
@@ -160,8 +162,8 @@ body {
 }
 @media (min-width: calc(40.5em + 250px)) {
 	body.attachSidebar #prompt-container {
-		min-width: 36em;
-		max-width: 36em;
+		min-width: var(--prompt-container-width);
+		max-width: var(--prompt-container-width);
 	}
 }
 
@@ -1790,6 +1792,7 @@ export function App() {
 	const [highlightGenTokens, setHighlightGenTokens] = usePersistentState('highlightGenTokens', true);
 	const [darkMode, _] = usePersistentState('darkMode', false); // legacy
 	const [theme, setTheme] = usePersistentState('theme', darkMode ? 1 : 0);
+	const [promptContainerWidth, setPromptContainerWidth] = usePersistentState('promptContainerWidth', 36);
 	const [endpoint, setEndpoint] = useSessionState('endpoint', defaultPresets.endpoint);
 	const [endpointAPI, setEndpointAPI] = useSessionState('endpointAPI', defaultPresets.endpointAPI);
 	const [endpointAPIKey, setEndpointAPIKey] = useSessionState('endpointAPIKey', defaultPresets.endpointAPIKey);
@@ -2196,6 +2199,10 @@ export function App() {
 		}
 	}, [theme]);
 
+
+	useEffect(() => {
+		document.documentElement.style.setProperty('--prompt-container-width', `${promptContainerWidth}em`);
+	}, [promptContainerWidth]);
 
 	useEffect(() => {
 		try {
@@ -2831,6 +2838,13 @@ export function App() {
 					value=${attachSidebar} onValueChange=${setAttachSidebar}/>
 				<${Checkbox} label="Highlight generated tokens"
 					value=${highlightGenTokens} onValueChange=${setHighlightGenTokens}/>
+				<${InputBox} label="Prompt Container width"
+					type="number"
+					readOnly=${!!cancel}
+					value=${promptContainerWidth}
+					onValueChange=${(value) => setPromptContainerWidth(value)}
+					min="1"
+					step="1"/>
 				<${SelectBox}
 					label="Token probabilities"
 					value=${showProbsMode}
