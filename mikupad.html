@@ -1139,13 +1139,23 @@ function openaiConvertOptions(options, isOpenAI) {
 	}
 	if ("dynatemp_range" in options && options.dynatemp_range !== 0) {
 		// oobabooga specific.
+		options.dynamic_temperature = true;
 		options.dynatemp_low = Math.max(0, options.temperature - options.dynatemp_range);
 		options.dynatemp_high = Math.max(0, options.temperature + options.dynatemp_range);
 		delete options.dynatemp_range;
 	}
+	if (!isOpenAI && options.temperature === 0) {
+		// oobabooga specific.
+		options.do_sample = false;
+	}
 	swapOption("n_ctx", "max_context_length");
 	swapOption("n_predict", "max_tokens");
 	swapOption("n_probs", "logprobs");
+	swapOption("repeat_penalty", "repetition_penalty");
+	swapOption("repeat_last_n", "repetition_penalty_range");
+	swapOption("tfs_z", "tfs");
+	swapOption("mirostat", "mirostat_mode");
+	swapOption("ignore_eos", "ban_eos_token")
 	return options;
 }
 
@@ -1289,7 +1299,17 @@ function CollapsibleGroup({ label, expanded, children }) {
 		if (!isOpen) {
 			return null;
 		}
-
+		useEffect(() => {
+			const onKeyDown = (event) => {
+				if (event.key === 'Escape') {
+					onClose();
+				}
+			};
+			document.addEventListener('keydown', onKeyDown);
+			return () => {
+				document.removeEventListener('keydown', onKeyDown);
+			};
+		});
 		return html`
 		<div className="modal-overlay" onClick=${onClose}>
 			<div className="modal-container">
