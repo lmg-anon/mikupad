@@ -1299,7 +1299,17 @@ function CollapsibleGroup({ label, expanded, children }) {
 		if (!isOpen) {
 			return null;
 		}
-
+		useEffect(() => {
+			const onKeyDown = (event) => {
+				if (event.key === 'Escape') {
+					onClose();
+				}
+			};
+			document.addEventListener('keydown', onKeyDown);
+			return () => {
+				document.removeEventListener('keydown', onKeyDown);
+			};
+		});
 		return html`
 		<div className="modal-overlay" onClick=${onClose}>
 			<div className="modal-container">
