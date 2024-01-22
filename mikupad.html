@@ -1672,8 +1672,8 @@ class SessionStorage {
 function Templates({ templateStorage, onSessionChange, disabled }) {
 	
 	const [version, setVersion] = useState(0);
-	const [newInstruct, setNewInstruct] = useState('');
-	const [newResponse, setNewResponse] = useState('');
+	const [newPrefix, setNewPrefix] = useState('');
+	const [newSuffix, setNewSuffix] = useState('');
 	const [renameSessionName, setRenameSessionName] = useState('');
 	const [isRenaming, setIsRenaming] = useState(false);
 	const [isCreating, setIsCreating] = useState(false);
@@ -1690,17 +1690,21 @@ function Templates({ templateStorage, onSessionChange, disabled }) {
 	};
 
 	const startCreateTemplate = () => {
-		setNewInstruct('');
-		setNewResponse('');
+		setNewPrefix('');
+		setNewSuffix('');
 		setIsCreating(true);
 	};
 
 	const createTemplate = () => {
-		if (newInstruct || newResponse) {
-			// TODO: add element to templates array with the values, preserve in storage
+		if (newPrefix || newSuffix) {
+			templateStorage.templates.addTemplate(newPrefix, newSuffix);
 		}
 	};
 
+	templateStorage.templates.clear();
+	templateStorage.templates.addTemplate('Mixtral', '[INST]', '[/INST]');
+	templateStorage.templates.addTemplate('Alpaca', '### Instruction:', '### Response:');
+	
 	const importSession = () => {
 		const fileInput = document.createElement("input");
 		fileInput.type = 'file';
@@ -1770,8 +1774,8 @@ function Templates({ templateStorage, onSessionChange, disabled }) {
 								<label>Instruct:</label>
 								<input
 									type="text"
-									value=${newInstruct}
-									onChange=${(e) => setNewInstruct(e.target.value)}
+									value=${newPrefix}
+									onChange=${(e) => setNewPrefix(e.target.value)}
 									onKeyDown=${(e) => handleKeyDown(undefined, e.key)}
 									onClick=${(e) => e.stopPropagation()}
 									autoFocus
@@ -1781,8 +1785,8 @@ function Templates({ templateStorage, onSessionChange, disabled }) {
 								<label>Response:</label>
 								<input
 									type="text"
-									value=${newResponse}
-									onChange=${(e) => setNewResponse(e.target.value)}
+									value=${newSuffix}
+									onChange=${(e) => setNewSuffix(e.target.value)}
 									onKeyDown=${(e) => handleKeyDown(undefined, e.key)}
 									onClick=${(e) => e.stopPropagation()}
 								/>
@@ -1793,14 +1797,14 @@ function Templates({ templateStorage, onSessionChange, disabled }) {
 						</a>
 					</li>
 				`}
-				${templateStorage.templates.reverse().map(([instruction, response]) => html`
-					<li key=${sessionId}>
+				${[...templateStorage.templates.templates.entries()].map(([sessionId, { name, prefix, suffix }]) => html`
+					<li>
 						<a className="Session ${templateStorage.selectedSession == sessionId ? 'selected' : ''}"
 							onClick=${() => switchSession(sessionId)}>
 							${isRenaming === sessionId ? html`
 								<input
 									type="text"
-									value=${renameSessionName}
+									value=${name}
 									onChange=${(e) => setRenameSessionName(e.target.value)}
 									onKeyDown=${(e) => handleKeyDown(sessionId, e.key)}
 									onClick=${(e) => e.stopPropagation()}
@@ -1810,10 +1814,10 @@ function Templates({ templateStorage, onSessionChange, disabled }) {
 								<button onClick=${(e) => (renameSession(sessionId), e.stopImmediatePropagation())}>${confirmSvg}</button>
 								<button onClick=${(e) => (setIsRenaming(false), e.stopImmediatePropagation())}>${cancelSvg}</button>
 							` : html`
-								${session.name}
+								${name}
 								<div className="flex-separator"></div>
 								<button
-									onClick=${(e) => (startRenameSession(sessionId, session.name), e.stopPropagation())}>
+									onClick=${(e) => (startRenameSession(sessionId, name), e.stopPropagation())}>
 									${renameSvg}
 								</button>
 								<button
@@ -1832,6 +1836,29 @@ function Templates({ templateStorage, onSessionChange, disabled }) {
 			</div>
 		</div>`;
 }
+
+
+class TemplateCollection {
+	constructor() {
+		this.templates = new Map();
+		this.nextId = 1;
+	}
+
+	addTemplate(name, prefix, suffix) {
+		const id = this.nextId++;
+		this.templates.set(id, { name, prefix, suffix });
+		return id;
+	}
+
+	removeTemplate(id) {
+		this.templates.delete(id);
+	}
+
+	clear() {
+		this.templates.clear();
+	}
+}
+
 
 
 const defaultPrompt = `[INST] <<SYS>>
@@ -1957,6 +1984,7 @@ function usePersistentState(name, initialState) {
 
 export function App() {
 	const [sessionStorage, useSessionState] = useSessionStorage(defaultPresets);
+	const [templateStorage, setTemplateStorage] = usePersistentState('templateStorage', new TemplateCollection());
 	const promptArea = useRef();
 	const promptOverlay = useRef();
 	const undoStack = useRef([]);
@@ -2798,7 +2826,7 @@ export function App() {
 					onSessionChange=${onSessionChange}/>
 			</${CollapsibleGroup}>					
 			<${CollapsibleGroup} label="Instruct Templates">
-				<${Templates} templateStorage=${{ templates : []}}
+				<${Templates} templateStorage=${{ templates : templateStorage}}
 					disabled=${!!cancel}
 					onSessionChange=${onSessionChange} />
 			</${CollapsibleGroup}>
