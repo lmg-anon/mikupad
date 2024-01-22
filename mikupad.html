@@ -2202,12 +2202,14 @@ export function App() {
 			setLastError("Error: Bias is NaN")
 			return
 		}
+		biasPower = Number(biasPower)
 
-
-		const modBias = logitBias.bias;	
+		const modBias = logitBias.bias;
 		
 		// delete entry if power 0 or empty
-		if (biasPower == 0 && logitBias[biasString]) {
+		if (biasPower == 0) {	
+			if (!logitBias.bias[biasString])
+				return
 			console.log("delete",biasString)
 			setLogitBias((prevLogitBias) => {
 				delete modBias[biasString]
@@ -2281,7 +2283,7 @@ export function App() {
 		// TODO grab multi-token strings here and put them in a separate state variable
 		Object.keys(logitBias.bias).forEach(entry => {
 			// set banned tokens to false
-			const power = logitBias.bias[entry].power < -99 ? false : logitBias.bias[entry].power;
+			const power = logitBias.bias[entry].power < -99 ? false : Number(logitBias.bias[entry].power);
 			param.push([Number(logitBias.bias[entry].ids[0]),power]);
 		})
 		console.log("params",param)
@@ -2296,7 +2298,7 @@ export function App() {
 		console.log("params",param)
 		setLogitBiasParam(param)
 	};
-	const updateLogitBiasParam = useEffect(() => {
+	const updateLogitBiasParam = useMemo(() => {
 		// console.log("endpoint",endpointAPI)
 		switch (endpointAPI) {
 			case 0:
@@ -2325,7 +2327,7 @@ export function App() {
 	};
 
 	const updateLogitBiasTempUse = useMemo(() => {
-		updateLogitBiasTemp()
+		updateLogitBiasTemp();
 	},[logitBiasSorted]);
 
 	const handleBiasTempChange = (posneg, key, index, value) => {
@@ -2348,7 +2350,7 @@ export function App() {
 	const logitBiasSearch = (value) => {
 		const filteredList = value ? Object.keys(logitBias.bias).filter(key => key.startsWith(value)) : []
 		const sorted = logitBiasSorted;
-		setLogitBiasSearchList(filteredList)
+		setLogitBiasSearchList(filteredList);
 	}
 
 	const logitBiasSort = useMemo(() => {
