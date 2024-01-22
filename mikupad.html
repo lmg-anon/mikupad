@@ -1191,121 +1191,6 @@ async function* llamaCppCompletion({ endpoint, endpointAPIKey, signal, ...option
 	return yield* await parseEventStream(res.body);
 }
 
-async function oobaTokenCount({ endpoint, signal, ...options }) {
-	try {
-		endpoint = `http:${endpoint.split(":")[1]}:5000`; // HACK!
-		const res = await fetch(new URL('/api/v1/token-count', endpoint), {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json',
-			},
-			body: JSON.stringify({
-				prompt: options.content
-			}),
-			signal,
-		});
-		if (!res.ok)
-			throw new Error(`HTTP ${res.status}`);
-		const { results } = await res.json();
-		return results[0].tokens;
-	} catch (e) {
-		reportError(e);
-		return 0;
-	}
-}
-
-async function oobaTokenize({ endpoint, signal, ...options }) {
-	try {
-		endpoint = `http:${endpoint.split(":")[1]}:5000`; // HACK!
-		const res = await fetch(new URL('/api/v1/token-count', endpoint), {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json',
-			},
-			body: JSON.stringify({
-				prompt: options.content
-			}),
-			signal,
-		});
-		if (!res.ok)
-			throw new Error(`HTTP ${res.status}`);
-		const { results } = await res.json();
-		return results[0]; // TODO TEST
-	} catch (e) {
-		reportError(e);
-		return 0;
-	}
-}
-
-function oobaConvertOptions(options) {
-	const swapOption = (lhs, rhs) => {
-		if (lhs in options) {
-			options[rhs] = options[lhs];
-			delete options[lhs];
-		}
-	};
-	if (options.n_predict === -1) {
-		options.n_predict = 1024;
-	}
-	swapOption("n_ctx", "truncation_length");
-	swapOption("n_predict", "max_new_tokens");
-	swapOption("repeat_penalty", "repetition_penalty");
-	swapOption("repeat_last_n", "repetition_penalty_range");
-	swapOption("ignore_eos", "ban_eos_token");
-	swapOption("stop", "stopping_strings");
-	return options;
-}
-
-async function* oobaCompletion({ endpoint, signal, ...options }) {
-	const ws = new WebSocket(new URL('/api/v1/stream', endpoint));
-	let connected = false;
-
-	ws.onopen = () => {
-		connected = true;
-		ws.send(JSON.stringify(oobaConvertOptions(options)));
-	};
-
-	const wsStream = () => new EventIterator(
-		queue => {
-			ws.onmessage = queue.push;
-			ws.onclose = queue.stop;
-			ws.onerror = (e) => queue.fail(new Error(connected ? "WebSocket Error" : "Failed to connect"));
-			if (signal) {
-				signal.addEventListener("abort", queue.stop);
-			}
-
-			return () => {
-				ws.close();
-				if (signal) {
-					signal.removeEventListener("abort", queue.stop);
-				}
-			}
-		}
-	);
-
-	for await (const event of wsStream()) {
-		const data = JSON.parse(event.data);
-		console.log('event', data);
-
-		if (data.event === "text_stream") {
-			yield { content: data.text };
-		} else if (data.event === "stream_end") {
-			break;
-		}
-	}
-}
-
-async function oobaAbortCompletion({ endpoint }) {
-	try {
-		endpoint = `http:${endpoint.split(":")[1]}:5000`; // HACK!
-		await fetch(new URL('/api/v1/stop-stream', endpoint), {
-			method: 'POST',
-		});
-	} catch (e) {
-		reportError(e);
-	}
-}
-
 async function koboldCppTokenCount({ endpoint, signal, ...options }) {
 	const res = await fetch(new URL('/api/extra/tokencount', endpoint), {
 		method: 'POST',
@@ -2657,7 +2542,7 @@ export function App() {
 					ignore_eos: ignoreEos,
 				} : {}),
 				// not sure if I need the openaiPresets here
-				...(!openaiPresets || [0,2].includes(endpointAPI) && logitBias.bias.length > 0 ? {
+				...(logitBias.bias.length > 0 ? {
 					logit_bias: logitBiasParam, // [[39,-20],[37934,-20]], //
 				} : {}),
 				presence_penalty: presencePenalty,
