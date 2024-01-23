@@ -1072,14 +1072,14 @@ async function openaiOobaTokenCount({ endpoint, signal, ...options }) {
 				'Content-Type': 'application/json',
 			},
 			body: JSON.stringify({
-				prompt: options.content
+				text: options.content
 			}),
 			signal,
 		});
 		if (!res.ok)
 			throw new Error(`HTTP ${res.status}`);
-		const { results } = await res.json();
-		return results[0].tokens;
+		const { length } = await res.json();
+		return length;
 	} catch (e) {
 		reportError(e);
 		return -1;
@@ -2528,7 +2528,7 @@ export function App() {
 					endpoint,
 					endpointAPI,
 					...(endpointAPI == 3 || endpointAPI == 0 ? { endpointAPIKey } : {}),
-					content: ` ${promptText}`,
+					content: ` ${modifiedPrompt}`,
 					signal: ac.signal,
 				});
 				setTokens(tokenCount);
