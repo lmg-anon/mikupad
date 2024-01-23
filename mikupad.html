@@ -1698,6 +1698,14 @@ function Templates({ templateStorage, onSessionChange, disabled }) {
 	const [isRenaming, setIsRenaming] = useState(false);
 	const [isCreating, setIsCreating] = useState(false);
 
+
+	useEffect(() => {
+		templateStorage.onchange = () => setVersion(v => v + 1);
+		return () => {
+			sessionStorage.onchange = null;
+		};
+	}, []);
+
 	const renameSession = (sessionId) => {
 		if (renameSessionName) {
 			templateStorage.renameSession(sessionId, renameSessionName);
@@ -1721,9 +1729,9 @@ function Templates({ templateStorage, onSessionChange, disabled }) {
 		}
 	};
 
-	templateStorage.templates.clear();
-	templateStorage.templates.addTemplate('Mixtral', '[INST]', '[/INST]');
-	templateStorage.templates.addTemplate('Alpaca', '### Instruction:', '### Response:');
+	templateStorage.clear();
+	templateStorage.addTemplate('Mixtral', '[INST]', '[/INST]');
+	templateStorage.addTemplate('Alpaca', '### Instruction:', '### Response:');
 	
 	const importSession = () => {
 		const fileInput = document.createElement("input");
@@ -1751,7 +1759,7 @@ function Templates({ templateStorage, onSessionChange, disabled }) {
 
 	const exportSession = () => {
 		var element = document.createElement('a');
-		const sessionObj = { ...templateStorage.sessions[templateStorage.selectedSession] };
+		const sessionObj = { ...templateStorage.sessions[templateStorage.selectedSessionId] };
 		for (const [key, value] of Object.entries(sessionObj)) {
 			// This is done for compatibility with localStorage export files.
 			sessionObj[key] = JSON.stringify(value);
@@ -1788,7 +1796,7 @@ function Templates({ templateStorage, onSessionChange, disabled }) {
 		<div className="Sessions ${disabled ? 'disabled' : ''}">
 			<ul>
 				${isCreating && html`
-					<li key=-1>
+					<li key=-1}>
 						<a className="Session">
 							<div>
 								<label>Instruct:</label>
@@ -1817,31 +1825,31 @@ function Templates({ templateStorage, onSessionChange, disabled }) {
 						</a>
 					</li>
 				`}
-				${[...templateStorage.templates.templates.entries()].map(([sessionId, { name, prefix, suffix }]) => html`
-					<li>
-						<a className="Session ${templateStorage.selectedSession == sessionId ? 'selected' : ''}"
-							onClick=${() => switchSession(sessionId)}>
-							${isRenaming === sessionId ? html`
+				${[...templateStorage.templates.entries()].map(([templateId, { name, prefix, suffix }]) => html`
+					<li key=${templateId}>
+						<a className="Session ${templateStorage.selectedTemplateId == templateId ? 'selected' : ''}"
+							onClick=${() => templateStorage.switchTemplate(templateId)}>
+							${isRenaming === templateId ? html`
 								<input
 									type="text"
 									value=${name}
 									onChange=${(e) => setRenameSessionName(e.target.value)}
-									onKeyDown=${(e) => handleKeyDown(sessionId, e.key)}
+									onKeyDown=${(e) => handleKeyDown(templateId, e.key)}
 									onClick=${(e) => e.stopPropagation()}
 									autoFocus
 								/>
 								<div className="flex-separator"></div>
-								<button onClick=${(e) => (renameSession(sessionId), e.stopImmediatePropagation())}>${confirmSvg}</button>
+								<button onClick=${(e) => (renameSession(templateId), e.stopImmediatePropagation())}>${confirmSvg}</button>
 								<button onClick=${(e) => (setIsRenaming(false), e.stopImmediatePropagation())}>${cancelSvg}</button>
 							` : html`
 								${name}
 								<div className="flex-separator"></div>
 								<button
-									onClick=${(e) => (startRenameSession(sessionId, name), e.stopPropagation())}>
+									onClick=${(e) => (startRenameSession(templateId, name), e.stopPropagation())}>
 									${renameSvg}
 								</button>
 								<button
-									onClick=${(e) => (deleteSession(sessionId), e.stopPropagation())}>
+									onClick=${(e) => (deleteSession(templateId), e.stopPropagation())}>
 									${trashSvg}
 								</button>
 							`}
@@ -1862,11 +1870,14 @@ class TemplateCollection {
 	constructor() {
 		this.templates = new Map();
 		this.nextId = 1;
+		this.selectedTemplateId = 1;
+		this.onchange = null;
 	}
 
 	addTemplate(name, prefix, suffix) {
 		const id = this.nextId++;
 		this.templates.set(id, { name, prefix, suffix });
+		this.selectedTemplateId = id;
 		return id;
 	}
 
@@ -1876,6 +1887,11 @@ class TemplateCollection {
 
 	clear() {
 		this.templates.clear();
+	}
+
+	switchTemplate(id) {
+		this.selectedTemplateId = id;
+		this.onchange?.();
 	}
 }
 
@@ -2846,7 +2862,7 @@ export function App() {
 					onSessionChange=${onSessionChange}/>
 			</${CollapsibleGroup}>					
 			<${CollapsibleGroup} label="Instruct Templates">
-				<${Templates} templateStorage=${{ templates : templateStorage}}
+				<${Templates} templateStorage=${ templateStorage}
 					disabled=${!!cancel}
 					onSessionChange=${onSessionChange} />
 			</${CollapsibleGroup}>
