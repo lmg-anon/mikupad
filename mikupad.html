@@ -1072,14 +1072,14 @@ async function openaiOobaTokenCount({ endpoint, signal, ...options }) {
 				'Content-Type': 'application/json',
 			},
 			body: JSON.stringify({
-				prompt: options.content
+				text: options.content
 			}),
 			signal,
 		});
 		if (!res.ok)
 			throw new Error(`HTTP ${res.status}`);
-		const { results } = await res.json();
-		return results[0].tokens;
+		const { length } = await res.json();
+		return length;
 	} catch (e) {
 		reportError(e);
 		return -1;
@@ -1139,13 +1139,23 @@ function openaiConvertOptions(options, isOpenAI) {
 	}
 	if ("dynatemp_range" in options && options.dynatemp_range !== 0) {
 		// oobabooga specific.
+		options.dynamic_temperature = true;
 		options.dynatemp_low = Math.max(0, options.temperature - options.dynatemp_range);
 		options.dynatemp_high = Math.max(0, options.temperature + options.dynatemp_range);
 		delete options.dynatemp_range;
 	}
+	if (!isOpenAI && options.temperature === 0) {
+		// oobabooga specific.
+		options.do_sample = false;
+	}
 	swapOption("n_ctx", "max_context_length");
 	swapOption("n_predict", "max_tokens");
 	swapOption("n_probs", "logprobs");
+	swapOption("repeat_penalty", "repetition_penalty");
+	swapOption("repeat_last_n", "repetition_penalty_range");
+	swapOption("tfs_z", "tfs");
+	swapOption("mirostat", "mirostat_mode");
+	swapOption("ignore_eos", "ban_eos_token")
 	return options;
 }
 
@@ -1289,7 +1299,17 @@ function CollapsibleGroup({ label, expanded, children }) {
 		if (!isOpen) {
 			return null;
 		}
-
+		useEffect(() => {
+			const onKeyDown = (event) => {
+				if (event.key === 'Escape') {
+					onClose();
+				}
+			};
+			document.addEventListener('keydown', onKeyDown);
+			return () => {
+				document.removeEventListener('keydown', onKeyDown);
+			};
+		});
 		return html`
 		<div className="modal-overlay" onClick=${onClose}>
 			<div className="modal-container">
@@ -1378,7 +1398,7 @@ function Sessions({ sessionStorage, onSessionChange, disabled }) {
 			reader.readAsText(file);
 		};
 		fileInput.func = async (text) => {
-			const newId = await sessionStorage.createSessionFromObject(JSON.parse(text));
+			const newId = await sessionStorage.createSessionFromObject(JSON.parse(text), false);
 			await sessionStorage.switchSession(newId);
 		};
 		document.body.appendChild(fileInput);
@@ -1399,6 +1419,16 @@ function Sessions({ sessionStorage, onSessionChange, disabled }) {
 		document.body.appendChild(element);
 		element.click();
 		document.body.removeChild(element);
+	};
+
+	const cloneSession = () => {
+		const sessionObj = { ...sessionStorage.sessions[sessionStorage.selectedSession] };
+		for (const [key, value] of Object.entries(sessionObj)) {
+			// This is done for compatibility with localStorage export files.
+			sessionObj[key] = JSON.stringify(value);
+		}
+		const newId = sessionStorage.createSessionFromObject(sessionObj, true);
+		sessionStorage.switchSession(newId);			
 	};
 
 	function handleKeyDown(sessionId, key) {
@@ -1477,6 +1507,7 @@ function Sessions({ sessionStorage, onSessionChange, disabled }) {
 				<button disabled=${disabled} onClick=${startCreateSession}>Create</button>
 				<button disabled=${disabled} onClick=${importSession}>Import</button>
 				<button disabled=${disabled} onClick=${exportSession}>Export</button>
+				<button disabled=${disabled} onClick=${cloneSession}>Clone</button>
 			</div>
 		</div>`;
 }
@@ -1663,7 +1694,7 @@ class SessionStorage {
 		return newId;
 	}
 
-	async createSessionFromObject(obj) {
+	async createSessionFromObject(obj, cloned) {
 		const newId = await this.getNewId();
 		this.sessions[newId] = {};
 
@@ -1674,6 +1705,10 @@ class SessionStorage {
 
 		if (!this.sessions[newId].hasOwnProperty('name')) {
 			this.sessions[newId]['name'] = `MikuPad #${this.nextId + 1}`;
+		}
+    
+		if (cloned) {
+			this.sessions[newId]['name'] = 'Cloned ' + this.sessions[newId]['name'];
 		}
 
 		await this.saveToDatabase(newId, this.sessions[newId]);
@@ -1812,6 +1847,7 @@ export function App({ sessionStorage, useSessionState }) {
 	const [attachSidebar, setAttachSidebar] = usePersistentState('attachSidebar', false);
 	const [showProbsMode, setShowProbsMode] = usePersistentState('showProbsMode', 0);
 	const [highlightGenTokens, setHighlightGenTokens] = usePersistentState('highlightGenTokens', true);
+	const [preserveCursorPosition, setPreserveCursorPosition] = usePersistentState('preserveCursorPosition', true);
 	const [darkMode, _] = usePersistentState('darkMode', false); // legacy
 	const [theme, setTheme] = usePersistentState('theme', darkMode ? 1 : 0);
 	const [endpoint, setEndpoint] = useSessionState('endpoint', defaultPresets.endpoint);
@@ -2186,15 +2222,23 @@ export function App({ sessionStorage, useSessionState }) {
 		setUndoHovered(false);
 		return true;
 	}
+	
+	const [triggerPredict, setTriggerPredict] = useState(false);
 
 	function undoAndPredict() {
 		if (!undoStack.current.length) return;
-		const lastGenerationChunks = undoStack.current.pop();
-		const newPromptChunks = promptChunks.slice(0, lastGenerationChunks);
-   		setPromptChunks(newPromptChunks);
-
-		predict(joinPrompt(newPromptChunks), newPromptChunks.length);
+		const didUndo = undo();
+		if (didUndo) {
+			setTriggerPredict(true);
+		}
 	}
+	
+	useEffect(() => {
+		if (triggerPredict) {
+			predict();
+			setTriggerPredict(false);
+		}
+	}, [triggerPredict, predict]);
 
 	useLayoutEffect(() => {
 		if (attachSidebar)
@@ -2272,10 +2316,15 @@ export function App({ sessionStorage, useSessionState }) {
 		if (elem.value === promptText) {
 			return;
 		} else if (elem.value.length && promptText.startsWith(elem.value)) {
+			const isTextSelected = elem.selectionStart !== elem.selectionEnd;
 			const oldHeight = elem.scrollHeight;
 			const atBottom = (elem.scrollTarget ?? elem.scrollTop) + elem.clientHeight + 1 > oldHeight;
 			const oldLen = elem.value.length;
-			elem.setRangeText(promptText.slice(oldLen), oldLen, oldLen, 'preserve');
+			if (!isTextSelected && !preserveCursorPosition) {
+				elem.value = promptText;
+			} else {
+				elem.setRangeText(promptText.slice(oldLen), oldLen, oldLen, 'preserve');
+			}
 			const newHeight = elem.scrollHeight;
 			if (atBottom && oldHeight !== newHeight) {
 				elem.scrollTarget = newHeight - elem.clientHeight;
@@ -2307,7 +2356,7 @@ export function App({ sessionStorage, useSessionState }) {
 					endpoint,
 					endpointAPI,
 					...(endpointAPI == 3 || endpointAPI == 0 ? { endpointAPIKey } : {}),
-					content: ` ${promptText}`,
+					content: ` ${modifiedPrompt}`,
 					signal: ac.signal,
 				});
 				setTokens(tokenCount);
@@ -2444,8 +2493,6 @@ export function App({ sessionStorage, useSessionState }) {
 				...(newValue ? [{ type: 'user', content: newValue }] : []),
 				...end,
 			];
-			if (cancel)
-				predict(joinPrompt(newPrompt), newPrompt.length);
 			return newPrompt;
 		});
 	}
@@ -2515,7 +2562,7 @@ export function App({ sessionStorage, useSessionState }) {
 			},
 		];
 		setPromptChunks(newPrompt);
-		predict(joinPrompt(newPrompt), newPrompt.length);
+		setTriggerPredict(true);
 	}
 
 	function switchEndpointAPI(value) {
@@ -2855,6 +2902,8 @@ export function App({ sessionStorage, useSessionState }) {
 					value=${attachSidebar} onValueChange=${setAttachSidebar}/>
 				<${Checkbox} label="Highlight generated tokens"
 					value=${highlightGenTokens} onValueChange=${setHighlightGenTokens}/>
+				<${Checkbox} label="Preserve cursor position after prediction"
+					value=${preserveCursorPosition} onValueChange=${setPreserveCursorPosition}/>
 				<${SelectBox}
 					label="Token probabilities"
 					value=${showProbsMode}
