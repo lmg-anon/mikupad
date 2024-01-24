@@ -1335,7 +1335,7 @@ function Sessions({ sessionStorage, onSessionChange, disabled }) {
 	const [version, setVersion] = useState(0);
 	const [newSessionName, setNewSessionName] = useState('');
 	const [renameSessionName, setRenameSessionName] = useState('');
-	const [isRenaming, setIsRenaming] = useState(false);
+	const [renamingId, setRenamingId] = useState(undefined);
 	const [isCreating, setIsCreating] = useState(false);
 
 	useEffect(() => {
@@ -1355,13 +1355,13 @@ function Sessions({ sessionStorage, onSessionChange, disabled }) {
 
 	const startRenameSession = (sessionId, name) => {
 		setRenameSessionName(name);
-		setIsRenaming(sessionId);
+		setRenamingId(sessionId);
 	};
 
 	const renameSession = async (sessionId) => {
 		if (renameSessionName) {
 			await sessionStorage.renameSession(sessionId, renameSessionName);
-			setIsRenaming(false);
+			setRenamingId(undefined);
 		}
 	};
 
@@ -1435,13 +1435,13 @@ function Sessions({ sessionStorage, onSessionChange, disabled }) {
 		if (event.key === 'Enter') {
 			if (isCreating)
 				createSession();
-			else if (isRenaming)
+			else if (renamingId !== undefined)
 				renameSession(sessionId);
 		} else if (event.key === 'Escape') {
 			if (isCreating)
 				setIsCreating(false);
-			else if (isRenaming)
-				setIsRenaming(false);
+			else if (renamingId !== undefined)
+				setRenamingId(undefined);
 		}
 	}
 
@@ -1475,7 +1475,7 @@ function Sessions({ sessionStorage, onSessionChange, disabled }) {
 					<li key=${sessionId}>
 						<a className="Session ${sessionStorage.selectedSession == sessionId ? 'selected' : ''}"
 							onClick=${() => switchSession(+sessionId)}>
-							${isRenaming == sessionId ? html`
+							${renamingId == sessionId ? html`
 								<input
 									type="text"
 									value=${renameSessionName}
@@ -1486,7 +1486,7 @@ function Sessions({ sessionStorage, onSessionChange, disabled }) {
 								/>
 								<div className="flex-separator"></div>
 								<button onClick=${(e) => (renameSession(+sessionId), e.stopImmediatePropagation())}>${confirmSvg}</button>
-								<button onClick=${(e) => (setIsRenaming(false), e.stopImmediatePropagation())}>${cancelSvg}</button>
+								<button onClick=${(e) => (setRenamingId(undefined), e.stopImmediatePropagation())}>${cancelSvg}</button>
 							` : html`
 								${session.name}
 								<div className="flex-separator"></div>
