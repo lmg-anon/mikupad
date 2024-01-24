@@ -1811,7 +1811,26 @@ function Templates({ templateStorage, onSessionChange, disabled, promptArea, onI
 		const prefix = currentTemplate.prefix || '';
 		const suffix = currentTemplate.suffix || '';
 
-		const lineBreakBeforePrefix = textBefore ? '\n\n' : '';
+		const countLineBreaks = (text) => {
+			let count = 0;
+			for (let i = text.length - 1; i >= 0; i--) {
+				if (text[i] === '\n') {
+					count++;
+				} else {
+					break;
+				}
+			}
+			return count;
+    	};
+
+		const existingLineBreaks = countLineBreaks(textBefore);
+    	let lineBreakBeforePrefix = '';
+		if (textBefore.length > 0) {
+			if (existingLineBreaks < 2) {
+				lineBreakBeforePrefix = '\n'.repeat(2 - existingLineBreaks);
+			}
+		}
+
 		const lineBreakAfterPrefix = '\n';
 		const lineBreakBeforeSuffix = '\n\n';
 		const lineBreakAfterSuffix = '\n';
@@ -1824,10 +1843,15 @@ function Templates({ templateStorage, onSessionChange, disabled, promptArea, onI
 
 		elem.value = finalText;
 
-		const newCursorPos = startPos 
+		let newCursorPos;
+		if (selectedText.length === 0) {
+			newCursorPos = startPos + lineBreakBeforePrefix.length + prefix.length + lineBreakAfterPrefix.length;
+		} else {
+			newCursorPos = startPos 
 							+ lineBreakBeforePrefix.length + prefix.length + lineBreakAfterPrefix.length 
 							+ selectedText.length 
 							+ lineBreakBeforeSuffix.length + suffix.length + lineBreakAfterSuffix.length;
+    	}
 		elem.setSelectionRange(newCursorPos, newCursorPos);
 		onInput({ target: elem });
 	}
