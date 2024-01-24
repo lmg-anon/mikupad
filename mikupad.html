@@ -1630,7 +1630,7 @@ class SessionStorage {
 		await this.saveToDatabase('nextSessionId', this.nextId);
 		await this.saveToDatabase('selectedSessionId', this.selectedSession);
 		for (const sessionId of Object.keys(this.sessions)) {
-			await this.saveToDatabase(sessionId, this.sessions[sessionId]);
+			await this.saveToDatabase(+sessionId, this.sessions[sessionId]);
 		}
 		return true;
 	}
@@ -1703,13 +1703,13 @@ class SessionStorage {
 			const store = tx.objectStore(this.storeName);
 			const request = store.delete(sessionId);
 
-			request.onsuccess = () => {
+			request.onsuccess = async () => {
 				// Select another session if the current was deleted
 				if (sessionId == this.selectedSession) {
-					const sessionIds = Object.keys(this.sessions);
+					const sessionIds = Object.keys(this.sessions).map(x => +x);
 					const sessionIdx = sessionIds.indexOf(sessionId);
 					const newSessionId = sessionIds[sessionIdx - 1] ?? sessionIds[sessionIdx + 1];
-					this.switchSession(+newSessionId)
+					await this.switchSession(+newSessionId)
 				}
 
 				delete this.sessions[sessionId];
