@@ -1475,7 +1475,7 @@ function Sessions({ sessionStorage, onSessionChange, disabled }) {
 					<li key=${sessionId}>
 						<a className="Session ${sessionStorage.selectedSession == sessionId ? 'selected' : ''}"
 							onClick=${() => switchSession(+sessionId)}>
-							${isRenaming === sessionId ? html`
+							${isRenaming == sessionId ? html`
 								<input
 									type="text"
 									value=${renameSessionName}
@@ -1608,7 +1608,7 @@ class SessionStorage {
 	// but we might want to erase it in the future.
 	async migrateSessions() {
 		const nextId = +localStorage.getItem('nextSessionId');
-		if (nextId === 0)
+		if (nextId == 0)
 			return false;
 		this.nextId = nextId;
 		this.selectedSession = +localStorage.getItem('selectedSessionId');
