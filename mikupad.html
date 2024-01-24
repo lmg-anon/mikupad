@@ -1682,8 +1682,10 @@ class SessionStorage {
 
 		this.onchange?.();
 		this.onsessionchange?.();
+
+		const deepCopy = (value) => JSON.parse(JSON.stringify(value));
 		for (const propertyName of Object.keys(this.sessionTemplate)) {
-			this.updateDependents(propertyName, this.getProperty(propertyName) ?? this.sessionTemplate[propertyName]);
+			this.updateDependents(propertyName, this.getProperty(propertyName) ?? deepCopy(this.sessionTemplate[propertyName]));
 		}
 	}
 
