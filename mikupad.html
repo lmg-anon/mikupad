@@ -1641,7 +1641,7 @@ class SessionStorage {
 			const store = tx.objectStore(this.storeName);
 			const request = store.openCursor();
 
-			request.onsuccess = (event) => {
+			request.onsuccess = async (event) => {
 				const cursor = event.target.result;
 				if (cursor) {
 					if (cursor.key !== 'nextSessionId' && cursor.key !== 'selectedSessionId') {
@@ -1650,11 +1650,11 @@ class SessionStorage {
 					cursor.continue();
 				} else {
 					if (Object.keys(this.sessions).length === 0) {
-						if (!this.migrateSessions()) {
-							this.createSession('MikuPad #1');
+						if (!await this.migrateSessions()) {
+							await this.createSession('MikuPad #1');
 						}
 					}
-					this.switchSession(this.selectedSession);
+					await this.switchSession(this.selectedSession);
 					resolve();
 				}
 			};
