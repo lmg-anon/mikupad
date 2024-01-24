@@ -1704,7 +1704,7 @@ function Templates({ templateStorage, onSessionChange, disabled, promptArea, onI
 				event.preventDefault();
 				insertTemplate();
 			}
-    	};
+		};
 
 		document.addEventListener('keydown', onKeyDown);
 		return () => {
@@ -1821,10 +1821,10 @@ function Templates({ templateStorage, onSessionChange, disabled, promptArea, onI
 				}
 			}
 			return count;
-    	};
+		};
 
 		const existingLineBreaks = countLineBreaks(textBefore);
-    	let lineBreakBeforePrefix = '';
+		let lineBreakBeforePrefix = '';
 		if (textBefore.length > 0) {
 			if (existingLineBreaks < 2) {
 				lineBreakBeforePrefix = '\n'.repeat(2 - existingLineBreaks);
@@ -1851,7 +1851,7 @@ function Templates({ templateStorage, onSessionChange, disabled, promptArea, onI
 							+ lineBreakBeforePrefix.length + prefix.length + lineBreakAfterPrefix.length 
 							+ selectedText.length 
 							+ lineBreakBeforeSuffix.length + suffix.length + lineBreakAfterSuffix.length;
-    	}
+		}
 		elem.setSelectionRange(newCursorPos, newCursorPos);
 		onInput({ target: elem });
 	}
@@ -1946,7 +1946,7 @@ class TemplateCollection {
 		if (this.templates.size === 0)
 		{
 			this.addTemplate('Mixtral', '[INT]', '[/INT]');
-			this.addTemplate('Alpaca', '### instruct:\n', '### response:\n');
+			this.addTemplate('Alpaca', '### Instruction:\n', '### Response:\n');
 		}
 	}
 
