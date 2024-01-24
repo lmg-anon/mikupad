@@ -1689,7 +1689,7 @@ class SessionStorage {
 }
 
 
-function Templates({ templateStorage, onSessionChange, disabled }) {
+function Templates({ templateStorage, onSessionChange, disabled, promptArea, onInput }) {
 	
 	const [version, setVersion] = useState(0);
 	const [newPrefix, setNewPrefix] = useState('');
@@ -1698,6 +1698,19 @@ function Templates({ templateStorage, onSessionChange, disabled }) {
 	const [isRenaming, setIsRenaming] = useState(false);
 	const [isCreating, setIsCreating] = useState(false);
 
+	useEffect(() => {
+    	const onKeyDown = (event) => {
+			if (event.ctrlKey && event.key === 'Insert') {
+				event.preventDefault();
+				insertTemplate();
+			}
+    	};
+
+		document.addEventListener('keydown', onKeyDown);
+		return () => {
+			document.removeEventListener('keydown', onKeyDown);
+		};
+	});
 
 	useEffect(() => {
 		templateStorage.onchange = () => setVersion(v => v + 1);
@@ -1728,10 +1741,6 @@ function Templates({ templateStorage, onSessionChange, disabled }) {
 			templateStorage.templates.addTemplate(newPrefix, newSuffix);
 		}
 	};
-
-	templateStorage.clear();
-	templateStorage.addTemplate('Mixtral', '[INST]', '[/INST]');
-	templateStorage.addTemplate('Alpaca', '### Instruction:', '### Response:');
 	
 	const importSession = () => {
 		const fileInput = document.createElement("input");
@@ -1786,6 +1795,43 @@ function Templates({ templateStorage, onSessionChange, disabled }) {
 		}
 	}
 
+	function insertTemplate() {
+		const currentTemplate = templateStorage.getCurrentTemplate();
+		if (!currentTemplate) return;
+
+		const elem = promptArea.current;
+		if (!elem) return;
+
+		const startPos = elem.selectionStart;
+		const endPos = elem.selectionEnd;
+		const textBefore = elem.value.substring(0, startPos) || '';
+		const textAfter = elem.value.substring(endPos);
+		const selectedText = elem.value.substring(startPos, endPos);
+
+		const prefix = currentTemplate.prefix || '';
+		const suffix = currentTemplate.suffix || '';
+
+		const lineBreakBeforePrefix = textBefore ? '\n\n' : '';
+		const lineBreakAfterPrefix = '\n';
+		const lineBreakBeforeSuffix = '\n\n';
+		const lineBreakAfterSuffix = '\n';
+
+		const finalText = textBefore 
+						+ lineBreakBeforePrefix + prefix + lineBreakAfterPrefix
+						+ selectedText 
+						+ lineBreakBeforeSuffix + suffix + lineBreakAfterSuffix
+						+ textAfter;
+
+		elem.value = finalText;
+
+		const newCursorPos = startPos 
+							+ lineBreakBeforePrefix.length + prefix.length + lineBreakAfterPrefix.length 
+							+ selectedText.length 
+							+ lineBreakBeforeSuffix.length + suffix.length + lineBreakAfterSuffix.length;
+		elem.setSelectionRange(newCursorPos, newCursorPos);
+		onInput({ target: elem });
+	}
+
 	const trashSvg = html`<svg fill="var(--color-light)" width="16" height="16" viewBox="0 0 490.646 490.646"><path d="m399.179 67.285-74.794.033L324.356 0 166.214.066l.029 67.318-74.802.033.025 62.914h307.739l-.026-63.046zM198.28 32.11l94.03-.041.017 35.262-94.03.041-.017-35.262zM91.465 490.646h307.739V146.359H91.465v344.287zm225.996-297.274h16.028v250.259h-16.028V193.372zm-80.14 0h16.028v250.259h-16.028V193.372zm-80.141 0h16.028v250.259H157.18V193.372z"/></svg>`;
 	const renameSvg = html`<svg fill="var(--color-light)" width="16" height="16" viewBox="0 0 512 448"><path style=${{ fillOpacity: 1, stroke: 'none', strokeWidth: 30, strokeLinecap: 'round', strokeMiterlimit: 4, strokeDasharray: 'none', strokeOpacity: 1 }} d="M0 96v256h320v-32H32V128h288V96H0zM416 96v32h64v192h-64v32h96V96h-96z" /><path style=${{ fillOpacity: 1, stroke: 'none', strokeWidth: 30, strokeLinecap: 'round', strokeMiterlimit: 4, strokeDasharray: 'none', strokeOpacity: 1 }} d="M352 636.362h32v384h-32z" transform="matrix(1, 0, 0, 1, 0, -604.3619995117188)" /><path style=${{ fillOpacity: 1, stroke: 'none', strokeWidth: 30, strokeLinecap: 'round', strokeMiterlimit: 4, strokeDasharray: 'none', strokeOpacity: 1 }} transform="matrix(0, 1, -1, 0, 0, -604.3619995117188)" d="M1020.362-448h32v64h-32zM1020.362-352h32v64h-32zM604.362-448h32v64h-32zM604.362-352h32v64h-32zM764.362-288h128v224h-128z" /></svg>`;
 
@@ -1835,7 +1881,7 @@ function Templates({ templateStorage, onSessionChange, disabled }) {
 									value=${name}
 									onChange=${(e) => setRenameSessionName(e.target.value)}
 									onKeyDown=${(e) => handleKeyDown(templateId, e.key)}
-									onClick=${(e) => e.stopPropagation()}
+									onClick=${(e) => e.stopPropagation()},
 									autoFocus
 								/>
 								<div className="flex-separator"></div>
@@ -1861,6 +1907,7 @@ function Templates({ templateStorage, onSessionChange, disabled }) {
 				<button disabled=${disabled} onClick=${startCreateTemplate}>Create</button>
 				<button disabled=${disabled} onClick=${importSession}>Import</button>
 				<button disabled=${disabled} onClick=${exportSession}>Export</button>
+				<button disabled=${disabled} onClick=${insertTemplate}>Insert</button>
 			</div>
 		</div>`;
 }
@@ -1872,6 +1919,11 @@ class TemplateCollection {
 		this.nextId = 1;
 		this.selectedTemplateId = 1;
 		this.onchange = null;
+		if (this.templates.size === 0)
+		{
+			this.addTemplate('Mixtral', '[INT]', '[/INT]');
+			this.addTemplate('Alpaca', '### instruct:\n', '### response:\n');
+		}
 	}
 
 	addTemplate(name, prefix, suffix) {
@@ -1893,8 +1945,11 @@ class TemplateCollection {
 		this.selectedTemplateId = id;
 		this.onchange?.();
 	}
-}
 
+	getCurrentTemplate() {
+		return this.templates.get(this.selectedTemplateId) || null;
+	}
+}
 
 
 const defaultPrompt = `[INST] <<SYS>>
@@ -2611,7 +2666,6 @@ export function App() {
 			case 'false:false:true:y':
 				if (cancel || !redo()) return;
 				break;
-
 			default:
 				keyState.current = e;
 				return;
@@ -2863,8 +2917,10 @@ export function App() {
 			</${CollapsibleGroup}>					
 			<${CollapsibleGroup} label="Instruct Templates">
 				<${Templates} templateStorage=${ templateStorage}
+					promptArea=${promptArea}
 					disabled=${!!cancel}
-					onSessionChange=${onSessionChange} />
+					onSessionChange=${onSessionChange},
+					onInput=${onInput} />
 			</${CollapsibleGroup}>
 			<${CollapsibleGroup} label="Parameters" expanded>
 				<${InputBox} label="Server"
