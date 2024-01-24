@@ -1742,8 +1742,8 @@ class SessionStorage {
 			this.sessions[newId]['name'] = `MikuPad #${this.nextId + 1}`;
 		}
 
-		if (cloned) {
-			this.sessions[newId]['name'] = 'Cloned ' + this.sessions[newId]['name'];
+		if (cloned && !this.sessions[newId]['name'].startsWith('Cloned')) {
+			this.sessions[newId]['name'] = `Cloned ${this.sessions[newId]['name']}`;
 		}
 
 		await this.saveToDatabase(newId, this.sessions[newId]);
@@ -2267,7 +2267,7 @@ export function App({ sessionStorage, useSessionState }) {
 			setTriggerPredict(true);
 		}
 	}
-	
+
 	useEffect(() => {
 		if (triggerPredict) {
 			predict();
