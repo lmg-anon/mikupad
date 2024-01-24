@@ -1675,8 +1675,10 @@ class SessionStorage {
 	}
 
 	async switchSession(sessionId) {
-		this.selectedSession = sessionId;
-		await this.saveToDatabase('selectedSessionId', sessionId);
+		if (!this.sessions[sessionId])
+			return;
+		this.selectedSession = +sessionId;
+		await this.saveToDatabase('selectedSessionId', this.selectedSession);
 
 		this.onchange?.();
 		this.onsessionchange?.();
