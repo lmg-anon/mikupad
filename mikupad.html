@@ -1335,7 +1335,7 @@ function Sessions({ sessionStorage, onSessionChange, disabled }) {
 	const [version, setVersion] = useState(0);
 	const [newSessionName, setNewSessionName] = useState('');
 	const [renameSessionName, setRenameSessionName] = useState('');
-	const [isRenaming, setIsRenaming] = useState(false);
+	const [renamingId, setRenamingId] = useState(undefined);
 	const [isCreating, setIsCreating] = useState(false);
 
 	useEffect(() => {
@@ -1347,26 +1347,26 @@ function Sessions({ sessionStorage, onSessionChange, disabled }) {
 		};
 	}, []);
 
-	const switchSession = (sessionId) => {
+	const switchSession = async (sessionId) => {
 		if (sessionStorage.selectedSession != sessionId) {
-			sessionStorage.switchSession(+sessionId);
+			await sessionStorage.switchSession(sessionId);
 		}
 	};
 
 	const startRenameSession = (sessionId, name) => {
 		setRenameSessionName(name);
-		setIsRenaming(sessionId);
+		setRenamingId(sessionId);
 	};
 
-	const renameSession = (sessionId) => {
+	const renameSession = async (sessionId) => {
 		if (renameSessionName) {
-			sessionStorage.renameSession(sessionId, renameSessionName);
-			setIsRenaming(false);
+			await sessionStorage.renameSession(sessionId, renameSessionName);
+			setRenamingId(undefined);
 		}
 	};
 
-	const deleteSession = (sessionId) => {
-		sessionStorage.deleteSession(sessionId);
+	const deleteSession = async (sessionId) => {
+		await sessionStorage.deleteSession(sessionId);
 	};
 
 	const startCreateSession = () => {
@@ -1374,10 +1374,10 @@ function Sessions({ sessionStorage, onSessionChange, disabled }) {
 		setIsCreating(true);
 	};
 
-	const createSession = () => {
+	const createSession = async () => {
 		if (newSessionName) {
-			const newId = sessionStorage.createSession(newSessionName);
-			sessionStorage.switchSession(newId);
+			const newId = await sessionStorage.createSession(newSessionName);
+			await sessionStorage.switchSession(newId);
 			setIsCreating(false);
 		}
 	};
@@ -1397,9 +1397,9 @@ function Sessions({ sessionStorage, onSessionChange, disabled }) {
 			}
 			reader.readAsText(file);
 		};
-		fileInput.func = (text) => {
-			const newId = sessionStorage.createSessionFromObject(JSON.parse(text), false);
-			sessionStorage.switchSession(newId);
+		fileInput.func = async (text) => {
+			const newId = await sessionStorage.createSessionFromObject(JSON.parse(text), false);
+			await sessionStorage.switchSession(newId);
 		};
 		document.body.appendChild(fileInput);
 		fileInput.click();
@@ -1421,27 +1421,27 @@ function Sessions({ sessionStorage, onSessionChange, disabled }) {
 		document.body.removeChild(element);
 	};
 
-	const cloneSession = () => {
+	const cloneSession = async () => {
 		const sessionObj = { ...sessionStorage.sessions[sessionStorage.selectedSession] };
 		for (const [key, value] of Object.entries(sessionObj)) {
 			// This is done for compatibility with localStorage export files.
 			sessionObj[key] = JSON.stringify(value);
 		}
-		const newId = sessionStorage.createSessionFromObject(sessionObj, true);
-		sessionStorage.switchSession(newId);			
+		const newId = await sessionStorage.createSessionFromObject(sessionObj, true);
+		await sessionStorage.switchSession(newId);
 	};
 
 	function handleKeyDown(sessionId, key) {
 		if (event.key === 'Enter') {
 			if (isCreating)
 				createSession();
-			else if (isRenaming)
+			else if (renamingId !== undefined)
 				renameSession(sessionId);
 		} else if (event.key === 'Escape') {
 			if (isCreating)
 				setIsCreating(false);
-			else if (isRenaming)
-				setIsRenaming(false);
+			else if (renamingId !== undefined)
+				setRenamingId(undefined);
 		}
 	}
 
@@ -1474,28 +1474,28 @@ function Sessions({ sessionStorage, onSessionChange, disabled }) {
 				${Object.entries(sessionStorage.sessions).reverse().map(([sessionId, session]) => html`
 					<li key=${sessionId}>
 						<a className="Session ${sessionStorage.selectedSession == sessionId ? 'selected' : ''}"
-							onClick=${() => switchSession(sessionId)}>
-							${isRenaming === sessionId ? html`
+							onClick=${() => switchSession(+sessionId)}>
+							${renamingId == sessionId ? html`
 								<input
 									type="text"
 									value=${renameSessionName}
 									onChange=${(e) => setRenameSessionName(e.target.value)}
-									onKeyDown=${(e) => handleKeyDown(sessionId, e.key)}
+									onKeyDown=${(e) => handleKeyDown(+sessionId, e.key)}
 									onClick=${(e) => e.stopPropagation()}
 									autoFocus
 								/>
 								<div className="flex-separator"></div>
-								<button onClick=${(e) => (renameSession(sessionId), e.stopImmediatePropagation())}>${confirmSvg}</button>
-								<button onClick=${(e) => (setIsRenaming(false), e.stopImmediatePropagation())}>${cancelSvg}</button>
+								<button onClick=${(e) => (renameSession(+sessionId), e.stopImmediatePropagation())}>${confirmSvg}</button>
+								<button onClick=${(e) => (setRenamingId(undefined), e.stopImmediatePropagation())}>${cancelSvg}</button>
 							` : html`
 								${session.name}
 								<div className="flex-separator"></div>
 								<button
-									onClick=${(e) => (startRenameSession(sessionId, session.name), e.stopPropagation())}>
+									onClick=${(e) => (startRenameSession(+sessionId, session.name), e.stopPropagation())}>
 									${renameSvg}
 								</button>
 								<button
-									onClick=${(e) => (deleteSession(sessionId), e.stopPropagation())}>
+									onClick=${(e) => (deleteSession(+sessionId), e.stopPropagation())}>
 									${trashSvg}
 								</button>
 							`}
@@ -1514,21 +1514,48 @@ function Sessions({ sessionStorage, onSessionChange, disabled }) {
 
 class SessionStorage {
 	constructor(defaultPresets) {
-		this.nextId = +localStorage.getItem('nextSessionId');
+		this.dbName = 'MikuPad';
+		this.storeName = 'Sessions';
+		this.nextId = undefined;
 		this.dependents = {};
 		this.saveQueue = [];
-		this.saveTimer = setInterval(() => this.saveTimerHandler(), 500);
+		this.saveTimer = undefined;
 		this.sessions = {};
-		this.selectedSession = +localStorage.getItem('selectedSessionId');
+		this.selectedSession = undefined;
 		this.sessionTemplate = { ...defaultPresets };
 		this.onchange = null;
 		this.onsessionchange = null;
-		this.loadFromStorage();
 	}
 
-	getNewId() {
+	async init() {
+		try {
+			const db = await this.openDatabase();
+			this.nextId = (await this.loadFromDatabase(db, 'nextSessionId')) || 0;
+			this.selectedSession = (await this.loadFromDatabase(db, 'selectedSessionId')) || 0;
+			await this.loadSessions(db);
+			this.saveTimer = setInterval(async () => await this.saveTimerHandler(), 500);
+		} catch (e) {
+			reportError(e);
+		}
+	}
+
+	async openDatabase() {
+		return new Promise((resolve, reject) => {
+			const openRequest = indexedDB.open(this.dbName);
+
+			openRequest.onerror = () => reject(openRequest.error);
+			openRequest.onsuccess = () => resolve(openRequest.result);
+			openRequest.onupgradeneeded = (event) => {
+				const db = event.target.result;
+				db.createObjectStore(this.storeName);
+			};
+			openRequest.onblocked = () => console.warn('Request was blocked');
+		});
+	}
+
+	async getNewId() {
 		this.nextId += 1;
-		localStorage.setItem('nextSessionId', this.nextId);
+		await this.saveToDatabase('nextSessionId', this.nextId);
 		return this.nextId - 1;
 	}
 
@@ -1538,77 +1565,101 @@ class SessionStorage {
 	}
 
 	updateDependents(name, newValue) {
-		if (this.dependents[name]) {
-			for (const callback of this.dependents[name]) {
-				callback(newValue);
-			}
+		if (!this.dependents[name])
+			return;
+		for (const callback of this.dependents[name]) {
+			callback(newValue);
 		}
 	}
 
-	saveTimerHandler() {
+	async saveTimerHandler() {
 		while (this.saveQueue.length) {
-			const [sessionId, propertyName] = this.saveQueue.pop().split('/');
-			this.savePropertyToStorage(+sessionId, propertyName);
+			const sessionId = this.saveQueue.pop();
+			if (!this.sessions[sessionId])
+				continue;
+			await this.saveToDatabase(sessionId, this.sessions[sessionId]);
 		}
 	}
 
-	loadFromStorage() {
-		const needsMigration = localStorage.getItem('selectedSessionId') == null;
-		if (needsMigration) {
-			//
-			// Legacy migration code, don't touch!
-			// This will be removed in the future.
-			//
-			const newId = this.createSession('MikuPad #1');
-			for (const propertyName of Object.keys(localStorage)) {
-				if (propertyName === 'darkMode' || propertyName === 'nextSessionId' || propertyName.startsWith(`${newId}/`)) continue;
-				let value = localStorage.getItem(propertyName);
-				try {
-					value = JSON.parse(value);
-				} catch {
-					// This might have been added to the localStorage by a extension rather than us. Let's just skip it.
-					continue;
-				}
-				localStorage.removeItem(propertyName);
-				if (value !== null) {
-					this.sessions[newId][propertyName] = value;
-					this.savePropertyToStorage(newId, propertyName);
-				}
+	async loadFromDatabase(db, key) {
+		return new Promise((resolve, reject) => {
+			const tx = db.transaction(this.storeName, 'readonly');
+			const store = tx.objectStore(this.storeName);
+			const request = store.get(key);
+
+			request.onsuccess = () => resolve(request.result);
+			request.onerror = () => reject(request.error);
+		});
+	}
+
+	async saveToDatabase(key, data) {
+		const db = await this.openDatabase();
+		return new Promise((resolve, reject) => {
+			const tx = db.transaction(this.storeName, 'readwrite');
+			const store = tx.objectStore(this.storeName);
+			const request = store.put(data, key);
+
+			request.onsuccess = () => resolve();
+			request.onerror = () => reject(request.error);
+		});
+	}
+
+	// We leave the localStorage content untouched for now,
+	// but we might want to erase it in the future.
+	async migrateSessions() {
+		const nextId = +localStorage.getItem('nextSessionId');
+		if (nextId == 0)
+			return false;
+		this.nextId = nextId;
+		this.selectedSession = +localStorage.getItem('selectedSessionId');
+		for (const key of Object.keys(localStorage)) {
+			const [sessionId, propertyName] = key.split('/');
+			if (propertyName === undefined) continue;
+			let value = localStorage.getItem(key);
+			try {
+				value = JSON.parse(value);
+			} catch {
+				// This might have been added to the localStorage by a extension rather than us. Let's just skip it.
+				continue;
 			}
-			this.switchSession(newId);
-		} else {
-			for (const key of Object.keys(localStorage)) {
-				const [sessionId, propertyName] = key.split('/');
-				if (propertyName === undefined) continue;
-				const value = this.loadPropertyFromStorage(sessionId, propertyName);
-				if (value !== null) {
-					this.sessions[sessionId] = this.sessions[sessionId] || {};
-					this.sessions[sessionId][propertyName] = value;
+			if (value !== null) {
+				this.sessions[sessionId] = this.sessions[sessionId] || {};
+				this.sessions[sessionId][propertyName] = value;
+			}
+		};
+		await this.saveToDatabase('nextSessionId', this.nextId);
+		await this.saveToDatabase('selectedSessionId', this.selectedSession);
+		for (const sessionId of Object.keys(this.sessions)) {
+			await this.saveToDatabase(+sessionId, this.sessions[sessionId]);
+		}
+		return true;
+	}
+
+	async loadSessions(db) {
+		return new Promise((resolve, reject) => {
+			const tx = db.transaction(this.storeName, 'readonly');
+			const store = tx.objectStore(this.storeName);
+			const request = store.openCursor();
+
+			request.onsuccess = async (event) => {
+				const cursor = event.target.result;
+				if (cursor) {
+					if (cursor.key !== 'nextSessionId' && cursor.key !== 'selectedSessionId') {
+						this.sessions[cursor.key] = cursor.value;
+					}
+					cursor.continue();
+				} else {
+					if (Object.keys(this.sessions).length === 0) {
+						if (!await this.migrateSessions()) {
+							await this.createSession('MikuPad #1');
+						}
+					}
+					await this.switchSession(this.selectedSession);
+					resolve();
 				}
 			};
-			this.switchSession(this.selectedSession);
-		}
-	}
-
-	saveToStorage() {
-		for (const sessionId of Object.keys(this.sessions)) {
-			for (const propertyName of Object.keys(this.sessions[sessionId])) {
-				this.savePropertyToStorage(sessionId, propertyName);
-			}
-		}
-	}
-
-	loadPropertyFromStorage(sessionId, propertyName) {
-		return JSON.parse(localStorage.getItem(`${sessionId}/${propertyName}`));
-	}
-
-	savePropertyToStorage(sessionId, propertyName) {
-		const value = this.sessions[sessionId][propertyName];
-		localStorage.setItem(`${sessionId}/${propertyName}`, JSON.stringify(value));
-	}
-
-	deletePropertyFromStorage(sessionId, propertyName) {
-		localStorage.removeItem(`${sessionId}/${propertyName}`);
+			request.onerror = () => reject(request.error);
+		});
 	}
 
 	getProperty(propertyName) {
@@ -1616,72 +1667,90 @@ class SessionStorage {
 	}
 
 	setProperty(propertyName, value) {
-		if (this.sessions[this.selectedSession]) {
-			this.sessions[this.selectedSession][propertyName] = value;
-			if (this.saveQueue.indexOf(`${this.selectedSession}/${propertyName}`) === -1)
-				this.saveQueue.push(`${this.selectedSession}/${propertyName}`);
-		}
+		if (!this.sessions[this.selectedSession])
+			return;
+		this.sessions[this.selectedSession][propertyName] = value;
+		if (!this.saveQueue.includes(this.selectedSession))
+			this.saveQueue.push(this.selectedSession);
 	}
 
-	switchSession(sessionId) {
-		this.selectedSession = sessionId;
-		localStorage.setItem('selectedSessionId', sessionId);
+	async switchSession(sessionId) {
+		if (!this.sessions[sessionId])
+			return;
+		this.selectedSession = +sessionId;
+		await this.saveToDatabase('selectedSessionId', this.selectedSession);
+
 		this.onchange?.();
 		this.onsessionchange?.();
+
+		const deepCopy = (value) => JSON.parse(JSON.stringify(value));
 		for (const propertyName of Object.keys(this.sessionTemplate)) {
-			this.updateDependents(propertyName, this.getProperty(propertyName) ?? this.sessionTemplate[propertyName]);
+			this.updateDependents(propertyName, this.getProperty(propertyName) ?? deepCopy(this.sessionTemplate[propertyName]));
 		}
 	}
 
-	renameSession(sessionId, renameSessionName) {
+	async renameSession(sessionId, renameSessionName) {
 		this.sessions[sessionId]['name'] = renameSessionName;
-		this.savePropertyToStorage(sessionId, 'name');
+		await this.saveToDatabase(sessionId, this.sessions[sessionId]);
+
 		this.onchange?.();
 	}
 
-	deleteSession(sessionId) {
+	async deleteSession(sessionId) {
 		if (Object.keys(this.sessions).length === 1)
 			return;
 		if (!window.confirm("Are you sure you want to delete this session? This action can't be undone."))
 			return;
-		if (sessionId == this.selectedSession) {
-			const sessionIds = Object.keys(this.sessions);
-			const sessionIdx = sessionIds.indexOf(sessionId);
-			const newSessionId = sessionIds[sessionIdx - 1] ?? sessionIds[sessionIdx + 1];
-			this.switchSession(+newSessionId)
-		}
-		for (const propertyName of Object.keys(this.sessions[sessionId])) {
-			this.deletePropertyFromStorage(sessionId, propertyName);
-		}
-		delete this.sessions[sessionId];
-		this.onchange?.();
+		const db = await this.openDatabase();
+		return new Promise((resolve, reject) => {
+			const tx = db.transaction(this.storeName, 'readwrite');
+			const store = tx.objectStore(this.storeName);
+			const request = store.delete(sessionId);
+
+			request.onsuccess = async () => {
+				// Select another session if the current was deleted
+				if (sessionId == this.selectedSession) {
+					const sessionIds = Object.keys(this.sessions).map(x => +x);
+					const sessionIdx = sessionIds.indexOf(sessionId);
+					const newSessionId = sessionIds[sessionIdx - 1] ?? sessionIds[sessionIdx + 1];
+					await this.switchSession(+newSessionId)
+				}
+
+				delete this.sessions[sessionId];
+				this.onchange?.();
+				resolve();
+			};
+			request.onerror = () => reject(request.error);
+		});
 	}
 
-	createSession(newSessionName) {
-		const newId = this.getNewId();
+	async createSession(newSessionName) {
+		const newId = await this.getNewId();
 		this.sessions[newId] = { name: newSessionName };
-		this.savePropertyToStorage(newId, 'name');
+		await this.saveToDatabase(newId, this.sessions[newId]);
+
 		onchange?.();
 		return newId;
 	}
 
-	createSessionFromObject(obj, cloned) {
-		const newId = this.getNewId();
+	async createSessionFromObject(obj, cloned) {
+		const newId = await this.getNewId();
 		this.sessions[newId] = {};
+
 		for (const [propertyName, value] of Object.entries(obj)) {
 			if (propertyName === 'darkMode') continue;
 			this.sessions[newId][propertyName] = JSON.parse(value);
-			this.savePropertyToStorage(newId, propertyName);
-		}
-		if (!this.sessions[newId].hasOwnProperty('name')) {
-			this.sessions[newId]['name'] = `MikuPad #${this.nextId + 1}`;
-			this.savePropertyToStorage(newId, 'name');
 		}
 
-		if (cloned) {
-			this.sessions[newId]['name'] = 'Cloned ' + this.sessions[newId]['name'];
-			this.savePropertyToStorage(newId, 'name');
+		if (!this.sessions[newId].hasOwnProperty('name')) {
+			this.sessions[newId]['name'] = `MikuPad #${this.nextId + 1}`;
 		}
+
+		if (cloned && !this.sessions[newId]['name'].startsWith('Cloned')) {
+			this.sessions[newId]['name'] = `Cloned ${this.sessions[newId]['name']}`;
+		}
+
+		await this.saveToDatabase(newId, this.sessions[newId]);
 
 		onchange?.();
 		return newId;
@@ -2043,13 +2112,6 @@ function replaceUnprintableBytes(inputString) {
 	return replacedString;
 }
 
-function useSessionStorage(defaultPresets) {
-	const ref = useRef();
-	if (!ref.current)
-		ref.current = new SessionStorage(defaultPresets);
-	return [ref.current, (name, initialState) => useSessionState(ref.current, name, initialState)];
-}
-
 function useSessionState(sessionStorage, name, initialState) {
 	const savedState = useMemo(() => {
 		try {
@@ -2097,8 +2159,7 @@ function usePersistentState(name, initialState) {
 	return [value, updateState];
 }
 
-export function App() {
-	const [sessionStorage, useSessionState] = useSessionStorage(defaultPresets);
+export function App({ sessionStorage, useSessionState }) {
 	const [templateStorage, setTemplateStorage] = usePersistentState('templateStorage', new TemplateCollection());
 	const promptArea = useRef();
 	const promptOverlay = useRef();
@@ -2489,7 +2550,7 @@ export function App() {
 		setUndoHovered(false);
 		return true;
 	}
-	
+
 	const [triggerPredict, setTriggerPredict] = useState(false);
 
 	function undoAndPredict() {
@@ -2499,7 +2560,7 @@ export function App() {
 			setTriggerPredict(true);
 		}
 	}
-	
+
 	useEffect(() => {
 		if (triggerPredict) {
 			predict();
@@ -3123,7 +3184,7 @@ export function App() {
 					onClick=${() => predict()}>
 					Predict
 				</button>
-				<button 
+				<button
 					title="Cancel prediction (Escape)"
 					disabled=${!cancel}
 					onClick=${cancel}>
@@ -3131,7 +3192,7 @@ export function App() {
 				</button>
 				<div className="shorts">
 				${!cancel && (!!undoStack.current.length || !!redoStack.current.length) && html`
-					<button 
+					<button
 						title="Regenerate (Ctrl + R)"
 						disabled=${!undoStack.current.length}
 						onClick=${() => undoAndPredict()}
@@ -3376,6 +3437,15 @@ export function App() {
 	`;
 }
 
-createRoot(document.body).render(html`<${App}/>`);
+async function main() {
+	const sessionStorage = new SessionStorage(defaultPresets);
+	await sessionStorage.init();
 
+	createRoot(document.body).render(html`
+		<${App}
+			sessionStorage=${sessionStorage}
+			useSessionState=${(name, initialState) => useSessionState(sessionStorage, name, initialState)}/>`);
+}
+
+main();
 </script>
