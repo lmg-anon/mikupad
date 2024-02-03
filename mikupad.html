@@ -106,6 +106,42 @@ html.nockoffAI {
 html.nockoffAI body {
 	background: var(--color-prompt-area)
 }
+html.selenized {
+	---color-bg-dark: #103C48;
+	--color-bg: #103C48;
+
+	--color-text: #CAD8D9;
+	--color-base-0: #CAD8D9;
+	--color-base-10: color-mix(in oklch, var(--color-base-100) 90%, var(--color-base-0));
+	--color-base-20: color-mix(in oklch, var(--color-base-100) 80%, var(--color-base-0));
+	--color-base-30: color-mix(in oklch, var(--color-base-100) 70%, var(--color-base-0));
+	--color-base-40: color-mix(in oklch, var(--color-base-100) 60%, var(--color-base-0));
+	--color-base-50: color-mix(in oklch, var(--color-base-100) 50%, var(--color-base-0));
+	--color-base-60: color-mix(in oklch, var(--color-base-100) 40%, var(--color-base-0));
+	--color-base-70: color-mix(in oklch, var(--color-base-100) 30%, var(--color-base-0));
+	--color-base-80: color-mix(in oklch, var(--color-base-100) 20%, var(--color-base-0));
+	--color-base-90: color-mix(in oklch, var(--color-base-100) 10%, var(--color-base-0));
+	--color-base-100: #72898F;
+	--color-dark: var(--color-base-100);
+	--color-light: #fff;
+	--color-input: #0e0f21;
+	--color-sidebar: var(--color-base-100);
+	--color-prompt-area: #191b31;
+	--color-hover: #13152c;
+	--color-button: #22253f;
+	--color-disabled: #161833;
+	--color-button-hover: #282b44;
+
+	--token-prob-box: #4a4a4a;
+
+	font-family: "Source Sans Pro", "Helvetica Neue", sans-serif;
+	font-size: 15.5px;
+
+	accent-color: var(--color-base-30);
+	background: var(--color-bg-dark);
+	color: var(--color-base-0);
+	color-scheme: dark;
+}
 
 html.monospace-dark {
 	---color-bg-dark: #282833;
@@ -2705,6 +2741,7 @@ export function App({ sessionStorage, useSessionState }) {
 					{ name: 'Serif Dark', value: 1 },
 					{ name: 'Monospace Dark', value: 2 },
 					{ name: 'nockoffAI', value: 3 },
+					{ name: 'Selenized', value: 4 },
 				]}/>
 			<div class="horz-separator"/>
 			<${CollapsibleGroup} label="Sessions">
