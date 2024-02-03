@@ -849,7 +849,7 @@ html.monospace-dark .horz-separator {
 </style>
 <script type="module">
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
 import { html } from 'htm/react';
 import { SVResizeObserver } from 'scrollview-resize';
@@ -1267,7 +1267,8 @@ function CollapsibleGroup({ label, expanded, children }) {
 	useEffect(() => {
 		setContentHeight(contentArea.current.scrollHeight);
 		const observer = new SVResizeObserver(() => {
-			setContentHeight(contentArea.current.scrollHeight);
+			if (contentArea?.current)
+				setContentHeight(contentArea.current.scrollHeight);
 		});
 		observer.observe(contentArea.current);
 		return () => observer.disconnect();
@@ -1763,6 +1764,7 @@ function Templates({ templateStorage, onSessionChange, disabled, promptArea, onI
 	const [version, setVersion] = useState(0);
 	const [newPrefix, setNewPrefix] = useState('');
 	const [newSuffix, setNewSuffix] = useState('');
+	const [newName, setNewName] = useState('');
 	const [renameSessionName, setRenameSessionName] = useState('');
 	const [isRenaming, setIsRenaming] = useState(false);
 	const [isCreating, setIsCreating] = useState(false);
@@ -1795,19 +1797,21 @@ function Templates({ templateStorage, onSessionChange, disabled, promptArea, onI
 		}
 	};
 
-	const deleteSession = (sessionId) => {
-		templateStorage.deleteSession(sessionId);
+	const deleteTemplate = (templateId) => {
+		templateStorage.removeTemplate(templateId);
 	};
 
 	const startCreateTemplate = () => {
+		setNewName('');
 		setNewPrefix('');
 		setNewSuffix('');
 		setIsCreating(true);
 	};
 
 	const createTemplate = () => {
-		if (newPrefix || newSuffix) {
-			templateStorage.templates.addTemplate(newPrefix, newSuffix);
+		if (newName && (newPrefix || newSuffix)) {
+			templateStorage.addTemplate(newName, newPrefix, newSuffix);
+			setIsCreating(false);
 		}
 	};
 	
@@ -1839,7 +1843,6 @@ function Templates({ templateStorage, onSessionChange, disabled, promptArea, onI
 		var element = document.createElement('a');
 		const sessionObj = { ...templateStorage.sessions[templateStorage.selectedSessionId] };
 		for (const [key, value] of Object.entries(sessionObj)) {
-			// This is done for compatibility with localStorage export files.
 			sessionObj[key] = JSON.stringify(value);
 		}
 		element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(JSON.stringify(sessionObj)));
@@ -1852,9 +1855,7 @@ function Templates({ templateStorage, onSessionChange, disabled, promptArea, onI
 
 	function handleKeyDown(sessionId, key) {
 		if (event.key === 'Enter') {
-			if (isCreating)
-				createTemplate();
-			else if (isRenaming)
+			if (isRenaming)
 				renameSession(sessionId);
 		} else if (event.key === 'Escape') {
 			if (isCreating)
@@ -1936,22 +1937,30 @@ function Templates({ templateStorage, onSessionChange, disabled, promptArea, onI
 			<ul>
 				${isCreating && html`
 					<li key=-1}>
-						<a className="Session">
+						<a className="Session" style=${{ display: 'flex', flexDirection: 'column' }}>
 							<div>
-								<label>Instruct:</label>
+								<label>Template name:</label>
 								<input
 									type="text"
-									value=${newPrefix}
-									onChange=${(e) => setNewPrefix(e.target.value)}
+									value=${newName}
+									onChange=${(e) => setNewName(e.target.value)}
 									onKeyDown=${(e) => handleKeyDown(undefined, e.key)}
 									onClick=${(e) => e.stopPropagation()}
 									autoFocus
 								/>
 							</div>
 							<div>
+								<label>Instruct:</label>
+								<textarea
+									value=${newPrefix}
+									onChange=${(e) => setNewPrefix(e.target.value)}
+									onKeyDown=${(e) => handleKeyDown(undefined, e.key)}
+									onClick=${(e) => e.stopPropagation()}
+								/>
+							</div>
+							<div>
 								<label>Response:</label>
-								<input
-									type="text"
+								<textarea
 									value=${newSuffix}
 									onChange=${(e) => setNewSuffix(e.target.value)}
 									onKeyDown=${(e) => handleKeyDown(undefined, e.key)}
@@ -1959,8 +1968,10 @@ function Templates({ templateStorage, onSessionChange, disabled, promptArea, onI
 								/>
 							</div>
 							<div className="flex-separator"></div>
-							<button onClick=${(e) => (createTemplate(), e.stopImmediatePropagation?.())}>${confirmSvg}</button>
-							<button onClick=${(e) => (setIsCreating(false), e.stopImmediatePropagation?.())}>${cancelSvg}</button>
+							<div style=${{ display: 'flex', flexDirection: 'row' }}>
+								<button onClick=${(e) => (createTemplate(), e.stopImmediatePropagation?.())}>${confirmSvg}</button>
+								<button onClick=${(e) => (setIsCreating(false), e.stopImmediatePropagation?.())}>${cancelSvg}</button>
+							</div>
 						</a>
 					</li>
 				`}
@@ -1988,7 +1999,7 @@ function Templates({ templateStorage, onSessionChange, disabled, promptArea, onI
 									${renameSvg}
 								</button>
 								<button
-									onClick=${(e) => (deleteSession(templateId), e.stopPropagation())}>
+									onClick=${(e) => (deleteTemplate(templateId), e.stopPropagation())}>
 									${trashSvg}
 								</button>
 							`}
@@ -2007,15 +2018,25 @@ function Templates({ templateStorage, onSessionChange, disabled, promptArea, onI
 
 
 class TemplateCollection {
-	constructor() {
+	constructor(changeListener = null, initialState = null) {
 		this.templates = new Map();
 		this.nextId = 1;
 		this.selectedTemplateId = 1;
-		this.onchange = null;
-		if (this.templates.size === 0)
-		{
+		this.changeListener = changeListener;
+
+		if (initialState) {
+			this.templates = initialState.templates;
+			this.nextId = initialState.nextId;
+			this.selectedTemplateId = initialState.selectedTemplateId;
+		} else {
 			this.addTemplate('Mixtral', '[INT]', '[/INT]');
 			this.addTemplate('Alpaca', '### Instruction:\n', '### Response:\n');
+		}
+	}
+
+	notifyChange() {
+		if (this.changeListener) {
+			this.changeListener(this);
 		}
 	}
 
@@ -2023,24 +2044,37 @@ class TemplateCollection {
 		const id = this.nextId++;
 		this.templates.set(id, { name, prefix, suffix });
 		this.selectedTemplateId = id;
+		this.notifyChange();
 		return id;
 	}
 
 	removeTemplate(id) {
 		this.templates.delete(id);
+		this.onchange?.();
+		this.notifyChange();
 	}
 
 	clear() {
 		this.templates.clear();
+		this.notifyChange();
 	}
 
 	switchTemplate(id) {
 		this.selectedTemplateId = id;
 		this.onchange?.();
+		this.notifyChange();
 	}
 
 	getCurrentTemplate() {
 		return this.templates.get(this.selectedTemplateId) || null;
+	}
+
+	setChangeListener(changeListener) {
+		this.changeListener = changeListener;
+	}
+
+	removeChangeListener(listener) {
+		this.changeListener = null;
 	}
 }
 
@@ -2159,8 +2193,60 @@ function usePersistentState(name, initialState) {
 	return [value, updateState];
 }
 
+
+function serializeTemplateCollection(collection) {
+	const templatesArray = [...collection.templates.entries()].map(([id, {name, prefix, suffix}]) => ({id, name, prefix, suffix}));
+	return JSON.stringify({
+		templates: templatesArray,
+		nextId: collection.nextId,
+		selectedTemplateId: collection.selectedTemplateId,
+	});
+}
+
+function deserializeTemplateCollection(serialized) {
+	const parsed = JSON.parse(serialized);
+	const collection = new TemplateCollection();
+	collection.templates.clear();
+	collection.nextId = parsed.nextId;
+	collection.selectedTemplateId = parsed.selectedTemplateId;
+	parsed.templates.forEach(({id, name, prefix, suffix}) => {
+		collection.templates.set(id, {name, prefix, suffix});
+		collection.nextId = Math.max(collection.nextId, id + 1);
+	});
+	return collection;
+}
+
+function usePersistentTemplateCollection(name, initialState) {
+	const handleChangeRef = useRef(null);
+	handleChangeRef.current = (newState) => {
+		setTemplateStorage(newState);
+		localStorage.setItem(name, serializeTemplateCollection(newState));
+	};
+	const [templateStorage, setTemplateStorage] = useState(() => {
+		const init = () => {
+		try {
+			const item = localStorage.getItem(name);
+			return item ? deserializeTemplateCollection(item, handleChangeRef.current) : new TemplateCollection(handleChangeRef.current);
+		} catch (e) {
+			console.error(e);
+			return new TemplateCollection(handleChangeRef.current);
+		}
+		};
+		return init();
+	});
+
+	useEffect(() => {
+		templateStorage.setChangeListener(handleChangeRef.current);
+		return () => {
+		templateStorage.removeChangeListener(handleChangeRef.current);
+		};
+	}, [templateStorage]);
+
+	return [templateStorage, setTemplateStorage];
+}
+
 export function App({ sessionStorage, useSessionState }) {
-	const [templateStorage, setTemplateStorage] = usePersistentState('templateStorage', new TemplateCollection());
+	const [templateStorage, setTemplateStorage] = usePersistentTemplateCollection('templateStorage', new TemplateCollection());
 	const promptArea = useRef();
 	const promptOverlay = useRef();
 	const undoStack = useRef([]);
