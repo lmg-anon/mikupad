@@ -1765,8 +1765,8 @@ function Templates({ templateStorage, onSessionChange, disabled, promptArea, onI
 	const [newPrefix, setNewPrefix] = useState('');
 	const [newSuffix, setNewSuffix] = useState('');
 	const [newName, setNewName] = useState('');
-	const [renameSessionName, setRenameSessionName] = useState('');
-	const [isRenaming, setIsRenaming] = useState(false);
+	const [isModifying, setIsModifying] = useState(false);
+	const [modifyingTemplateId, setModifyingTemplateId] = useState(null);
 	const [isCreating, setIsCreating] = useState(false);
 
 	useEffect(() => {
@@ -1790,10 +1790,10 @@ function Templates({ templateStorage, onSessionChange, disabled, promptArea, onI
 		};
 	}, []);
 
-	const renameSession = (sessionId) => {
-		if (renameSessionName) {
-			templateStorage.renameSession(sessionId, renameSessionName);
-			setIsRenaming(false);
+	const modifyTemplate = (templateId) => {
+		if (newName && (newPrefix || newSuffix)) {
+			templateStorage.modifyTemplate(templateId, newName, newPrefix, newSuffix);
+			setIsModifying(false);
 		}
 	};
 
@@ -1808,13 +1808,27 @@ function Templates({ templateStorage, onSessionChange, disabled, promptArea, onI
 		setIsCreating(true);
 	};
 
+	const startModifyingTemplate = (templateId) => {
+		const template = templateStorage.getTemplate(templateId);
+		setNewName(template.name);
+		setNewPrefix(template.prefix);
+		setNewSuffix(template.suffix);
+		setModifyingTemplateId(templateId);
+		setIsModifying(true);
+	};
+
 	const createTemplate = () => {
-		if (newName && (newPrefix || newSuffix)) {
+		if (isCreating && newName && (newPrefix || newSuffix)) {
 			templateStorage.addTemplate(newName, newPrefix, newSuffix);
 			setIsCreating(false);
 		}
+		else if (isModifying && newName && (newPrefix || newSuffix)) {
+			templateStorage.modifyTemplate(modifyingTemplateId, newName, newPrefix, newSuffix);
+			setIsModifying(false);
+			setModifyingTemplateId(null);
+		}
 	};
-	
+
 	const importSession = () => {
 		const fileInput = document.createElement("input");
 		fileInput.type = 'file';
@@ -1854,15 +1868,19 @@ function Templates({ templateStorage, onSessionChange, disabled, promptArea, onI
 	};
 
 	function handleKeyDown(sessionId, key) {
-		if (event.key === 'Enter') {
-			if (isRenaming)
-				renameSession(sessionId);
-		} else if (event.key === 'Escape') {
+		if (event.key === 'Escape') {
 			if (isCreating)
 				setIsCreating(false);
-			else if (isRenaming)
-				setIsRenaming(false);
+			else if (isModifying)
+				setIsModifying(false);
 		}
+	}
+
+	const cancelCreationScreen = () => {
+		if (isCreating)
+			setIsCreating(false);
+		else if (isModifying)
+			setIsModifying(false);
 	}
 
 	function insertTemplate() {
@@ -1935,7 +1953,7 @@ function Templates({ templateStorage, onSessionChange, disabled, promptArea, onI
 	return html`
 		<div className="Sessions ${disabled ? 'disabled' : ''}">
 			<ul>
-				${isCreating && html`
+				${(isCreating || isModifying) && html`
 					<li key=-1}>
 						<a className="Session" style=${{ display: 'flex', flexDirection: 'column' }}>
 							<div>
@@ -1970,7 +1988,7 @@ function Templates({ templateStorage, onSessionChange, disabled, promptArea, onI
 							<div className="flex-separator"></div>
 							<div style=${{ display: 'flex', flexDirection: 'row' }}>
 								<button onClick=${(e) => (createTemplate(), e.stopImmediatePropagation?.())}>${confirmSvg}</button>
-								<button onClick=${(e) => (setIsCreating(false), e.stopImmediatePropagation?.())}>${cancelSvg}</button>
+								<button onClick=${(e) => (cancelCreationScreen(), e.stopImmediatePropagation?.())}>${cancelSvg}</button>
 							</div>
 						</a>
 					</li>
@@ -1979,23 +1997,11 @@ function Templates({ templateStorage, onSessionChange, disabled, promptArea, onI
 					<li key=${templateId}>
 						<a className="Session ${templateStorage.selectedTemplateId == templateId ? 'selected' : ''}"
 							onClick=${() => templateStorage.switchTemplate(templateId)}>
-							${isRenaming === templateId ? html`
-								<input
-									type="text"
-									value=${name}
-									onChange=${(e) => setRenameSessionName(e.target.value)}
-									onKeyDown=${(e) => handleKeyDown(templateId, e.key)}
-									onClick=${(e) => e.stopPropagation()},
-									autoFocus
-								/>
-								<div className="flex-separator"></div>
-								<button onClick=${(e) => (renameSession(templateId), e.stopImmediatePropagation())}>${confirmSvg}</button>
-								<button onClick=${(e) => (setIsRenaming(false), e.stopImmediatePropagation())}>${cancelSvg}</button>
-							` : html`
+							${html`
 								${name}
 								<div className="flex-separator"></div>
 								<button
-									onClick=${(e) => (startRenameSession(templateId, name), e.stopPropagation())}>
+									onClick=${(e) => (startModifyingTemplate(templateId), e.stopPropagation())}>
 									${renameSvg}
 								</button>
 								<button
@@ -2069,12 +2075,25 @@ class TemplateCollection {
 		return this.templates.get(this.selectedTemplateId) || null;
 	}
 
+	getTemplate(templateId) {
+		return this.templates.get(templateId) || null;
+	}
+
 	setChangeListener(changeListener) {
 		this.changeListener = changeListener;
 	}
 
 	removeChangeListener(listener) {
 		this.changeListener = null;
+	}
+
+	modifyTemplate(modifyingTemplateId, newName, newPrefix, newSuffix) {
+		const template = this.getTemplate(modifyingTemplateId);
+		template.name = newName;
+		template.prefix = newPrefix;
+		template.suffix = newSuffix;
+		this.onchange?.();
+		this.notifyChange();
 	}
 }
 
@@ -2217,29 +2236,33 @@ function deserializeTemplateCollection(serialized) {
 }
 
 function usePersistentTemplateCollection(name, initialState) {
-	const handleChangeRef = useRef(null);
-	handleChangeRef.current = (newState) => {
-		setTemplateStorage(newState);
-		localStorage.setItem(name, serializeTemplateCollection(newState));
-	};
+	const handleChangeRef = useRef(() => {});
+
 	const [templateStorage, setTemplateStorage] = useState(() => {
 		const init = () => {
-		try {
-			const item = localStorage.getItem(name);
-			return item ? deserializeTemplateCollection(item, handleChangeRef.current) : new TemplateCollection(handleChangeRef.current);
-		} catch (e) {
-			console.error(e);
-			return new TemplateCollection(handleChangeRef.current);
-		}
+			try {
+				const item = localStorage.getItem(name);
+				return item ? deserializeTemplateCollection(item) : new TemplateCollection();
+			} catch (e) {
+				console.error(e);
+				return new TemplateCollection();
+			}
 		};
 		return init();
 	});
 
+	handleChangeRef.current = (newState) => {
+		setTemplateStorage(newState);
+		localStorage.setItem(name, serializeTemplateCollection(newState));
+	};
+
 	useEffect(() => {
-		templateStorage.setChangeListener(handleChangeRef.current);
-		return () => {
-		templateStorage.removeChangeListener(handleChangeRef.current);
-		};
+		if (templateStorage.setChangeListener && templateStorage.removeChangeListener) {
+			templateStorage.setChangeListener(handleChangeRef.current);
+			return () => {
+				templateStorage.removeChangeListener(handleChangeRef.current);
+			};
+		}
 	}, [templateStorage]);
 
 	return [templateStorage, setTemplateStorage];
