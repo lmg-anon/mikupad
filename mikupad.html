@@ -2326,6 +2326,7 @@ export function App({ sessionStorage, useSessionState }) {
 		document.documentElement.classList.remove('serif-dark');
 		document.documentElement.classList.remove('monospace-dark');
 		document.documentElement.classList.remove('nockoffAI');
+		document.documentElement.classList.remove('selenized');
 		switch (theme) {
 		case 1:
 			document.documentElement.classList.add('serif-dark');
@@ -2335,6 +2336,9 @@ export function App({ sessionStorage, useSessionState }) {
 			break;
 		case 3:
 			document.documentElement.classList.add('nockoffAI');
+			break;
+		case 4:
+			document.documentElement.classList.add('selenized');
 			break;
 		}
 	}, [theme]);
