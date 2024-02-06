@@ -2764,14 +2764,13 @@ export function App({ sessionStorage, useSessionState }) {
 				<${InputBox} label="Temperature" type="number" step="0.01"
 					readOnly=${!!cancel} value=${temperature} onValueChange=${setTemperature}/>
 				${(!openaiPresets || endpointAPI != 3) && html`
-					${endpointAPI != 0 && html`
-						<div className="hbox">
-							<${InputBox} label="DynaTemp Range" type="number" step="0.01"
-								readOnly=${!!cancel} value=${dynaTempRange} onValueChange=${setDynaTempRange}/>
-							${endpointAPI != 2 && html`
-								<${InputBox} label="DynaTemp Exp" type="number" step="0.01"
-									readOnly=${!!cancel} value=${dynaTempExp} onValueChange=${setDynaTempExp}/>`}
-						</div>`}
+					<div className="hbox">
+						<${InputBox} label="DynaTemp Range" type="number" step="0.01"
+							readOnly=${!!cancel} value=${dynaTempRange} onValueChange=${setDynaTempRange}/>
+						${(endpointAPI != 2) && html`
+							<${InputBox} label="DynaTemp Exp" type="number" step="0.01"
+								readOnly=${!!cancel} value=${dynaTempExp} onValueChange=${setDynaTempExp}/>`}
+					</div>
 					<div className="hbox">
 						<${InputBox} label="Repeat penalty" type="number" step="0.01"
 							readOnly=${!!cancel} value=${repeatPenalty} onValueChange=${setRepeatPenalty}/>
