@@ -1142,7 +1142,6 @@ function openaiConvertOptions(options, isOpenAI) {
 		options.dynamic_temperature = true;
 		options.dynatemp_low = Math.max(0, options.temperature - options.dynatemp_range);
 		options.dynatemp_high = Math.max(0, options.temperature + options.dynatemp_range);
-		delete options.dynatemp_range;
 	}
 	if (!isOpenAI && options.temperature === 0) {
 		// oobabooga specific.
@@ -1776,7 +1775,7 @@ const defaultPresets = {
 	maxPredictTokens: -1,
 	temperature: 0.7,
 	dynaTempRange: 0,
-	dynaTempExp: 0,
+	dynaTempExp: 1,
 	repeatPenalty: 1.1,
 	repeatLastN: 256,
 	penalizeNl: false,
