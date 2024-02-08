@@ -9,7 +9,7 @@
   -- You should have received a copy of the CC0 legalcode along with this
   -- work.  If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
   -->
-<title>mikupad!</title>
+<title>mikupad</title>
 <script type="importmap">
 {
 	"imports": {
@@ -23,152 +23,160 @@
 <style>
 
 html {
-	--color-miku: #009bb3;
-	--color-base-0: oklch(0.20 0.02 60);
-	--color-base-10: color-mix(in oklch, var(--color-base-100) 10%, var(--color-base-0));
-	--color-base-20: color-mix(in oklch, var(--color-base-100) 20%, var(--color-base-0));
-	--color-base-30: color-mix(in oklch, var(--color-base-100) 30%, var(--color-base-0));
-	--color-base-40: color-mix(in oklch, var(--color-base-100) 40%, var(--color-base-0));
-	--color-base-50: color-mix(in oklch, var(--color-base-100) 50%, var(--color-base-0));
-	--color-base-60: color-mix(in oklch, var(--color-base-100) 60%, var(--color-base-0));
-	--color-base-70: color-mix(in oklch, var(--color-base-100) 70%, var(--color-base-0));
-	--color-base-80: color-mix(in oklch, var(--color-base-100) 80%, var(--color-base-0));
-	--color-base-90: color-mix(in oklch, var(--color-base-100) 90%, var(--color-base-0));
-	--color-base-100: oklch(0.95 0.04 70);
-	--color-dark: var(--color-base-0);
-	--color-light: var(--color-base-100);
+	--color-miku:         #009bb3;
+	--color-base-0:       oklch(0.20 0.02 60);
+	--color-base-10:      color-mix(in oklch, var(--color-base-100) 10%, var(--color-base-0));
+	--color-base-20:      color-mix(in oklch, var(--color-base-100) 20%, var(--color-base-0));
+	--color-base-30:      color-mix(in oklch, var(--color-base-100) 30%, var(--color-base-0));
+	--color-base-40:      color-mix(in oklch, var(--color-base-100) 40%, var(--color-base-0));
+	--color-base-50:      color-mix(in oklch, var(--color-base-100) 50%, var(--color-base-0));
+	--color-base-60:      color-mix(in oklch, var(--color-base-100) 60%, var(--color-base-0));
+	--color-base-70:      color-mix(in oklch, var(--color-base-100) 70%, var(--color-base-0));
+	--color-base-80:      color-mix(in oklch, var(--color-base-100) 80%, var(--color-base-0));
+	--color-base-90:      color-mix(in oklch, var(--color-base-100) 90%, var(--color-base-0));
+	--color-base-100:     oklch(0.95 0.04 70);
+	--color-dark:         var(--color-base-0);
+	--color-light:        var(--color-base-100);
 
-	font-family: serif;
-	font-size: 16px;
-	min-height: 100%;
-	display: flex;
-	flex-direction: column;
+	font-family:          serif;
+	font-size:            16px;
+	min-height:           100%;
+	display:              flex;
+	flex-direction:       column;
 
-	accent-color: var(--color-base-30);
-	background: var(--color-base-20);
-	color: var(--color-base-0);
+	accent-color:         var(--color-base-30);
+	background:           var(--color-base-20);
+	color:                var(--color-base-0);
 }
 
 html.serif-dark {
-	--color-base-0: oklch(0.95 0.04 30);
-	--color-base-10: color-mix(in oklch, var(--color-base-100) 10%, var(--color-base-0));
-	--color-base-20: color-mix(in oklch, var(--color-base-100) 80%, var(--color-base-0));
-	--color-base-30: color-mix(in oklch, var(--color-base-100) 70%, var(--color-base-0));
-	--color-base-40: color-mix(in oklch, var(--color-base-100) 60%, var(--color-base-0));
-	--color-base-50: color-mix(in oklch, var(--color-base-100) 50%, var(--color-base-0));
-	--color-base-60: color-mix(in oklch, var(--color-base-100) 40%, var(--color-base-0));
-	--color-base-70: color-mix(in oklch, var(--color-base-100) 30%, var(--color-base-0));
-	--color-base-80: color-mix(in oklch, var(--color-base-100) 20%, var(--color-base-0));
-	--color-base-90: color-mix(in oklch, var(--color-base-100) 10%, var(--color-base-0));
-	--color-base-100: oklch(0.20 0.02 30);
-	--color-dark: var(--color-base-100);
-	--color-light: var(--color-base-0);
+	--color-base-0:       oklch(0.95 0.04 30);
+	--color-base-10:      color-mix(in oklch, var(--color-base-100) 10%, var(--color-base-0));
+	--color-base-20:      color-mix(in oklch, var(--color-base-100) 80%, var(--color-base-0));
+	--color-base-30:      color-mix(in oklch, var(--color-base-100) 70%, var(--color-base-0));
+	--color-base-40:      color-mix(in oklch, var(--color-base-100) 60%, var(--color-base-0));
+	--color-base-50:      color-mix(in oklch, var(--color-base-100) 50%, var(--color-base-0));
+	--color-base-60:      color-mix(in oklch, var(--color-base-100) 40%, var(--color-base-0));
+	--color-base-70:      color-mix(in oklch, var(--color-base-100) 30%, var(--color-base-0));
+	--color-base-80:      color-mix(in oklch, var(--color-base-100) 20%, var(--color-base-0));
+	--color-base-90:      color-mix(in oklch, var(--color-base-100) 10%, var(--color-base-0));
+	--color-base-100:     oklch(0.20 0.02 30);
+	--color-dark:         var(--color-base-100);
+	--color-light:        var(--color-base-0);
 
-	color-scheme: dark;
+	color-scheme:         dark;
 }
 
 html.nockoffAI {
-	---color-bg-dark: #191b31;
-	--color-bg: #191b31;
+	---color-bg-dark:     #191b31;
+	--color-bg:           #191b31;
 
-	--color-text: #fff;
-	--color-base-0: #fff;
-	--color-base-10: color-mix(in oklch, var(--color-base-100) 90%, var(--color-base-0));
-	--color-base-20: color-mix(in oklch, var(--color-base-100) 80%, var(--color-base-0));
-	--color-base-30: color-mix(in oklch, var(--color-base-100) 70%, var(--color-base-0));
-	--color-base-40: color-mix(in oklch, var(--color-base-100) 60%, var(--color-base-0));
-	--color-base-50: color-mix(in oklch, var(--color-base-100) 50%, var(--color-base-0));
-	--color-base-60: color-mix(in oklch, var(--color-base-100) 40%, var(--color-base-0));
-	--color-base-70: color-mix(in oklch, var(--color-base-100) 30%, var(--color-base-0));
-	--color-base-80: color-mix(in oklch, var(--color-base-100) 20%, var(--color-base-0));
-	--color-base-90: color-mix(in oklch, var(--color-base-100) 10%, var(--color-base-0));
-	--color-base-100: #13152c;
-	--color-dark: var(--color-base-100);
-	--color-light: #fff;
-	--color-input: #0e0f21;
-	--color-sidebar: var(--color-base-100);
-	--color-prompt-area: #191b31;
-	--color-hover: #13152c;
-	--color-button: #22253f;
-	--color-disabled: #161833;
+	--color-text:         #fff;
+	--color-base-0:       #fff;
+	--color-base-10:      color-mix(in oklch, var(--color-base-100) 90%, var(--color-base-0));
+	--color-base-20:      color-mix(in oklch, var(--color-base-100) 80%, var(--color-base-0));
+	--color-base-30:      color-mix(in oklch, var(--color-base-100) 70%, var(--color-base-0));
+	--color-base-40:      color-mix(in oklch, var(--color-base-100) 60%, var(--color-base-0));
+	--color-base-50:      color-mix(in oklch, var(--color-base-100) 50%, var(--color-base-0));
+	--color-base-60:      color-mix(in oklch, var(--color-base-100) 40%, var(--color-base-0));
+	--color-base-70:      color-mix(in oklch, var(--color-base-100) 30%, var(--color-base-0));
+	--color-base-80:      color-mix(in oklch, var(--color-base-100) 20%, var(--color-base-0));
+	--color-base-90:      color-mix(in oklch, var(--color-base-100) 10%, var(--color-base-0));
+	--color-base-100:     #13152c;
+	--color-dark:         var(--color-base-100);
+	--color-light:        #fff;
+	--color-input:        #0e0f21;
+	--color-sidebar:      var(--color-base-100);
+	--color-prompt-area:  #191b31;
+	--color-hover:        #13152c;
+	--color-button:       #22253f;
+	--color-disabled:     #161833;
 	--color-button-hover: #282b44;
 
-	--token-prob-box: #4a4a4a;
+	--token-prob-box:     #4a4a4a;
 
-	font-family: "Source Sans Pro", "Helvetica Neue", sans-serif;
-	font-size: 15.5px;
+	font-family:          "Source Sans Pro", "Helvetica Neue", sans-serif;
+	font-size:            15.5px;
 
-	accent-color: var(--color-base-30);
-	background: var(--color-bg-dark);
-	color: var(--color-base-0);
-	color-scheme: dark;
+	accent-color:          var(--color-base-30);
+	background:            var(--color-bg-dark);
+	color:                 var(--color-base-0);
+	color-scheme:          dark;
 }
 html.nockoffAI body {
-	background: var(--color-prompt-area)
+	background:            var(--color-prompt-area)
 }
 html.selenized {
-	---color-bg-dark: #103C48;
-	--color-bg: #103C48;
+	---color-bg-dark:     #103C48;
+	--color-bg:           #103C48;
+	--color-text:         #CAD8D9;
+	--color-base-0:       #CAD8D9;
+	--color-base-10:      color-mix(in oklch, var(--color-base-100) 10%, var(--color-base-0));
+	--color-base-20:      color-mix(in oklch, var(--color-base-100) 20%, var(--color-base-0));
+	--color-base-30:      color-mix(in oklch, var(--color-base-100) 30%, var(--color-base-0));
+	--color-base-40:      color-mix(in oklch, var(--color-base-100) 40%, var(--color-base-0));
+	--color-base-50:      color-mix(in oklch, var(--color-base-100) 50%, var(--color-base-0));
+	--color-base-60:      color-mix(in oklch, var(--color-base-100) 60%, var(--color-base-0));
+	--color-base-70:      color-mix(in oklch, var(--color-base-100) 70%, var(--color-base-0));
+	--color-base-80:      color-mix(in oklch, var(--color-base-100) 80%, var(--color-base-0));
+	--color-base-90:      color-mix(in oklch, var(--color-base-100) 90%, var(--color-base-0));
+	--color-base-100:     #103C48;
+	--color-base-150:     #081e24;
+	--color-dark:         var(--color-base-100);
+	--color-light:        #CAD8D9;
+	--color-input:        #FA5750;
+	--color-sidebar:      var(--color-base-100);
+	--color-prompt-area:  #CAD8D9;
+	--color-hover:        #4695F7;
+	--color-button:       #75B938;
+	--color-disabled:     #72898F;
+	--color-button-hover: #DBB32D;
 
-	--color-text: #CAD8D9;
-	--color-base-0: #CAD8D9;
-	--color-base-10: color-mix(in oklch, var(--color-base-100) 90%, var(--color-base-0));
-	--color-base-20: color-mix(in oklch, var(--color-base-100) 80%, var(--color-base-0));
-	--color-base-30: color-mix(in oklch, var(--color-base-100) 70%, var(--color-base-0));
-	--color-base-40: color-mix(in oklch, var(--color-base-100) 60%, var(--color-base-0));
-	--color-base-50: color-mix(in oklch, var(--color-base-100) 50%, var(--color-base-0));
-	--color-base-60: color-mix(in oklch, var(--color-base-100) 40%, var(--color-base-0));
-	--color-base-70: color-mix(in oklch, var(--color-base-100) 30%, var(--color-base-0));
-	--color-base-80: color-mix(in oklch, var(--color-base-100) 20%, var(--color-base-0));
-	--color-base-90: color-mix(in oklch, var(--color-base-100) 10%, var(--color-base-0));
-	--color-base-100: #72898F;
-	--color-dark: var(--color-base-100);
-	--color-light: #fff;
-	--color-input: #0e0f21;
-	--color-sidebar: var(--color-base-100);
-	--color-prompt-area: #191b31;
-	--color-hover: #13152c;
-	--color-button: #22253f;
-	--color-disabled: #161833;
-	--color-button-hover: #282b44;
+	--token-prob-box:     #FF665C;
 
-	--token-prob-box: #4a4a4a;
+	font-family:           "Source Sans Pro", "Helvetica Neue", sans-serif;
+	font-size:             15.5px;
 
-	font-family: "Source Sans Pro", "Helvetica Neue", sans-serif;
-	font-size: 15.5px;
+	accent-color:          var(--color-base-90);
+	background:            var(--color-bg-dark);
+	color:                 var(--color-base-0);
+	color-scheme:          dark;
+}
 
-	accent-color: var(--color-base-30);
-	background: var(--color-bg-dark);
-	color: var(--color-base-0);
-	color-scheme: dark;
+html.selenized body {
+	background:            var(--color-base-150)
+}
+
+html.selenized #sidebar {
+	background:            var(--color-base-100)
 }
 
 html.monospace-dark {
-	---color-bg-dark: #282833;
-	--color-bg: #202020;
-	--color-text: #bababa;
-	--color-base-0: oklch(77.65% 0.0752 285.22);
-	--color-base-10: color-mix(in oklch, var(--color-base-100) 90%, var(--color-base-0));
-	--color-base-20: color-mix(in oklch, var(--color-base-100) 80%, var(--color-base-0));
-	--color-base-30: color-mix(in oklch, var(--color-base-100) 70%, var(--color-base-0));
-	--color-base-40: color-mix(in oklch, var(--color-base-100) 60%, var(--color-base-0));
-	--color-base-50: color-mix(in oklch, var(--color-base-100) 50%, var(--color-base-0));
-	--color-base-60: color-mix(in oklch, var(--color-base-100) 40%, var(--color-base-0));
-	--color-base-70: color-mix(in oklch, var(--color-base-100) 30%, var(--color-base-0));
-	--color-base-80: color-mix(in oklch, var(--color-base-100) 20%, var(--color-base-0));
-	--color-base-90: color-mix(in oklch, var(--color-base-100) 10%, var(--color-base-0));
-	--color-base-100: oklch(24.28% 0.015 285.22);
-	--color-dark: var(--color-base-100);
-	--color-light: var(--color-base-0);
-	--token-prob-box: #4a4a4a;
+	---color-bg-dark:     #282833;
+	--color-bg:           #202020;
+	--color-text:         #bababa;
+	--color-base-0:       oklch(77.65% 0.0752 285.22);
+	--color-base-10:      color-mix(in oklch, var(--color-base-100) 90%, var(--color-base-0));
+	--color-base-20:      color-mix(in oklch, var(--color-base-100) 80%, var(--color-base-0));
+	--color-base-30:      color-mix(in oklch, var(--color-base-100) 70%, var(--color-base-0));
+	--color-base-40:      color-mix(in oklch, var(--color-base-100) 60%, var(--color-base-0));
+	--color-base-50:      color-mix(in oklch, var(--color-base-100) 50%, var(--color-base-0));
+	--color-base-60:      color-mix(in oklch, var(--color-base-100) 40%, var(--color-base-0));
+	--color-base-70:      color-mix(in oklch, var(--color-base-100) 30%, var(--color-base-0));
+	--color-base-80:      color-mix(in oklch, var(--color-base-100) 20%, var(--color-base-0));
+	--color-base-90:      color-mix(in oklch, var(--color-base-100) 10%, var(--color-base-0));
+	--color-base-100:     oklch(24.28% 0.015 285.22);
+	--color-dark:         var(--color-base-100);
+	--color-light:        var(--color-base-0);
+	--token-prob-box:     #4a4a4a;
 
-	font-family: monospace;
-	font-size: 15px;
+	font-family:           monospace;
+	font-size:             15px;
 
-	accent-color: var(--color-base-30);
-	background: var(--color-bg-dark);
-	color: var(--color-base-0);
-	color-scheme: dark;
+	accent-color:          var(--color-base-30);
+	background:            var(--color-bg-dark);
+	color:                 var(--color-base-0);
+	color-scheme:          dark;
 }
 
 body {
@@ -414,6 +422,11 @@ html.nockoffAI  #context-order-desc,
 html.nockoffAI .modal-desc {
 	color:var(--color-base-80);
 }
+
+html.selenized .modal {
+	background:var(--color-base-100);
+}
+
 .modal-content {
 	overflow-y: auto;
 }
@@ -571,6 +584,22 @@ html.nockoffAI #sidebar {
 	color: inherit;
 	background: var(--color-base-30);
 	flex: none;
+}
+
+html.selenized .InputBox > input,
+html.selenized .SelectBox > select,
+html.selenized .TextArea > textarea,
+html.selenized .collapsible-header,
+html.selenized button {
+	background: var(--color-base-90);
+}
+
+html.selenized button:hover {
+	background: var(--color-base-70);
+}
+
+html.selenized button:disabled {
+	background: var(--color-base-60);
 }
 
 html.monospace-dark .InputBox > input, html.monospace-dark .SelectBox > select,
