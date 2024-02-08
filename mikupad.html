@@ -367,6 +367,9 @@ html.nockoffAI #probs {
 	display: flex;
 	flex-direction: column;
 }
+html.monospace-dark .modal {
+	background: #282833;
+}
 html.nockoffAI .modal {
 	background: var(--color-sidebar);
 	color:var(--color-base-50);
@@ -1142,7 +1145,6 @@ function openaiConvertOptions(options, isOpenAI) {
 		options.dynamic_temperature = true;
 		options.dynatemp_low = Math.max(0, options.temperature - options.dynatemp_range);
 		options.dynatemp_high = Math.max(0, options.temperature + options.dynatemp_range);
-		delete options.dynatemp_range;
 	}
 	if (!isOpenAI && options.temperature === 0) {
 		// oobabooga specific.
@@ -2113,7 +2115,7 @@ const defaultPresets = {
 	maxPredictTokens: -1,
 	temperature: 0.7,
 	dynaTempRange: 0,
-	dynaTempExp: 0,
+	dynaTempExp: 1,
 	repeatPenalty: 1.1,
 	repeatLastN: 256,
 	penalizeNl: false,
@@ -3164,14 +3166,13 @@ export function App({ sessionStorage, useSessionState }) {
 				<${InputBox} label="Temperature" type="number" step="0.01"
 					readOnly=${!!cancel} value=${temperature} onValueChange=${setTemperature}/>
 				${(!openaiPresets || endpointAPI != 3) && html`
-					${endpointAPI != 0 && html`
-						<div className="hbox">
-							<${InputBox} label="DynaTemp Range" type="number" step="0.01"
-								readOnly=${!!cancel} value=${dynaTempRange} onValueChange=${setDynaTempRange}/>
-							${endpointAPI != 2 && html`
-								<${InputBox} label="DynaTemp Exp" type="number" step="0.01"
-									readOnly=${!!cancel} value=${dynaTempExp} onValueChange=${setDynaTempExp}/>`}
-						</div>`}
+					<div className="hbox">
+						<${InputBox} label="DynaTemp Range" type="number" step="0.01"
+							readOnly=${!!cancel} value=${dynaTempRange} onValueChange=${setDynaTempRange}/>
+						${(endpointAPI != 2) && html`
+							<${InputBox} label="DynaTemp Exp" type="number" step="0.01"
+								readOnly=${!!cancel} value=${dynaTempExp} onValueChange=${setDynaTempExp}/>`}
+					</div>
 					<div className="hbox">
 						<${InputBox} label="Repeat penalty" type="number" step="0.01"
 							readOnly=${!!cancel} value=${repeatPenalty} onValueChange=${setRepeatPenalty}/>
