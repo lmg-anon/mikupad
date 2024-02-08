@@ -1759,7 +1759,7 @@ class SessionStorage {
 }
 
 
-function Templates({ templateStorage, onSessionChange, disabled, promptArea, onInput }) {
+function Templates({ templateStorage, disabled, promptArea, onInput, setTemplateStorage }) {
 	
 	const [version, setVersion] = useState(0);
 	const [newPrefix, setNewPrefix] = useState('');
@@ -1784,11 +1784,10 @@ function Templates({ templateStorage, onSessionChange, disabled, promptArea, onI
 	});
 
 	useEffect(() => {
-		templateStorage.onchange = () => setVersion(v => v + 1);
-		return () => {
-			sessionStorage.onchange = null;
-		};
-	}, []);
+	templateStorage.onchange = () => setVersion(v => v + 1);
+	return () => {
+		templateStorage.onchange = null;
+	};}, [templateStorage]);
 
 	const modifyTemplate = (templateId) => {
 		if (newName && (newPrefix || newSuffix)) {
@@ -1829,7 +1828,7 @@ function Templates({ templateStorage, onSessionChange, disabled, promptArea, onI
 		}
 	};
 
-	const importSession = () => {
+	const importTemplate = () => {
 		const fileInput = document.createElement("input");
 		fileInput.type = 'file';
 		fileInput.style.display = 'none';
@@ -1845,22 +1844,19 @@ function Templates({ templateStorage, onSessionChange, disabled, promptArea, onI
 			reader.readAsText(file);
 		};
 		fileInput.func = (text) => {
-			const newId = templateStorage.createSessionFromObject(JSON.parse(text));
-			templateStorage.switchSession(newId);
+			const newStorage = deserializeTemplateCollection(text);
+		    setTemplateStorage(newStorage);
 		};
 		document.body.appendChild(fileInput);
 		fileInput.click();
 		document.body.removeChild(fileInput);
 	};
 
-	const exportSession = () => {
+	const exportTemplate = () => {
 		var element = document.createElement('a');
-		const sessionObj = { ...templateStorage.sessions[templateStorage.selectedSessionId] };
-		for (const [key, value] of Object.entries(sessionObj)) {
-			sessionObj[key] = JSON.stringify(value);
-		}
-		element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(JSON.stringify(sessionObj)));
-		element.setAttribute('download', `${templateStorage.getProperty('name')}.json`);
+		const serializedJson = serializeTemplateCollection(templateStorage)
+		element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(serializedJson));
+		element.setAttribute('download', `instruct templates.json`);
 		element.style.display = 'none';
 		document.body.appendChild(element);
 		element.click();
@@ -2015,8 +2011,8 @@ function Templates({ templateStorage, onSessionChange, disabled, promptArea, onI
 			</ul>
 			<div className="vbox">
 				<button disabled=${disabled} onClick=${startCreateTemplate}>Create</button>
-				<button disabled=${disabled} onClick=${importSession}>Import</button>
-				<button disabled=${disabled} onClick=${exportSession}>Export</button>
+				<button disabled=${disabled} onClick=${importTemplate}>Import</button>
+				<button disabled=${disabled} onClick=${exportTemplate}>Export</button>
 				<button disabled=${disabled} onClick=${insertTemplate}>Insert</button>
 			</div>
 		</div>`;
@@ -3113,8 +3109,8 @@ export function App({ sessionStorage, useSessionState }) {
 				<${Templates} templateStorage=${ templateStorage}
 					promptArea=${promptArea}
 					disabled=${!!cancel}
-					onSessionChange=${onSessionChange},
-					onInput=${onInput} />
+					onInput=${onInput},
+					setTemplateStorage=${setTemplateStorage} />
 			</${CollapsibleGroup}>
 			<${CollapsibleGroup} label="Parameters" expanded>
 				<${InputBox} label="Server"
