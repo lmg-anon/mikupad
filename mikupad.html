@@ -195,7 +195,7 @@ body {
 #prompt-container {
 	position: relative;
 	font-size: 1.125rem;
-	max-width: 36em;
+	max-width: 35em; /* Default display value is set by onLoad() and modified by the modal buttons! */
 	margin-right: auto;
 	margin-left: auto;
 	flex: 1;
@@ -204,8 +204,8 @@ body {
 }
 @media (min-width: calc(40.5em + 250px)) {
 	body.attachSidebar #prompt-container {
-		min-width: 36em;
-		max-width: 36em;
+		min-width: 35em;
+		max-width: 35em;
 	}
 }
 
@@ -411,9 +411,6 @@ html.nockoffAI #probs {
 	display: flex;
 	flex-direction: column;
 }
-html.monospace-dark .modal {
-	background: #282833;
-}
 html.nockoffAI .modal {
 	background: var(--color-sidebar);
 	color:var(--color-base-50);
@@ -447,6 +444,22 @@ html.selenized .modal {
 	font-size: 150%;
 	font-weight:bold;
 	margin-bottom: .25em;
+}
+
+.modal-width-adjustment {
+	margin-top: 20px;
+}
+
+.modal-width-adjustment button {
+	font-family: monospace;
+	background: #FF00FF;
+}
+
+#modal-width-readout {
+	width: 3em;
+	text-align: center;
+	margin: 0 auto;
+	font-family: monospace;
 }
 
 hr {
@@ -1210,6 +1223,7 @@ function openaiConvertOptions(options, isOpenAI) {
 		options.dynamic_temperature = true;
 		options.dynatemp_low = Math.max(0, options.temperature - options.dynatemp_range);
 		options.dynatemp_high = Math.max(0, options.temperature + options.dynatemp_range);
+		delete options.dynatemp_range;
 	}
 	if (!isOpenAI && options.temperature === 0) {
 		// oobabooga specific.
@@ -1579,6 +1593,24 @@ function Sessions({ sessionStorage, onSessionChange, disabled }) {
 		</div>`;
 }
 
+function onLoad() {
+	// Any other general task we want to do when the page is loaded.
+	setTimeout(() => {
+		try {
+			document.getElementById("prompt-container").style.maxWidth = "36em";
+			// You can't actually get the width from the element unless you do some
+			// stupid workaround like "get the computed width in pixels, get the
+			// font size, do math on pixels, and convert to em". Instead, we'll just
+			// manually set it to be "36em" so it can be interacted with by the modal.
+
+			// document.getElementsByClassName("modal-width-readout")[0].value = "36";
+		} catch(e) {
+			reportError(e);
+		}
+	}, 1000);
+}
+
+
 class SessionStorage {
 	constructor(defaultPresets) {
 		this.dbName = 'MikuPad';
@@ -1843,7 +1875,7 @@ const defaultPresets = {
 	maxPredictTokens: -1,
 	temperature: 0.7,
 	dynaTempRange: 0,
-	dynaTempExp: 1,
+	dynaTempExp: 0,
 	repeatPenalty: 1.1,
 	repeatLastN: 256,
 	penalizeNl: false,
@@ -1956,6 +1988,7 @@ export function App({ sessionStorage, useSessionState }) {
 	const [preserveCursorPosition, setPreserveCursorPosition] = usePersistentState('preserveCursorPosition', true);
 	const [darkMode, _] = usePersistentState('darkMode', false); // legacy
 	const [theme, setTheme] = usePersistentState('theme', darkMode ? 1 : 0);
+	// const [boxWidth, setBoxWidth] = usePersistentState('boxWidth', boxWidth);
 	const [endpoint, setEndpoint] = useSessionState('endpoint', defaultPresets.endpoint);
 	const [endpointAPI, setEndpointAPI] = useSessionState('endpointAPI', defaultPresets.endpointAPI);
 	const [endpointAPIKey, setEndpointAPIKey] = useSessionState('endpointAPIKey', defaultPresets.endpointAPIKey);
@@ -2337,6 +2370,18 @@ export function App({ sessionStorage, useSessionState }) {
 		if (didUndo) {
 			setTriggerPredict(true);
 		}
+	}
+
+
+	function adjustWidth(adjustment) {
+
+		var width = document.getElementById("prompt-container").style.maxWidth.replace("em", "").trim();
+		width = String(parseInt(width) + parseInt(adjustment))
+		if (width < 1){
+			width = 1;
+		}
+		document.getElementById("prompt-container").style.maxWidth = width + "em";
+		document.getElementById("modal-width-readout").value = width
 	}
 
 	useEffect(() => {
@@ -2836,13 +2881,14 @@ export function App({ sessionStorage, useSessionState }) {
 				<${InputBox} label="Temperature" type="number" step="0.01"
 					readOnly=${!!cancel} value=${temperature} onValueChange=${setTemperature}/>
 				${(!openaiPresets || endpointAPI != 3) && html`
-					<div className="hbox">
-						<${InputBox} label="DynaTemp Range" type="number" step="0.01"
-							readOnly=${!!cancel} value=${dynaTempRange} onValueChange=${setDynaTempRange}/>
-						${(endpointAPI != 2) && html`
-							<${InputBox} label="DynaTemp Exp" type="number" step="0.01"
-								readOnly=${!!cancel} value=${dynaTempExp} onValueChange=${setDynaTempExp}/>`}
-					</div>
+					${endpointAPI != 0 && html`
+						<div className="hbox">
+							<${InputBox} label="DynaTemp Range" type="number" step="0.01"
+								readOnly=${!!cancel} value=${dynaTempRange} onValueChange=${setDynaTempRange}/>
+							${endpointAPI != 2 && html`
+								<${InputBox} label="DynaTemp Exp" type="number" step="0.01"
+									readOnly=${!!cancel} value=${dynaTempExp} onValueChange=${setDynaTempExp}/>`}
+						</div>`}
 					<div className="hbox">
 						<${InputBox} label="Repeat penalty" type="number" step="0.01"
 							readOnly=${!!cancel} value=${repeatPenalty} onValueChange=${setRepeatPenalty}/>
@@ -3023,6 +3069,14 @@ export function App({ sessionStorage, useSessionState }) {
 						{ name: 'Show on hover while holding CTRL', value: 1 },
 						{ name: 'Don\'t show', value: -1 },
 					]}/>
+				<div className="modal-width-adjustment">
+					<span>Box width: </span>
+					<button onClick=${() => adjustWidth(-5)}>⟪</button>
+					<button onClick=${() => adjustWidth(-1)}>⟨</button>
+					<input type="text" value="35" id="modal-width-readout" readOnly />
+					<button onClick=${() => adjustWidth( 1)}>〉</button>
+					<button onClick=${() => adjustWidth( 5)}>⟫</button>
+				</div>
 			</div>
 		</${Modal}>
 
@@ -3216,6 +3270,7 @@ export function App({ sessionStorage, useSessionState }) {
 async function main() {
 	const sessionStorage = new SessionStorage(defaultPresets);
 	await sessionStorage.init();
+	onLoad();
 
 	createRoot(document.body).render(html`
 		<${App}
