@@ -2012,10 +2012,10 @@ function Templates({ templateStorage, disabled, promptArea, onInput, setTemplate
 				`)}
 			</ul>
 			<div className="vbox">
-				<button disabled=${disabled} onClick=${startCreateTemplate}>Create</button>
-				<button disabled=${disabled} onClick=${importTemplate}>Import</button>
-				<button disabled=${disabled} onClick=${exportTemplate}>Export</button>
-				<button disabled=${disabled} onClick=${insertTemplate}>Insert</button>
+				<button disabled=${disabled} title="Add a new template" onClick=${startCreateTemplate}>Create</button>
+				<button disabled=${disabled} title="Import templates from a JSON file" onClick=${importTemplate}>Import</button>
+				<button disabled=${disabled} title="Export all your templates to a JSON file" onClick=${exportTemplate}>Export</button>
+				<button disabled=${disabled} title="Insert the template at the cursor position (Ctrl + Insert)" onClick=${insertTemplate}>Insert</button>
 			</div>
 		</div>`;
 }
@@ -2858,6 +2858,7 @@ export function App({ sessionStorage, useSessionState }) {
 			case 'false:false:true:y':
 				if (cancel || !redo()) return;
 				break;
+				
 			default:
 				keyState.current = e;
 				return;
