@@ -2274,6 +2274,15 @@ export function App({ sessionStorage, useSessionState }) {
 		}
 	}
 
+	function setTitleToSession() {
+		const sessionName = sessionStorage.getProperty('name');
+		document.title = sessionName ? 'mikupad - ' + sessionName : 'mikupad';
+	}
+
+	useEffect(() => {
+		setTitleToSession();
+	}, [sessionStorage]);
+
 	useEffect(() => {
 		if (triggerPredict) {
 			predict();
@@ -2649,6 +2658,7 @@ export function App({ sessionStorage, useSessionState }) {
 		redoStack.current = [];
 		undoStack.current = [];
 		setUndoHovered(false);
+		setTitleToSession();
 	}
 
 	const probs = useMemo(() =>
