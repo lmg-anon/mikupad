@@ -2018,6 +2018,18 @@ export function App({ sessionStorage, useSessionState }) {
 		}));
 	};
 
+	const exportPadText = () => {
+		const textBlob = new Blob([promptArea.current.value], {type: 'text/plain;charset=utf-8'});
+		const textURL = URL.createObjectURL(textBlob);
+		var element = document.createElement('a');
+		element.setAttribute('href', textURL);
+		element.setAttribute('download', `${sessionStorage.getProperty('name') || 'default'}.txt`);
+		document.body.appendChild(element);
+		element.click();
+		URL.revokeObjectURL(textURL);
+		document.body.removeChild(element);
+	};
+
 	const promptText = useMemo(() => joinPrompt(promptChunks), [promptChunks]);
 
 	// compute separately as I imagine this can get expensive
@@ -2953,6 +2965,9 @@ export function App({ sessionStorage, useSessionState }) {
 						{ name: 'Show on hover while holding CTRL', value: 1 },
 						{ name: 'Don\'t show', value: -1 },
 					]}/>
+				<div style=${{ display: 'flex', justifyContent: 'flex-start' }}>
+					<button onClick=${exportPadText}>Export prompt to plaintext</button>
+				</div>
 			</div>
 		</${Modal}>
 
