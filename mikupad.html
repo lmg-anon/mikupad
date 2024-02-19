@@ -503,12 +503,22 @@ html.nockoffAI #sidebar {
 	color: var(--color-base-50);
 }
 
+.flex1 {
+	flex: 1;
+}
+
 .hbox {
 	flex: none;
 	display: grid;
 	grid: auto / auto-flow minmax(min-content, 1fr);
 	gap: 8px;
 }
+.hbox-flex {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
 .vbox {
 	flex: none;
 	display: grid;
@@ -524,7 +534,7 @@ html.nockoffAI #sidebar {
 	font-size: 0.75rem;
 	padding: 0 8px;
 }
-.InputBox > input, .SelectBox > select, .TextArea > textarea {
+.InputBox > div > input, .SelectBox > select, .TextArea > textarea {
 	appearance: none;
 	border: none;
 	outline: none;
@@ -537,33 +547,32 @@ html.nockoffAI #sidebar {
 	border-radius: 2px;
 	color: inherit;
 	background: var(--color-base-30);
-	flex: none;
 }
 
-html.monospace-dark .InputBox > input, html.monospace-dark .SelectBox > select,
-html.nockoffAI .InputBox > input, html.nockoffAI .SelectBox > select {
+html.monospace-dark .InputBox > div > input, html.monospace-dark .SelectBox > select,
+html.nockoffAI .InputBox > div > input, html.nockoffAI .SelectBox > select {
 	color: var(--color-light);
 }
 
-.InputBox > input:read-only {
+.InputBox > div > input:read-only {
 	background: var(--color-base-60);
 }
-html.monospace-dark .InputBox > input:read-only {
+html.monospace-dark .InputBox > div > input:read-only {
 	background: var(--color-base-30);
 }
-html.nockoffAI .InputBox > input:read-only {
+html.nockoffAI .InputBox > div > input:read-only {
 	background: var(--color-disabled);
 }
 html.nockoffAI .SelectBox > select,
 html.nockoffAI .collapsible-header,
-html.nockoffAI .InputBox > input {
+html.nockoffAI .InputBox > div > input {
 	background: var(--color-input);
 }
 html.nockoffAI .horz-separator {
 	border-top: 3px dotted color-mix(in oklch, var(--color-base-100) 90%, var(--color-light));
 }
 
-.InputBox > input:focus-visible {
+.InputBox > div > input:focus-visible {
 	outline: 1px solid var(--color-base-0);
 }
 .SelectBox > select:disabled {
@@ -581,11 +590,18 @@ html.nockoffAI .SelectBox > select:disabled {
   	bottom: .08em;
 }
 
-.InputBox > input.mixed-content {
+.InputBox > div > input.mixed-content {
 	outline: 1px solid yellow;
 }
-.InputBox > input.rejected {
+.InputBox > div > input.rejected {
 	outline: 1px solid #ff3131;
+}
+
+.InputBox > div > button {
+	margin-left: 4px;
+	padding: 4px;
+	line-height: 0;
+	margin-right: -8px;
 }
 
 .tooltip {
@@ -1199,27 +1215,31 @@ async function openaiOobaAbortCompletion({ endpoint }) {
 	}
 }
 
-function InputBox({ label, tooltip, tooltipSize, value, type, datalist, onValueChange, ...props }) {
+function InputBox({ label, className, tooltip, tooltipSize, value, type, datalist, onValueChange, children, ...props }) {
 	return html`
 		<label className="InputBox ${tooltip ? 'tooltip' : ''}">
 			${label}
-			<input
-				type=${type || 'text'}
-				list="${datalist ? label : ''}"
-				value=${value}
-				size="1"
-				onChange=${({ target }) => {
-					let value = type === 'number' ? target.valueAsNumber : target.value;
-					if (props.inputmode === 'numeric') {
-						props.pattern = '^-?[0-9]*$';
-						if (value && !isNaN(+value))
-							value = +target.value;
-					}
-					if (props.pattern && !new RegExp(props.pattern).test(value))
-						return;
-					onValueChange(value);
-				}}
-				...${props}/>
+			<div className="${children ? 'hbox-flex' : ''}">
+				<input
+					className="flex1 ${className}"
+					type=${type || 'text'}
+					list="${datalist ? label : ''}"
+					value=${value}
+					size="1"
+					onChange=${({ target }) => {
+						let value = type === 'number' ? target.valueAsNumber : target.value;
+						if (props.inputmode === 'numeric') {
+							props.pattern = '^-?[0-9]*$';
+							if (value && !isNaN(+value))
+								value = +target.value;
+						}
+						if (props.pattern && !new RegExp(props.pattern).test(value))
+							return;
+						onValueChange(value);
+					}}
+					...${props}/>
+				${children}
+			</div>
 			${datalist && html`
 				<datalist id="${label}">
 					${datalist.map(opt => html`
@@ -1530,15 +1550,11 @@ class SessionStorage {
 	}
 
 	async init() {
-		try {
-			const db = await this.openDatabase();
-			this.nextId = (await this.loadFromDatabase(db, 'nextSessionId')) || 0;
-			this.selectedSession = (await this.loadFromDatabase(db, 'selectedSessionId')) || 0;
-			await this.loadSessions(db);
-			this.saveTimer = setInterval(async () => await this.saveTimerHandler(), 500);
-		} catch (e) {
-			reportError(e);
-		}
+		const db = await this.openDatabase();
+		this.nextId = (await this.loadFromDatabase(db, 'nextSessionId')) || 0;
+		this.selectedSession = (await this.loadFromDatabase(db, 'selectedSessionId')) || 0;
+		await this.loadSessions(db);
+		this.saveTimer = setInterval(async () => await this.saveTimerHandler(), 500);
 	}
 
 	async openDatabase() {
@@ -1759,6 +1775,114 @@ class SessionStorage {
 	}
 }
 
+class WebSessionStorage extends SessionStorage {
+	constructor(defaultPresets) {
+		super(defaultPresets);
+	}
+
+	async openDatabase() {
+		return async (route, options) => {
+			try {
+				return await fetch(new URL(route, "http://127.0.0.1:3000/"), {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json',
+						//'Authorization': `Bearer ${endpointAPIKey}`,
+					},
+					body: JSON.stringify(options),
+					//signal,
+				});
+			} catch (e) {
+				reportError(e);
+				return { ok: false, status: -1 };
+			}
+		};
+	}
+
+	async loadFromDatabase(db, key) {
+		return new Promise(async (resolve, reject) => {
+			const res = await db("/load", { key });
+			if (!res.ok) {
+				if (res.status == 404) {
+					resolve(undefined);
+				} else {
+					reject();
+				}
+				return;
+			}
+			const { result } = await res.json();
+			resolve(result);
+		});
+	}
+
+	async saveToDatabase(key, data) {
+		const db = await this.openDatabase();
+		return new Promise(async (resolve, reject) => {
+			const res = await db("/save", { data, key });
+			if (!res.ok) {
+				reject();
+				return;
+			}
+			const { result } = await res.json();
+			resolve(result);
+		});
+	}
+
+	async loadSessions(db) {
+		return new Promise(async (resolve, reject) => {
+			const res = await db("/sessions");
+			if (!res.ok) {
+				reject();
+				return;
+			}
+			const { result } = await res.json();
+			const sessions = result;
+
+			for (const [key, value] of Object.entries(sessions)) {
+				if (key !== 'nextSessionId' && key !== 'selectedSessionId') {
+					this.sessions[key] = value;
+				}
+			}
+
+			if (Object.keys(this.sessions).length === 0) {
+				if (!await this.migrateSessions()) {
+					await this.createSession('MikuPad #1');
+				}
+			}
+
+			await this.switchSession(this.selectedSession);
+			resolve();
+		});
+	}
+
+	async deleteSession(sessionId) {
+		if (Object.keys(this.sessions).length === 1)
+			return;
+		if (!window.confirm("Are you sure you want to delete this session? This action can't be undone."))
+			return;
+		const db = await this.openDatabase();
+		return new Promise(async (resolve, reject) => {
+			const res = await db("/delete", { sessionId });
+			if (!res.ok) {
+				reject();
+				return;
+			}
+			
+			// Select another session if the current was deleted
+			if (sessionId == this.selectedSession) {
+				const sessionIds = Object.keys(this.sessions).map(x => +x);
+				const sessionIdx = sessionIds.indexOf(sessionId);
+				const newSessionId = sessionIds[sessionIdx - 1] ?? sessionIds[sessionIdx + 1];
+				await this.switchSession(+newSessionId)
+			}
+
+			delete this.sessions[sessionId];
+			this.onchange?.();
+			resolve();
+		});
+	}
+}
+
 const defaultPrompt = `[INST] <<SYS>>
 You are a talented writing assistant. Always respond by incorporating the instructions into expertly written prose that is highly detailed, evocative, vivid and engaging.
 <</SYS>>
@@ -1873,7 +1997,8 @@ function usePersistentState(name, initialState) {
 	return [value, updateState];
 }
 
-export function App({ sessionStorage, useSessionState }) {
+export function App({ sessionStorageRef }) {
+	const { sessionStorage, useSessionState } = sessionStorageRef;
 	const promptArea = useRef();
 	const promptOverlay = useRef();
 	const undoStack = useRef([]);
@@ -1891,6 +2016,9 @@ export function App({ sessionStorage, useSessionState }) {
 	const [preserveCursorPosition, setPreserveCursorPosition] = usePersistentState('preserveCursorPosition', true);
 	const [darkMode, _] = usePersistentState('darkMode', false); // legacy
 	const [theme, setTheme] = usePersistentState('theme', darkMode ? 1 : 0);
+	const [sessionEndpoint, setSessionEndpoint] = usePersistentState('sessionEndpoint', '');
+	const [sessionEndpointConnecting, setSessionEndpointConnecting] = useState(false);
+	const [sessionEndpointConnected, setSessionEndpointConnected] = useState(false);
 	const [endpoint, setEndpoint] = useSessionState('endpoint', defaultPresets.endpoint);
 	const [endpointAPI, setEndpointAPI] = useSessionState('endpointAPI', defaultPresets.endpointAPI);
 	const [endpointAPIKey, setEndpointAPIKey] = useSessionState('endpointAPIKey', defaultPresets.endpointAPIKey);
@@ -2665,6 +2793,45 @@ export function App({ sessionStorage, useSessionState }) {
 		return isHttps && (url.protocol !== 'https:' && url.protocol !== 'wss:');
 	}
 
+	async function toggleSessionServer() {
+		if (!sessionEndpointConnected) {
+			setSessionEndpointConnecting(true);
+
+			const ac = new AbortController();
+			const cancelThis = () => ac.abort();
+			setCancel(() => cancelThis);
+
+			const sessionStorage = new WebSessionStorage(defaultPresets);
+			sessionStorage.dependents = sessionStorageRef.sessionStorage.dependents;
+			sessionStorage.onchange = sessionStorageRef.sessionStorage.onchange;
+			sessionStorage.onsessionchange = sessionStorageRef.sessionStorage.onsessionchange;
+			try {
+				await sessionStorage.init();
+			} catch (e) {
+				setCancel(null);
+				setSessionEndpointConnecting(false);
+				return;
+			}
+			sessionStorageRef.setSessionStorage(sessionStorage);
+
+			setCancel(null);
+			setSessionEndpointConnecting(false);
+			setSessionEndpointConnected(true);
+		} else {
+			setSessionEndpointConnecting(true);
+
+			const sessionStorage = new SessionStorage(defaultPresets);
+			sessionStorage.dependents = sessionStorageRef.sessionStorage.dependents;
+			sessionStorage.onchange = sessionStorageRef.sessionStorage.onchange;
+			sessionStorage.onsessionchange = sessionStorageRef.sessionStorage.onsessionchange;
+			await sessionStorage.init();
+			sessionStorageRef.setSessionStorage(sessionStorage);
+
+			setSessionEndpointConnecting(false);
+			setSessionEndpointConnected(false);
+		}
+	}
+
 	function onSessionChange() {
 		// TODO: Store the undo/redo in the session.
 		redoStack.current = [];
@@ -2732,6 +2899,19 @@ export function App({ sessionStorage, useSessionState }) {
 				]}/>
 			<div class="horz-separator"/>
 			<${CollapsibleGroup} label="Sessions">
+				<${InputBox} label="Session Server"
+					className="${isMixedContent() ? 'mixed-content' : ''}"
+					tooltip="${isMixedContent() ? 'This URL might be blocked due to mixed content. If the connection fails, download mikupad.html and run it locally.' : ''}"
+					readOnly=${!!cancel}
+					value=${sessionEndpoint}
+					onValueChange=${setSessionEndpoint}>
+					<button
+						className="${sessionEndpointConnecting ? 'processing' : ''}"
+						disabled=${!!cancel}
+						onClick=${toggleSessionServer}>
+						<svg fill="${sessionEndpointConnected ? 'limegreen' : 'var(--color-light)'}" width="16" height="16" viewBox="0 0 135 135"><path d="M 68.589358,96.528086 86.974134,78.143309 c 1.561999,-1.561998 1.561999,-4.094855 0,-5.656854 -1.561999,-1.561999 -4.094855,-1.561999 -5.656854,0 L 62.932504,90.871232 44.547727,72.486455 62.932504,54.101679 c 1.561999,-1.561999 1.561999,-4.094856 0,-5.656854 -1.561999,-1.561999 -4.094856,-1.561999 -5.656854,0 L 38.890873,66.829601 32.526912,60.46564 21.213204,71.779348 C 10.950256,82.042296 9.6788776,97.889973 17.396241,109.53744 L 0,126.93368 8.4852813,135.41896 25.881523,118.02272 c 11.647463,7.71736 27.49514,6.44598 37.758088,-3.81697 l 11.313708,-11.3137 -6.363961,-6.363964 z"/><path d="m 102.89204,74.953321 11.31372,-11.313712 c 10.26295,-10.262948 11.53433,-26.110625 3.81696,-37.758088 L 135.41896,8.48528 126.93368,0 109.53744,17.396239 C 97.889972,9.67888 82.042292,10.95025 71.779342,21.213202 l -11.3137,11.313708 c 41.502088,41.502087 0.33001,0.330023 42.426398,42.426411 z"/></svg>
+					</button>
+				</${InputBox}>
 				<${Sessions} sessionStorage=${sessionStorage}
 					disabled=${!!cancel}
 					onSessionChange=${onSessionChange}/>
@@ -2907,14 +3087,14 @@ export function App({ sessionStorage, useSessionState }) {
 			<div className="buttons">
 				<button
 					title="Run next prediction (Ctrl + Enter)"
-					className=${cancel ? (predictStartTokens === tokens ? 'processing' : 'completing') : ''}
+					className=${cancel && !sessionEndpointConnecting ? (predictStartTokens === tokens ? 'processing' : 'completing') : ''}
 					disabled=${!!cancel || stoppingStringsError}
 					onClick=${() => predict()}>
 					Predict
 				</button>
 				<button
 					title="Cancel prediction (Escape)"
-					disabled=${!cancel}
+					disabled=${!cancel || sessionEndpointConnecting}
 					onClick=${cancel}>
 					Cancel
 				</button>
@@ -3172,10 +3352,17 @@ async function main() {
 	const sessionStorage = new SessionStorage(defaultPresets);
 	await sessionStorage.init();
 
-	createRoot(document.body).render(html`
-		<${App}
-			sessionStorage=${sessionStorage}
-			useSessionState=${(name, initialState) => useSessionState(sessionStorage, name, initialState)}/>`);
+	const sessionStorageRef = {
+		sessionStorage: sessionStorage,
+		setSessionStorage: (sessionStorage) => {
+			sessionStorageRef.sessionStorage = sessionStorage;
+			sessionStorageRef.useSessionState = (name, initialState) => useSessionState(sessionStorage, name, initialState);
+		},
+		useSessionState: (name, initialState) => useSessionState(sessionStorage, name, initialState),
+	};
+
+	const root = createRoot(document.body);
+	root.render(html`<${App} sessionStorageRef=${sessionStorageRef}/>`);
 }
 
 main();
