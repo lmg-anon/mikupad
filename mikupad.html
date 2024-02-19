@@ -1776,14 +1776,15 @@ class SessionStorage {
 }
 
 class WebSessionStorage extends SessionStorage {
-	constructor(defaultPresets) {
+	constructor(defaultPresets, sessionEndpoint) {
 		super(defaultPresets);
+		this.sessionEndpoint = sessionEndpoint;
 	}
 
 	async openDatabase() {
 		return async (route, options) => {
 			try {
-				return await fetch(new URL(route, "http://127.0.0.1:3000/"), {
+				return await fetch(new URL(route, this.sessionEndpoint), {
 					method: 'POST',
 					headers: {
 						'Content-Type': 'application/json',
@@ -1794,7 +1795,7 @@ class WebSessionStorage extends SessionStorage {
 				});
 			} catch (e) {
 				reportError(e);
-				return { ok: false, status: -1 };
+				return { ok: false, status: e.toString() };
 			}
 		};
 	}
@@ -2801,7 +2802,7 @@ export function App({ sessionStorageRef }) {
 			const cancelThis = () => ac.abort();
 			setCancel(() => cancelThis);
 
-			const sessionStorage = new WebSessionStorage(defaultPresets);
+			const sessionStorage = new WebSessionStorage(defaultPresets, sessionEndpoint);
 			sessionStorage.dependents = sessionStorageRef.sessionStorage.dependents;
 			sessionStorage.onchange = sessionStorageRef.sessionStorage.onchange;
 			sessionStorage.onsessionchange = sessionStorageRef.sessionStorage.onsessionchange;
