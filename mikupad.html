@@ -1807,7 +1807,7 @@ class WebSessionStorage extends SessionStorage {
 				if (res.status == 404) {
 					resolve(undefined);
 				} else {
-					reject();
+					reject(res.status);
 				}
 				return;
 			}
@@ -1821,7 +1821,7 @@ class WebSessionStorage extends SessionStorage {
 		return new Promise(async (resolve, reject) => {
 			const res = await db("/save", { data, key });
 			if (!res.ok) {
-				reject();
+				reject(res.status);
 				return;
 			}
 			const { result } = await res.json();
@@ -1833,7 +1833,7 @@ class WebSessionStorage extends SessionStorage {
 		return new Promise(async (resolve, reject) => {
 			const res = await db("/sessions");
 			if (!res.ok) {
-				reject();
+				reject(res.status);
 				return;
 			}
 			const { result } = await res.json();
@@ -1865,7 +1865,7 @@ class WebSessionStorage extends SessionStorage {
 		return new Promise(async (resolve, reject) => {
 			const res = await db("/delete", { sessionId });
 			if (!res.ok) {
-				reject();
+				reject(res.status);
 				return;
 			}
 			
@@ -2020,6 +2020,7 @@ export function App({ sessionStorageRef }) {
 	const [sessionEndpoint, setSessionEndpoint] = usePersistentState('sessionEndpoint', '');
 	const [sessionEndpointConnecting, setSessionEndpointConnecting] = useState(false);
 	const [sessionEndpointConnected, setSessionEndpointConnected] = useState(false);
+	const [sessionEndpointError, setSessionEndpointError] = useState(undefined);
 	const [endpoint, setEndpoint] = useSessionState('endpoint', defaultPresets.endpoint);
 	const [endpointAPI, setEndpointAPI] = useSessionState('endpointAPI', defaultPresets.endpointAPI);
 	const [endpointAPIKey, setEndpointAPIKey] = useSessionState('endpointAPIKey', defaultPresets.endpointAPIKey);
@@ -2795,6 +2796,8 @@ export function App({ sessionStorageRef }) {
 	}
 
 	async function toggleSessionServer() {
+		setSessionEndpointError(undefined);
+		
 		if (!sessionEndpointConnected) {
 			setSessionEndpointConnecting(true);
 
@@ -2809,6 +2812,7 @@ export function App({ sessionStorageRef }) {
 			try {
 				await sessionStorage.init();
 			} catch (e) {
+				setSessionEndpointError(e);
 				setCancel(null);
 				setSessionEndpointConnecting(false);
 				return;
@@ -2901,8 +2905,9 @@ export function App({ sessionStorageRef }) {
 			<div class="horz-separator"/>
 			<${CollapsibleGroup} label="Sessions">
 				<${InputBox} label="Session Server"
-					className="${isMixedContent() ? 'mixed-content' : ''}"
-					tooltip="${isMixedContent() ? 'This URL might be blocked due to mixed content. If the connection fails, download mikupad.html and run it locally.' : ''}"
+					className="${sessionEndpointError ? 'rejected' : (isMixedContent() ? 'mixed-content' : '')}"
+					tooltip="${sessionEndpointError ? sessionEndpointError : (isMixedContent() ? 'This URL might be blocked due to mixed content. If the connection fails, download mikupad.html and run it locally.' : '')}"
+					tooltipSize="short"
 					readOnly=${!!cancel}
 					value=${sessionEndpoint}
 					onValueChange=${setSessionEndpoint}>
