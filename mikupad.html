@@ -956,6 +956,8 @@ async function* parseEventStream(eventStream) {
 			}
 			// We only emit message-type events for now (and assume JSON)
 			if (data && (type || 'message') === 'message') {
+				if (data === '[DONE]')
+					break;
 				const json = JSON.parse(data);
 				// Both Chrome and Firefox suck at debugging
 				// text/event-stream, so make it easier by logging events
