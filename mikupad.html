@@ -2282,6 +2282,7 @@ export function App({ sessionStorage, useSessionState }) {
 
 	function undoAndPredict() {
 		if (!undoStack.current.length) return;
+		if (triggerPredict) return;
 		const didUndo = undo();
 		if (didUndo) {
 			setTriggerPredict(true);
@@ -2302,7 +2303,7 @@ export function App({ sessionStorage, useSessionState }) {
 			predict();
 			setTriggerPredict(false);
 		}
-	}, [triggerPredict, predict]);
+	}, [triggerPredict]);
 
 	useLayoutEffect(() => {
 		if (attachSidebar)
