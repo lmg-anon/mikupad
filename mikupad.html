@@ -884,6 +884,9 @@ export async function getTokenCount({ endpoint, endpointAPI, endpointAPIKey, sig
 			return await koboldCppTokenCount({ endpoint, signal, ...options });
 		case 3: // openai // TODO: Fix this for official OpenAI?
 			let tokenCount = 0;
+			tokenCount = await openaiAphroditeTokenCount({ endpoint, endpointAPIKey, signal, ...options });
+			if (tokenCount != -1)
+				return tokenCount;
 			tokenCount = await openaiOobaTokenCount({ endpoint, signal, ...options });
 			if (tokenCount != -1)
 				return tokenCount;
@@ -1069,6 +1072,29 @@ async function koboldCppAbortCompletion({ endpoint }) {
 	await fetch(new URL('/api/extra/abort', endpoint), {
 		method: 'POST',
 	});
+}
+
+async function openaiAphroditeTokenCount({ endpoint, endpointAPIKey, signal, ...options }) {
+	try {
+		const res = await fetch(new URL('/v1/token/encode', endpoint), {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				'Authorization': `Bearer ${endpointAPIKey}`,
+			},
+			body: JSON.stringify({
+				prompt: options.content
+			}),
+			signal,
+		});
+		if (!res.ok)
+			throw new Error(`HTTP ${res.status}`);
+		const tokens = await res.json();
+		return tokens.length;
+	} catch (e) {
+		reportError(e);
+		return -1;
+	}
 }
 
 async function openaiOobaTokenCount({ endpoint, signal, ...options }) {
