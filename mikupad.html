@@ -2397,7 +2397,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 			// restart right away (???)
 			let cancelled = false;
 			setCancel(() => () => cancelled = true);
-			await new Promise(resolve => setTimeout(resolve, 1000));
+			await new Promise(resolve => setTimeout(resolve, 500));
 			if (cancelled)
 				return;
 		}

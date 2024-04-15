@@ -12,4 +12,4 @@ if %errorlevel% neq 0 (
 )
 
 call npm install --no-audit
-call npm start
+call node server.js %*
