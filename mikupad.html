@@ -505,12 +505,22 @@ html.nockoffAI #sidebar {
 	width: 255px;
 }
 
+.flex1 {
+	flex: 1;
+}
+
 .hbox {
 	flex: none;
 	display: grid;
 	grid: auto / auto-flow minmax(min-content, 1fr);
 	gap: 8px;
 }
+.hbox-flex {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
 .vbox {
 	flex: none;
 	display: grid;
@@ -526,7 +536,7 @@ html.nockoffAI #sidebar {
 	font-size: 0.75rem;
 	padding: 0 8px;
 }
-.InputBox > input, .SelectBox > select, .TextArea > textarea {
+.InputBox > div > input, .SelectBox > select, .TextArea > textarea {
 	appearance: none;
 	border: none;
 	outline: none;
@@ -539,33 +549,32 @@ html.nockoffAI #sidebar {
 	border-radius: 2px;
 	color: inherit;
 	background: var(--color-base-30);
-	flex: none;
 }
 
-html.monospace-dark .InputBox > input, html.monospace-dark .SelectBox > select,
-html.nockoffAI .InputBox > input, html.nockoffAI .SelectBox > select {
+html.monospace-dark .InputBox > div > input, html.monospace-dark .SelectBox > select,
+html.nockoffAI .InputBox > div > input, html.nockoffAI .SelectBox > select {
 	color: var(--color-light);
 }
 
-.InputBox > input:read-only {
+.InputBox > div > input:read-only {
 	background: var(--color-base-60);
 }
-html.monospace-dark .InputBox > input:read-only {
+html.monospace-dark .InputBox > div > input:read-only {
 	background: var(--color-base-30);
 }
-html.nockoffAI .InputBox > input:read-only {
+html.nockoffAI .InputBox > div > input:read-only {
 	background: var(--color-disabled);
 }
 html.nockoffAI .SelectBox > select,
 html.nockoffAI .collapsible-header,
-html.nockoffAI .InputBox > input {
+html.nockoffAI .InputBox > div > input {
 	background: var(--color-input);
 }
 html.nockoffAI .horz-separator {
 	border-top: 3px dotted color-mix(in oklch, var(--color-base-100) 90%, var(--color-light));
 }
 
-.InputBox > input:focus-visible {
+.InputBox > div > input:focus-visible {
 	outline: 1px solid var(--color-base-0);
 }
 .SelectBox > select:disabled {
@@ -583,11 +592,18 @@ html.nockoffAI .SelectBox > select:disabled {
   	bottom: .08em;
 }
 
-.InputBox > input.mixed-content {
+.InputBox > div > input.mixed-content {
 	outline: 1px solid yellow;
 }
-.InputBox > input.rejected {
+.InputBox > div > input.rejected {
 	outline: 1px solid #ff3131;
+}
+
+.InputBox > div > button {
+	margin-left: 4px;
+	padding: 4px;
+	line-height: 0;
+	margin-right: -8px;
 }
 
 .tooltip {
@@ -840,6 +856,23 @@ html.monospace-dark .Session.selected {
 	margin-right: 5%;
 }
 
+#error-bar {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	min-height: 0;
+
+	background-color: #4E3534;
+	color: #FF8080;
+	text-align: center;
+	box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+#error-bar div {
+	padding: 10px;
+}
+
 .flex-separator {
 	margin-left: auto;
 }
@@ -917,12 +950,12 @@ export async function* completion({ endpoint, endpointAPI, endpointAPIKey, signa
 	}
 }
 
-export async function abortCompletion({ endpoint, endpointAPI }) {
+export async function abortCompletion({ endpoint, endpointAPI, ...options }) {
 	switch (endpointAPI) {
 		case 2: // koboldcpp
-			return await koboldCppAbortCompletion({ endpoint });
+			return await koboldCppAbortCompletion({ endpoint, ...options });
 		case 3: // openai (ooba)
-			return await openaiOobaAbortCompletion({ endpoint });
+			return await openaiOobaAbortCompletion({ endpoint, ...options });
 	}
 }
 
@@ -975,12 +1008,13 @@ async function* parseEventStream(eventStream) {
 	}
 }
 
-async function llamaCppTokenCount({ endpoint, endpointAPIKey, signal, ...options }) {
-	const res = await fetch(new URL('/tokenize', endpoint), {
+async function llamaCppTokenCount({ endpoint, endpointAPIKey, realEndpoint, signal, ...options }) {
+	const res = await fetch(`${endpoint}/tokenize`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
 			...(endpointAPIKey ? { 'Authorization': `Bearer ${endpointAPIKey}` } : {}),
+			...(realEndpoint ? { 'X-Real-URL': realEndpoint } : {})
 		},
 		body: JSON.stringify(options),
 		signal,
@@ -991,12 +1025,13 @@ async function llamaCppTokenCount({ endpoint, endpointAPIKey, signal, ...options
 	return tokens.length + 1; // + 1 for BOS, I guess.
 }
 
-async function* llamaCppCompletion({ endpoint, endpointAPIKey, signal, ...options }) {
-	const res = await fetch(new URL('/completion', endpoint), {
+async function* llamaCppCompletion({ endpoint, endpointAPIKey, realEndpoint, signal, ...options }) {
+	const res = await fetch(`${endpoint}/completion`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
 			...(endpointAPIKey ? { 'Authorization': `Bearer ${endpointAPIKey}` } : {}),
+			...(realEndpoint ? { 'X-Real-URL': realEndpoint } : {})
 		},
 		body: JSON.stringify({
 			...options,
@@ -1010,11 +1045,24 @@ async function* llamaCppCompletion({ endpoint, endpointAPIKey, signal, ...option
 	return yield* await parseEventStream(res.body);
 }
 
-async function koboldCppTokenCount({ endpoint, signal, ...options }) {
-	const res = await fetch(new URL('/api/extra/tokencount', endpoint), {
+function koboldFixEndpoint(endpoint) {
+	if (endpoint === undefined)
+		return undefined;
+	const url = new URL(endpoint.trim());
+	if (url.pathname.endsWith("/api")) {
+		url.pathname = url.pathname.replace("/api", "");
+	}
+	return url.toString();
+}
+
+async function koboldCppTokenCount({ endpoint, realEndpoint, signal, ...options }) {
+	endpoint = koboldFixEndpoint(endpoint);
+	realEndpoint = koboldFixEndpoint(realEndpoint);
+	const res = await fetch(`${endpoint}/api/extra/tokencount`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
+			...(realEndpoint ? { 'X-Real-URL': realEndpoint } : {})
 		},
 		body: JSON.stringify({
 			prompt: options.content
@@ -1049,11 +1097,14 @@ function koboldCppConvertOptions(options) {
 	return options;
 }
 
-async function* koboldCppCompletion({ endpoint, signal, ...options }) {
-	const res = await fetch(new URL('/api/extra/generate/stream', endpoint), {
+async function* koboldCppCompletion({ endpoint, realEndpoint, signal, ...options }) {
+	endpoint = koboldFixEndpoint(endpoint);
+	realEndpoint = koboldFixEndpoint(realEndpoint);
+	const res = await fetch(`${endpoint}/api/extra/generate/stream`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
+			...(realEndpoint ? { 'X-Real-URL': realEndpoint } : {})
 		},
 		body: JSON.stringify({
 			...koboldCppConvertOptions(options),
@@ -1068,19 +1119,41 @@ async function* koboldCppCompletion({ endpoint, signal, ...options }) {
 	}
 }
 
-async function koboldCppAbortCompletion({ endpoint }) {
-	await fetch(new URL('/api/extra/abort', endpoint), {
-		method: 'POST',
-	});
+async function koboldCppAbortCompletion({ endpoint, realEndpoint, ...options }) {
+	try {
+		endpoint = koboldFixEndpoint(endpoint);
+		realEndpoint = koboldFixEndpoint(realEndpoint);
+		await fetch(`${endpoint}/api/extra/abort`, {
+			method: 'POST',
+			headers: {
+				...(realEndpoint ? { 'X-Real-URL': realEndpoint } : {})
+			},
+		});
+	} catch (e) {
+		reportError(e);
+	}
 }
 
-async function openaiAphroditeTokenCount({ endpoint, endpointAPIKey, signal, ...options }) {
+function openaiFixEndpoint(endpoint) {
+	if (endpoint === undefined)
+		return undefined;
+	const url = new URL(endpoint.trim());
+	if (url.pathname.endsWith("/v1")) {
+		url.pathname = url.pathname.replace("/v1", "");
+	}
+	return url.toString();
+}
+
+async function openaiAphroditeTokenCount({ endpoint, endpointAPIKey, realEndpoint, signal, ...options }) {
 	try {
-		const res = await fetch(new URL('/v1/token/encode', endpoint), {
+		endpoint = openaiFixEndpoint(endpoint);
+		realEndpoint = openaiFixEndpoint(realEndpoint);
+		const res = await fetch(`${endpoint}/v1/token/encode`, {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',
 				'Authorization': `Bearer ${endpointAPIKey}`,
+				...(realEndpoint ? { 'X-Real-URL': realEndpoint } : {})
 			},
 			body: JSON.stringify({
 				prompt: options.content
@@ -1097,12 +1170,15 @@ async function openaiAphroditeTokenCount({ endpoint, endpointAPIKey, signal, ...
 	}
 }
 
-async function openaiOobaTokenCount({ endpoint, signal, ...options }) {
+async function openaiOobaTokenCount({ endpoint, realEndpoint, signal, ...options }) {
 	try {
-		const res = await fetch(new URL('/v1/internal/token-count', endpoint), {
+		endpoint = openaiFixEndpoint(endpoint);
+		realEndpoint = openaiFixEndpoint(realEndpoint);
+		const res = await fetch(`${endpoint}/v1/internal/token-count`, {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',
+				...(realEndpoint ? { 'X-Real-URL': realEndpoint } : {})
 			},
 			body: JSON.stringify({
 				text: options.content
@@ -1119,13 +1195,16 @@ async function openaiOobaTokenCount({ endpoint, signal, ...options }) {
 	}
 }
 
-async function openaiTabbyTokenCount({ endpoint, endpointAPIKey, signal, ...options }) {
+async function openaiTabbyTokenCount({ endpoint, endpointAPIKey, realEndpoint, signal, ...options }) {
 	try {
-		const res = await fetch(new URL('/v1/token/encode', endpoint), {
+		endpoint = openaiFixEndpoint(endpoint);
+		realEndpoint = openaiFixEndpoint(realEndpoint);
+		const res = await fetch(`${endpoint}/v1/token/encode`, {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',
 				'Authorization': `Bearer ${endpointAPIKey}`,
+				...(realEndpoint ? { 'X-Real-URL': realEndpoint } : {})
 			},
 			body: JSON.stringify({
 				text: options.content
@@ -1142,12 +1221,15 @@ async function openaiTabbyTokenCount({ endpoint, endpointAPIKey, signal, ...opti
 	}
 }
 
-async function openaiModels({ endpoint, endpointAPIKey, signal, ...options }) {
-	const res = await fetch(new URL('/v1/models', endpoint), {
+async function openaiModels({ endpoint, endpointAPIKey, realEndpoint, signal, ...options }) {
+	endpoint = openaiFixEndpoint(endpoint);
+	realEndpoint = openaiFixEndpoint(realEndpoint);
+	const res = await fetch(`${endpoint}/v1/models`, {
 		method: 'GET',
 		headers: {
 			'Content-Type': 'application/json',
 			'Authorization': `Bearer ${endpointAPIKey}`,
+			...(realEndpoint ? { 'X-Real-URL': realEndpoint } : {})
 		},
 		signal,
 	});
@@ -1191,12 +1273,15 @@ function openaiConvertOptions(options, isOpenAI) {
 	return options;
 }
 
-async function* openaiCompletion({ endpoint, endpointAPIKey, signal, ...options }) {
-	const res = await fetch(new URL('/v1/completions', endpoint), {
+async function* openaiCompletion({ endpoint, endpointAPIKey, realEndpoint, signal, ...options }) {
+	endpoint = openaiFixEndpoint(endpoint);
+	realEndpoint = openaiFixEndpoint(realEndpoint);
+	const res = await fetch(`${endpoint}/v1/completions`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
 			'Authorization': `Bearer ${endpointAPIKey}`,
+			...(realEndpoint ? { 'X-Real-URL': realEndpoint } : {})
 		},
 		body: JSON.stringify({
 			...openaiConvertOptions(options, endpoint.toLowerCase().includes("openai.com")),
@@ -1219,37 +1304,46 @@ async function* openaiCompletion({ endpoint, endpointAPIKey, signal, ...options 
 	}
 }
 
-async function openaiOobaAbortCompletion({ endpoint }) {
+async function openaiOobaAbortCompletion({ endpoint, realEndpoint, ...options }) {
+	endpoint = openaiFixEndpoint(endpoint);
+	realEndpoint = openaiFixEndpoint(realEndpoint);
 	try {
-		await fetch(new URL('/v1/internal/stop-generation', endpoint), {
+		await fetch(`${endpoint}/v1/internal/stop-generation`, {
 			method: 'POST',
+			headers: {
+				...(realEndpoint ? { 'X-Real-URL': realEndpoint } : {})
+			},
 		});
 	} catch (e) {
 		reportError(e);
 	}
 }
 
-function InputBox({ label, tooltip, tooltipSize, value, type, datalist, onValueChange, ...props }) {
+function InputBox({ label, className, tooltip, tooltipSize, value, type, datalist, onValueChange, children, ...props }) {
 	return html`
 		<label className="InputBox ${tooltip ? 'tooltip' : ''}">
 			${label}
-			<input
-				type=${type || 'text'}
-				list="${datalist ? label : ''}"
-				value=${value}
-				size="1"
-				onChange=${({ target }) => {
-					let value = type === 'number' ? target.valueAsNumber : target.value;
-					if (props.inputmode === 'numeric') {
-						props.pattern = '^-?[0-9]*$';
-						if (value && !isNaN(+value))
-							value = +target.value;
-					}
-					if (props.pattern && !new RegExp(props.pattern).test(value))
-						return;
-					onValueChange(value);
-				}}
-				...${props}/>
+			<div className="${children ? 'hbox-flex' : ''}">
+				<input
+					className="flex1 ${className}"
+					type=${type || 'text'}
+					list="${datalist ? label : ''}"
+					value=${value}
+					size="1"
+					onChange=${({ target }) => {
+						let value = type === 'number' ? target.valueAsNumber : target.value;
+						if (props.inputmode === 'numeric') {
+							props.pattern = '^-?[0-9]*$';
+							if (value && !isNaN(+value))
+								value = +target.value;
+						}
+						if (props.pattern && !new RegExp(props.pattern).test(value))
+							return;
+						onValueChange(value);
+					}}
+					...${props}/>
+				${children}
+			</div>
 			${datalist && html`
 				<datalist id="${label}">
 					${datalist.map(opt => html`
@@ -1363,7 +1457,7 @@ function CollapsibleGroup({ label, expanded, children }) {
 		`;
 	}
 
-function Sessions({ sessionStorage, onSessionChange, disabled }) {
+function Sessions({ sessionStorage, onSessionChange, onSessionError, disabled }) {
 	const [version, setVersion] = useState(0);
 	const [newSessionName, setNewSessionName] = useState('');
 	const [renameSessionName, setRenameSessionName] = useState('');
@@ -1373,9 +1467,11 @@ function Sessions({ sessionStorage, onSessionChange, disabled }) {
 	useEffect(() => {
 		sessionStorage.onchange = () => setVersion(v => v + 1);
 		sessionStorage.onsessionchange = onSessionChange;
+		sessionStorage.onerror = onSessionError;
 		return () => {
 			sessionStorage.onchange = null;
 			sessionStorage.onsessionchange = null;
+			sessionStorage.onerror = null;
 		};
 	}, []);
 
@@ -1557,25 +1653,25 @@ class SessionStorage {
 		this.sessionTemplate = { ...defaultPresets };
 		this.onchange = null;
 		this.onsessionchange = null;
+		this.onerror = null;
 	}
 
 	async init() {
-		try {
-			const db = await this.openDatabase();
-			this.nextId = (await this.loadFromDatabase(db, 'nextSessionId')) || 0;
-			this.selectedSession = (await this.loadFromDatabase(db, 'selectedSessionId')) || 0;
-			await this.loadSessions(db);
-			this.saveTimer = setInterval(async () => await this.saveTimerHandler(), 500);
-		} catch (e) {
-			reportError(e);
-		}
+		const db = await this.openDatabase();
+		this.nextId = (await this.loadFromDatabase(db, 'nextSessionId')) || 0;
+		this.selectedSession = (await this.loadFromDatabase(db, 'selectedSessionId')) || 0;
+		await this.loadSessions(db);
+		this.saveTimer = setInterval(async () => await this.saveTimerHandler(), 500);
 	}
 
 	async openDatabase() {
 		return new Promise((resolve, reject) => {
 			const openRequest = indexedDB.open(this.dbName);
 
-			openRequest.onerror = () => reject(openRequest.error);
+			openRequest.onerror = () => {
+				this.onerror?.(openRequest.error);
+				reject(openRequest.error);
+			};
 			openRequest.onsuccess = () => resolve(openRequest.result);
 			openRequest.onupgradeneeded = (event) => {
 				const db = event.target.result;
@@ -1605,8 +1701,12 @@ class SessionStorage {
 	}
 
 	async saveTimerHandler() {
+		const sessions = [];
 		while (this.saveQueue.length) {
-			const sessionId = this.saveQueue.pop();
+			sessions.push(this.saveQueue.pop());
+		}
+
+		for (const sessionId of sessions) {
 			if (!this.sessions[sessionId])
 				continue;
 			await this.saveToDatabase(sessionId, this.sessions[sessionId]);
@@ -1789,6 +1889,115 @@ class SessionStorage {
 	}
 }
 
+class WebSessionStorage extends SessionStorage {
+	constructor(defaultPresets, sessionEndpoint) {
+		super(defaultPresets);
+		this.sessionEndpoint = sessionEndpoint;
+		this.proxyEndpoint = `${sessionEndpoint}/proxy`;
+	}
+
+	async openDatabase() {
+		return async (route, options) => {
+			try {
+				return await fetch(new URL(route, this.sessionEndpoint), {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json',
+					},
+					body: JSON.stringify(options),
+				});
+			} catch (e) {
+				this.onerror?.(e);
+				reportError(e);
+				return { ok: false, status: e.toString() };
+			}
+		};
+	}
+
+	async loadFromDatabase(db, key) {
+		return new Promise(async (resolve, reject) => {
+			const res = await db("/load", { key });
+			if (!res.ok) {
+				if (res.status == 404) {
+					resolve(undefined);
+				} else {
+					reject(res.status);
+				}
+				return;
+			}
+			const { result } = await res.json();
+			resolve(result);
+		});
+	}
+
+	async saveToDatabase(key, data) {
+		const db = await this.openDatabase();
+		return new Promise(async (resolve, reject) => {
+			const res = await db("/save", { data, key });
+			if (!res.ok) {
+				reject(res.status);
+				return;
+			}
+			const { result } = await res.json();
+			resolve(result);
+		});
+	}
+
+	async loadSessions(db) {
+		return new Promise(async (resolve, reject) => {
+			const res = await db("/sessions");
+			if (!res.ok) {
+				reject(res.status);
+				return;
+			}
+			const { result } = await res.json();
+			const sessions = result;
+
+			for (const [key, value] of Object.entries(sessions)) {
+				if (key !== 'nextSessionId' && key !== 'selectedSessionId') {
+					this.sessions[key] = value;
+				}
+			}
+
+			if (Object.keys(this.sessions).length === 0) {
+				if (!await this.migrateSessions()) {
+					await this.createSession('MikuPad #1');
+				}
+			}
+
+			await this.switchSession(this.selectedSession);
+			resolve();
+		});
+	}
+
+	async deleteSession(sessionId) {
+		if (Object.keys(this.sessions).length === 1)
+			return;
+		if (!window.confirm("Are you sure you want to delete this session? This action can't be undone."))
+			return;
+		const db = await this.openDatabase();
+		return new Promise(async (resolve, reject) => {
+			const res = await db("/delete", { sessionId });
+			if (!res.ok) {
+				reject(res.status);
+				return;
+			}
+			
+			// Select another session if the current was deleted
+			if (sessionId == this.selectedSession) {
+				const sessionIds = Object.keys(this.sessions).map(x => +x);
+				const sessionIdx = sessionIds.indexOf(sessionId);
+				const newSessionId = sessionIds[sessionIdx - 1] ?? sessionIds[sessionIdx + 1];
+				await this.switchSession(+newSessionId)
+			}
+
+			delete this.sessions[sessionId];
+			this.onchange?.();
+			resolve();
+		});
+	}
+}
+
 const defaultPrompt = `[INST] <<SYS>>
 You are a talented writing assistant. Always respond by incorporating the instructions into expertly written prose that is highly detailed, evocative, vivid and engaging.
 <</SYS>>
@@ -1903,13 +2112,14 @@ function usePersistentState(name, initialState) {
 	return [value, updateState];
 }
 
-export function App({ sessionStorage, useSessionState }) {
+export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 	const promptArea = useRef();
 	const promptOverlay = useRef();
 	const undoStack = useRef([]);
 	const redoStack = useRef([]);
 	const probsDelayTimer = useRef();
 	const keyState = useRef({});
+	const sessionReconnectTimer = useRef();
 	const [currentPromptChunk, setCurrentPromptChunk] = useState(undefined);
 	const [undoHovered, setUndoHovered] = useState(false);
 	const [showProbs, setShowProbs] = useState(true);
@@ -1921,6 +2131,8 @@ export function App({ sessionStorage, useSessionState }) {
 	const [preserveCursorPosition, setPreserveCursorPosition] = usePersistentState('preserveCursorPosition', true);
 	const [darkMode, _] = usePersistentState('darkMode', false); // legacy
 	const [theme, setTheme] = usePersistentState('theme', darkMode ? 1 : 0);
+	const [sessionEndpointConnecting, setSessionEndpointConnecting] = useState(false);
+	const [sessionEndpointError, setSessionEndpointError] = useState(undefined);
 	const [endpoint, setEndpoint] = useSessionState('endpoint', defaultPresets.endpoint);
 	const [endpointAPI, setEndpointAPI] = useSessionState('endpointAPI', defaultPresets.endpointAPI);
 	const [endpointAPIKey, setEndpointAPIKey] = useSessionState('endpointAPIKey', defaultPresets.endpointAPIKey);
@@ -2193,7 +2405,11 @@ export function App({ sessionStorage, useSessionState }) {
 
 		const ac = new AbortController();
 		const cancelThis = () => {
-			abortCompletion({ endpoint, endpointAPI });
+			abortCompletion({
+				endpoint,
+				endpointAPI,
+				...(isMikupadEndpoint ? { endpoint: sessionStorage.proxyEndpoint, realEndpoint: endpoint } : {})
+			});
 			ac.abort();
 		};
 		setCancel(() => cancelThis);
@@ -2210,6 +2426,7 @@ export function App({ sessionStorage, useSessionState }) {
 				...(endpointAPI == 3 || endpointAPI == 0 ? { endpointAPIKey } : {}),
 				content: ` ${prompt}`,
 				signal: ac.signal,
+				...(isMikupadEndpoint ? { endpoint: sessionStorage.proxyEndpoint, realEndpoint: endpoint } : {})
 			});
 			setTokens(tokenCount);
 			setPredictStartTokens(tokenCount);
@@ -2238,6 +2455,7 @@ export function App({ sessionStorage, useSessionState }) {
 					repeat_last_n: repeatLastN,
 					penalize_nl: penalizeNl,
 					ignore_eos: ignoreEos,
+					stop: JSON.parse(stoppingStrings) || [],
 				} : {}),
 				presence_penalty: presencePenalty,
 				frequency_penalty: frequencyPenalty,
@@ -2256,8 +2474,8 @@ export function App({ sessionStorage, useSessionState }) {
 				}),
 				n_predict: maxPredictTokens,
 				n_probs: 10,
-				stop: JSON.parse(stoppingStrings) || [],
 				signal: ac.signal,
+				...(isMikupadEndpoint ? { endpoint: sessionStorage.proxyEndpoint, realEndpoint: endpoint } : {})
 			})) {
 				ac.signal.throwIfAborted();
 				if (chunk.stopping_word)
@@ -2451,6 +2669,7 @@ export function App({ sessionStorage, useSessionState }) {
 					...(endpointAPI == 3 || endpointAPI == 0 ? { endpointAPIKey } : {}),
 					content: ` ${modifiedPrompt}`,
 					signal: ac.signal,
+					...(isMikupadEndpoint ? { endpoint: sessionStorage.proxyEndpoint, realEndpoint: endpoint } : {})
 				});
 				setTokens(tokenCount);
 			} catch (e) {
@@ -2474,6 +2693,7 @@ export function App({ sessionStorage, useSessionState }) {
 					endpointAPI,
 					...(endpointAPI == 3 ? { endpointAPIKey } : {}),
 					signal: ac.signal,
+					...(isMikupadEndpoint ? { endpoint: sessionStorage.proxyEndpoint, realEndpoint: endpoint } : {})
 				});
 				setOpenaiModels(models);
 			} catch (e) {
@@ -2704,6 +2924,24 @@ export function App({ sessionStorage, useSessionState }) {
 		setTitleToSession();
 	}
 
+	function onSessionError(e) {
+		if (!sessionReconnectTimer.current) {
+			sessionReconnectTimer.current = setInterval(async () => {
+				try {
+					await sessionStorage.saveToDatabase('selectedSessionId', sessionStorage.selectedSession);
+					setSessionEndpointError(undefined);
+					clearTimeout(sessionReconnectTimer.current);
+					sessionReconnectTimer.current = undefined;
+				} catch (e) {
+					reportError(e);
+				}
+			}, 1000);
+		}
+		setSessionEndpointError("Mikupad server is unreachable!");
+		setCurrentPromptChunk(undefined);
+		setUndoHovered(false);
+	}
+
 	const probs = useMemo(() =>
 		showProbs && promptChunks[currentPromptChunk?.index]?.completion_probabilities?.[0]?.probs,
 		[promptChunks, currentPromptChunk, showProbs]);
@@ -2765,7 +3003,8 @@ export function App({ sessionStorage, useSessionState }) {
 			<${CollapsibleGroup} label="Sessions">
 				<${Sessions} sessionStorage=${sessionStorage}
 					disabled=${!!cancel}
-					onSessionChange=${onSessionChange}/>
+					onSessionChange=${onSessionChange}
+					onSessionError=${onSessionError}/>
 			</${CollapsibleGroup}>
 			<${CollapsibleGroup} label="Parameters" expanded>
 				<${InputBox} label="Server"
@@ -2938,14 +3177,14 @@ export function App({ sessionStorage, useSessionState }) {
 			<div className="buttons">
 				<button
 					title="Run next prediction (Ctrl + Enter)"
-					className=${cancel ? (predictStartTokens === tokens ? 'processing' : 'completing') : ''}
+					className=${cancel && !sessionEndpointConnecting ? (predictStartTokens === tokens ? 'processing' : 'completing') : ''}
 					disabled=${!!cancel || stoppingStringsError}
 					onClick=${() => predict()}>
 					Predict
 				</button>
 				<button
 					title="Cancel prediction (Escape)"
-					disabled=${!cancel}
+					disabled=${!cancel || sessionEndpointConnecting}
 					onClick=${cancel}>
 					Cancel
 				</button>
@@ -3193,17 +3432,42 @@ export function App({ sessionStorage, useSessionState }) {
 				`)}
 			</div>
 		</${Modal}>
+		${sessionEndpointError && html`
+			<div className="modal-overlay">
+				<div id="error-bar">
+					<div>
+						${sessionEndpointError}
+					</div>
+				</div>
+			</div>`}
 	`;
 }
 
 async function main() {
-	const sessionStorage = new SessionStorage(defaultPresets);
-	await sessionStorage.init();
+	let sessionStorage = null;
+	let isMikupadEndpoint = false;
+
+	if (window.location.protocol != 'file:' && window.location.pathname == '/') {
+		sessionStorage = new WebSessionStorage(defaultPresets, window.location.protocol + '//' + window.location.host);
+		try {
+			await sessionStorage.init();
+			isMikupadEndpoint = true;
+		} catch (e) {
+			sessionStorage = null;
+			reportError(e);
+		}
+	}
+	
+	if (sessionStorage == null) {
+		sessionStorage = new SessionStorage(defaultPresets);
+		await sessionStorage.init();
+	}
 
 	createRoot(document.body).render(html`
 		<${App}
 			sessionStorage=${sessionStorage}
-			useSessionState=${(name, initialState) => useSessionState(sessionStorage, name, initialState)}/>`);
+			useSessionState=${(name, initialState) => useSessionState(sessionStorage, name, initialState)}
+			isMikupadEndpoint=${isMikupadEndpoint}/>`);
 }
 
 main();
