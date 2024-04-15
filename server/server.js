@@ -5,7 +5,6 @@ const sqlite3 = require('sqlite3');
 const path = require('path');
 const minimist = require('minimist');
 const axios = require('axios');
-const http = require('http');
 
 const app = express();
 
@@ -73,7 +72,7 @@ app.post('/proxy/*', async (req, res) => {
         });
     } catch (error) {
         if (error.response) {
-            if (error.response.data instanceof http.IncomingMessage) {
+            if (error.response.data.pipe !== undefined) {
                 error.response.data.pipe(res.status(error.response.status));
             } else {
                 res.status(error.response.status).send(error.response.data);
