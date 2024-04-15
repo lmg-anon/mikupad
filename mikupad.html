@@ -1893,6 +1893,7 @@ class WebSessionStorage extends SessionStorage {
 	constructor(defaultPresets, sessionEndpoint) {
 		super(defaultPresets);
 		this.sessionEndpoint = sessionEndpoint;
+		this.proxyEndpoint = `${sessionEndpoint}/proxy`;
 	}
 
 	async openDatabase() {
@@ -2407,7 +2408,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 			abortCompletion({
 				endpoint,
 				endpointAPI,
-				...(isMikupadEndpoint ? { endpoint: `${sessionStorage.sessionEndpoint}/proxy`, realEndpoint: endpoint } : {})
+				...(isMikupadEndpoint ? { endpoint: sessionStorage.proxyEndpoint, realEndpoint: endpoint } : {})
 			});
 			ac.abort();
 		};
@@ -2425,7 +2426,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 				...(endpointAPI == 3 || endpointAPI == 0 ? { endpointAPIKey } : {}),
 				content: ` ${prompt}`,
 				signal: ac.signal,
-				...(isMikupadEndpoint ? { endpoint: `${sessionStorage.sessionEndpoint}/proxy`, realEndpoint: endpoint } : {})
+				...(isMikupadEndpoint ? { endpoint: sessionStorage.proxyEndpoint, realEndpoint: endpoint } : {})
 			});
 			setTokens(tokenCount);
 			setPredictStartTokens(tokenCount);
@@ -2474,7 +2475,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 				n_predict: maxPredictTokens,
 				n_probs: 10,
 				signal: ac.signal,
-				...(isMikupadEndpoint ? { endpoint: `${sessionStorage.sessionEndpoint}/proxy`, realEndpoint: endpoint } : {})
+				...(isMikupadEndpoint ? { endpoint: sessionStorage.proxyEndpoint, realEndpoint: endpoint } : {})
 			})) {
 				ac.signal.throwIfAborted();
 				if (chunk.stopping_word)
@@ -2668,7 +2669,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 					...(endpointAPI == 3 || endpointAPI == 0 ? { endpointAPIKey } : {}),
 					content: ` ${modifiedPrompt}`,
 					signal: ac.signal,
-					...(isMikupadEndpoint ? { endpoint: `${sessionStorage.sessionEndpoint}/proxy`, realEndpoint: endpoint } : {})
+					...(isMikupadEndpoint ? { endpoint: sessionStorage.proxyEndpoint, realEndpoint: endpoint } : {})
 				});
 				setTokens(tokenCount);
 			} catch (e) {
@@ -2692,7 +2693,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 					endpointAPI,
 					...(endpointAPI == 3 ? { endpointAPIKey } : {}),
 					signal: ac.signal,
-					...(isMikupadEndpoint ? { endpoint: `${sessionStorage.sessionEndpoint}/proxy`, realEndpoint: endpoint } : {})
+					...(isMikupadEndpoint ? { endpoint: sessionStorage.proxyEndpoint, realEndpoint: endpoint } : {})
 				});
 				setOpenaiModels(models);
 			} catch (e) {
