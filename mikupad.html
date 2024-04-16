@@ -915,7 +915,15 @@ export async function getTokenCount({ endpoint, endpointAPI, endpointAPIKey, sig
 			return await llamaCppTokenCount({ endpoint, endpointAPIKey, signal, ...options });
 		case 2: // koboldcpp
 			return await koboldCppTokenCount({ endpoint, signal, ...options });
-		case 3: // openai // TODO: Fix this for official OpenAI?
+		case 3: // openai
+			// OpenAI itself doesn't have a token count endpoint...
+			if (new URL(endpoint).host === 'api.openai.com')
+				return 0;
+			if (options.realEndpoint && new URL(options.realEndpoint).host === 'api.openai.com')
+				return 0;
+
+			// Each backend that exposes an OpenAI-compatible API may have a different token count endpoint.
+			// Instead of asking the user which backend they are using, let's try each one.
 			let tokenCount = 0;
 			tokenCount = await openaiAphroditeTokenCount({ endpoint, endpointAPIKey, signal, ...options });
 			if (tokenCount != -1)
@@ -2455,7 +2463,6 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 					repeat_last_n: repeatLastN,
 					penalize_nl: penalizeNl,
 					ignore_eos: ignoreEos,
-					stop: JSON.parse(stoppingStrings) || [],
 				} : {}),
 				presence_penalty: presencePenalty,
 				frequency_penalty: frequencyPenalty,
@@ -2474,6 +2481,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 				}),
 				n_predict: maxPredictTokens,
 				n_probs: 10,
+				...(JSON.parse(stoppingStrings).length ? { stop: JSON.parse(stoppingStrings) } : {}),
 				signal: ac.signal,
 				...(isMikupadEndpoint ? { endpoint: sessionStorage.proxyEndpoint, realEndpoint: endpoint } : {})
 			})) {
