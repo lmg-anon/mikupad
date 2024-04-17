@@ -1401,7 +1401,8 @@ function CollapsibleGroup({ label, expanded, children }) {
 	useEffect(() => {
 		setContentHeight(contentArea.current.scrollHeight);
 		const observer = new SVResizeObserver(() => {
-			setContentHeight(contentArea.current.scrollHeight);
+			if (contentArea?.current)
+				setContentHeight(contentArea.current.scrollHeight);
 		});
 		observer.observe(contentArea.current);
 		return () => observer.disconnect();
@@ -1897,6 +1898,343 @@ class SessionStorage {
 	}
 }
 
+
+function Templates({ templateStorage, disabled, promptArea, onInput, setTemplateStorage }) {
+	
+	const [version, setVersion] = useState(0);
+	const [newPrefix, setNewPrefix] = useState('');
+	const [newSuffix, setNewSuffix] = useState('');
+	const [newName, setNewName] = useState('');
+	const [isModifying, setIsModifying] = useState(false);
+	const [modifyingTemplateId, setModifyingTemplateId] = useState(null);
+	const [isCreating, setIsCreating] = useState(false);
+
+	useEffect(() => {
+    	const onKeyDown = (event) => {
+			if (event.ctrlKey && event.key === 'Insert') {
+				event.preventDefault();
+				insertTemplate();
+			}
+		};
+
+		document.addEventListener('keydown', onKeyDown);
+		return () => {
+			document.removeEventListener('keydown', onKeyDown);
+		};
+	});
+
+	useEffect(() => {
+	templateStorage.onchange = () => setVersion(v => v + 1);
+	return () => {
+		templateStorage.onchange = null;
+	};}, [templateStorage]);
+
+	const modifyTemplate = (templateId) => {
+		if (newName && (newPrefix || newSuffix)) {
+			templateStorage.modifyTemplate(templateId, newName, newPrefix, newSuffix);
+			setIsModifying(false);
+		}
+	};
+
+	const deleteTemplate = (templateId) => {
+		templateStorage.removeTemplate(templateId);
+	};
+
+	const startCreateTemplate = () => {
+		setNewName('');
+		setNewPrefix('');
+		setNewSuffix('');
+		setIsCreating(true);
+	};
+
+	const startModifyingTemplate = (templateId) => {
+		const template = templateStorage.getTemplate(templateId);
+		setNewName(template.name);
+		setNewPrefix(template.prefix);
+		setNewSuffix(template.suffix);
+		setModifyingTemplateId(templateId);
+		setIsModifying(true);
+	};
+
+	const createTemplate = () => {
+		if (isCreating && newName && (newPrefix || newSuffix)) {
+			templateStorage.addTemplate(newName, newPrefix, newSuffix);
+			setIsCreating(false);
+		}
+		else if (isModifying && newName && (newPrefix || newSuffix)) {
+			templateStorage.modifyTemplate(modifyingTemplateId, newName, newPrefix, newSuffix);
+			setIsModifying(false);
+			setModifyingTemplateId(null);
+		}
+	};
+
+	const importTemplate = () => {
+		const fileInput = document.createElement("input");
+		fileInput.type = 'file';
+		fileInput.style.display = 'none';
+		fileInput.onchange = (e) => {
+			const file = e.target.files[0];
+			if (!file)
+				return;
+			const reader = new FileReader();
+			reader.onload = (e) => {
+				const contents = e.target.result;
+				fileInput.func(contents);
+			}
+			reader.readAsText(file);
+		};
+		fileInput.func = (text) => {
+			const newStorage = deserializeTemplateCollection(text);
+		    setTemplateStorage(newStorage);
+		};
+		document.body.appendChild(fileInput);
+		fileInput.click();
+		document.body.removeChild(fileInput);
+	};
+
+	const exportTemplate = () => {
+		var element = document.createElement('a');
+		const serializedJson = serializeTemplateCollection(templateStorage)
+		element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(serializedJson));
+		element.setAttribute('download', `instruct templates.json`);
+		element.style.display = 'none';
+		document.body.appendChild(element);
+		element.click();
+		document.body.removeChild(element);
+	};
+
+	function handleKeyDown(sessionId, key) {
+		if (event.key === 'Escape') {
+			if (isCreating)
+				setIsCreating(false);
+			else if (isModifying)
+				setIsModifying(false);
+		}
+	}
+
+	const cancelCreationScreen = () => {
+		if (isCreating)
+			setIsCreating(false);
+		else if (isModifying)
+			setIsModifying(false);
+	}
+
+	function insertTemplate() {
+		const currentTemplate = templateStorage.getCurrentTemplate();
+		if (!currentTemplate) return;
+
+		const elem = promptArea.current;
+		if (!elem) return;
+
+		const startPos = elem.selectionStart;
+		const endPos = elem.selectionEnd;
+		const textBefore = elem.value.substring(0, startPos) || '';
+		const textAfter = elem.value.substring(endPos);
+		const selectedText = elem.value.substring(startPos, endPos);
+
+		const prefix = currentTemplate.prefix || '';
+		const suffix = currentTemplate.suffix || '';
+
+		const countLineBreaks = (text) => {
+			let count = 0;
+			for (let i = text.length - 1; i >= 0; i--) {
+				if (text[i] === '\n') {
+					count++;
+				} else {
+					break;
+				}
+			}
+			return count;
+		};
+
+		const existingLineBreaks = countLineBreaks(textBefore);
+		let lineBreakBeforePrefix = '';
+		if (textBefore.length > 0) {
+			if (existingLineBreaks < 2) {
+				lineBreakBeforePrefix = '\n'.repeat(2 - existingLineBreaks);
+			}
+		}
+
+		const lineBreakAfterPrefix = '\n';
+		const lineBreakBeforeSuffix = '\n\n';
+		const lineBreakAfterSuffix = '\n';
+
+		const finalText = textBefore 
+						+ lineBreakBeforePrefix + prefix + lineBreakAfterPrefix
+						+ selectedText 
+						+ lineBreakBeforeSuffix + suffix + lineBreakAfterSuffix
+						+ textAfter;
+
+		elem.value = finalText;
+
+		let newCursorPos;
+		if (selectedText.length === 0) {
+			newCursorPos = startPos + lineBreakBeforePrefix.length + prefix.length + lineBreakAfterPrefix.length;
+		} else {
+			newCursorPos = startPos 
+							+ lineBreakBeforePrefix.length + prefix.length + lineBreakAfterPrefix.length 
+							+ selectedText.length 
+							+ lineBreakBeforeSuffix.length + suffix.length + lineBreakAfterSuffix.length;
+		}
+		elem.setSelectionRange(newCursorPos, newCursorPos);
+		onInput({ target: elem });
+	}
+
+	const trashSvg = html`<svg fill="var(--color-light)" width="16" height="16" viewBox="0 0 490.646 490.646"><path d="m399.179 67.285-74.794.033L324.356 0 166.214.066l.029 67.318-74.802.033.025 62.914h307.739l-.026-63.046zM198.28 32.11l94.03-.041.017 35.262-94.03.041-.017-35.262zM91.465 490.646h307.739V146.359H91.465v344.287zm225.996-297.274h16.028v250.259h-16.028V193.372zm-80.14 0h16.028v250.259h-16.028V193.372zm-80.141 0h16.028v250.259H157.18V193.372z"/></svg>`;
+	const renameSvg = html`<svg fill="var(--color-light)" width="16" height="16" viewBox="0 0 512 448"><path style=${{ fillOpacity: 1, stroke: 'none', strokeWidth: 30, strokeLinecap: 'round', strokeMiterlimit: 4, strokeDasharray: 'none', strokeOpacity: 1 }} d="M0 96v256h320v-32H32V128h288V96H0zM416 96v32h64v192h-64v32h96V96h-96z" /><path style=${{ fillOpacity: 1, stroke: 'none', strokeWidth: 30, strokeLinecap: 'round', strokeMiterlimit: 4, strokeDasharray: 'none', strokeOpacity: 1 }} d="M352 636.362h32v384h-32z" transform="matrix(1, 0, 0, 1, 0, -604.3619995117188)" /><path style=${{ fillOpacity: 1, stroke: 'none', strokeWidth: 30, strokeLinecap: 'round', strokeMiterlimit: 4, strokeDasharray: 'none', strokeOpacity: 1 }} transform="matrix(0, 1, -1, 0, 0, -604.3619995117188)" d="M1020.362-448h32v64h-32zM1020.362-352h32v64h-32zM604.362-448h32v64h-32zM604.362-352h32v64h-32zM764.362-288h128v224h-128z" /></svg>`;
+
+	const confirmSvg = html`<svg width="16" height="16" viewBox="0 0 128 128"><circle cx="64" cy="64" r="64" fill="var(--color-dark)"/><path d="M54.3 97.2 24.8 67.7c-.4-.4-.4-1 0-1.4l8.5-8.5c.4-.4 1-.4 1.4 0L55 78.1l38.2-38.2c.4-.4 1-.4 1.4 0l8.5 8.5c.4.4.4 1 0 1.4L55.7 97.2c-.4.4-1 .4-1.4 0z" fill="var(--color-light)"/></svg>`;
+	const cancelSvg = html`<svg width="16" height="16" viewBox="0 0 128 128"><circle cx="64" cy="64" r="64" fill="var(--color-dark)"/><path d="M100.3 90.4 73.9 64l26.3-26.4c.4-.4.4-1 0-1.4l-8.5-8.5c-.4-.4-1-.4-1.4 0L64 54.1 37.7 27.8c-.4-.4-1-.4-1.4 0l-8.5 8.5c-.4.4-.4 1 0 1.4L54 64 27.7 90.3c-.4.4-.4 1 0 1.4l8.5 8.5c.4.4 1.1.4 1.4 0L64 73.9l26.3 26.3c.4.4 1.1.4 1.5.1l8.5-8.5c.4-.4.4-1 0-1.4z" fill="var(--color-light)"/></svg>`;
+
+	return html`
+		<div className="Sessions ${disabled ? 'disabled' : ''}">
+			<ul>
+				${(isCreating || isModifying) && html`
+					<li key=-1}>
+						<a className="Session" style=${{ display: 'flex', flexDirection: 'column' }}>
+							<div>
+								<label>Template name:</label>
+								<input
+									type="text"
+									value=${newName}
+									onChange=${(e) => setNewName(e.target.value)}
+									onKeyDown=${(e) => handleKeyDown(undefined, e.key)}
+									onClick=${(e) => e.stopPropagation()}
+									autoFocus
+								/>
+							</div>
+							<div>
+								<label>Instruct:</label>
+								<textarea
+									value=${newPrefix}
+									onChange=${(e) => setNewPrefix(e.target.value)}
+									onKeyDown=${(e) => handleKeyDown(undefined, e.key)}
+									onClick=${(e) => e.stopPropagation()}
+								/>
+							</div>
+							<div>
+								<label>Response:</label>
+								<textarea
+									value=${newSuffix}
+									onChange=${(e) => setNewSuffix(e.target.value)}
+									onKeyDown=${(e) => handleKeyDown(undefined, e.key)}
+									onClick=${(e) => e.stopPropagation()}
+								/>
+							</div>
+							<div className="flex-separator"></div>
+							<div style=${{ display: 'flex', flexDirection: 'row' }}>
+								<button onClick=${(e) => (createTemplate(), e.stopImmediatePropagation?.())}>${confirmSvg}</button>
+								<button onClick=${(e) => (cancelCreationScreen(), e.stopImmediatePropagation?.())}>${cancelSvg}</button>
+							</div>
+						</a>
+					</li>
+				`}
+				${[...templateStorage.templates.entries()].map(([templateId, { name, prefix, suffix }]) => html`
+					<li key=${templateId}>
+						<a className="Session ${templateStorage.selectedTemplateId == templateId ? 'selected' : ''}"
+							onClick=${() => templateStorage.switchTemplate(templateId)}>
+							${html`
+								${name}
+								<div className="flex-separator"></div>
+								<button
+									onClick=${(e) => (startModifyingTemplate(templateId), e.stopPropagation())}>
+									${renameSvg}
+								</button>
+								<button
+									onClick=${(e) => (deleteTemplate(templateId), e.stopPropagation())}>
+									${trashSvg}
+								</button>
+							`}
+						</a>
+					</li>
+				`)}
+			</ul>
+			<div className="vbox">
+				<button disabled=${disabled} title="Add a new template" onClick=${startCreateTemplate}>Create</button>
+				<button disabled=${disabled} title="Import templates from a JSON file" onClick=${importTemplate}>Import</button>
+				<button disabled=${disabled} title="Export all your templates to a JSON file" onClick=${exportTemplate}>Export</button>
+				<button disabled=${disabled} title="Insert the template at the cursor position (Ctrl + Insert)" onClick=${insertTemplate}>Insert</button>
+			</div>
+		</div>`;
+}
+
+
+class TemplateCollection {
+	constructor(changeListener = null, initialState = null) {
+		this.templates = new Map();
+		this.nextId = 1;
+		this.selectedTemplateId = 1;
+		this.changeListener = changeListener;
+
+		if (initialState) {
+			this.templates = initialState.templates;
+			this.nextId = initialState.nextId;
+			this.selectedTemplateId = initialState.selectedTemplateId;
+		} else {
+			this.addTemplate('Mixtral', '[INT]', '[/INT]');
+			this.addTemplate('Alpaca', '### Instruction:\n', '### Response:\n');
+			this.addTemplate('ChatLM', '<|im_start|>user\n', '<|im_end|>\n<|im_start|\n');
+		}
+	}
+
+	notifyChange() {
+		if (this.changeListener) {
+			this.changeListener(this);
+		}
+	}
+
+	addTemplate(name, prefix, suffix) {
+		const id = this.nextId++;
+		this.templates.set(id, { name, prefix, suffix });
+		this.selectedTemplateId = id;
+		this.notifyChange();
+		return id;
+	}
+
+	removeTemplate(id) {
+		this.templates.delete(id);
+		this.onchange?.();
+		this.notifyChange();
+	}
+
+	clear() {
+		this.templates.clear();
+		this.notifyChange();
+	}
+
+	switchTemplate(id) {
+		this.selectedTemplateId = id;
+		this.onchange?.();
+		this.notifyChange();
+	}
+
+	getCurrentTemplate() {
+		return this.templates.get(this.selectedTemplateId) || null;
+	}
+
+	getTemplate(templateId) {
+		return this.templates.get(templateId) || null;
+	}
+
+	setChangeListener(changeListener) {
+		this.changeListener = changeListener;
+	}
+
+	removeChangeListener(listener) {
+		this.changeListener = null;
+	}
+
+	modifyTemplate(modifyingTemplateId, newName, newPrefix, newSuffix) {
+		const template = this.getTemplate(modifyingTemplateId);
+		template.name = newName;
+		template.prefix = newPrefix;
+		template.suffix = newSuffix;
+		this.onchange?.();
+		this.notifyChange();
+	}
+}
+
+
 class WebSessionStorage extends SessionStorage {
 	constructor(defaultPresets, sessionEndpoint) {
 		super(defaultPresets);
@@ -2120,6 +2458,62 @@ function usePersistentState(name, initialState) {
 	return [value, updateState];
 }
 
+function serializeTemplateCollection(collection) {
+	const templatesArray = [...collection.templates.entries()].map(([id, {name, prefix, suffix}]) => ({id, name, prefix, suffix}));
+	return JSON.stringify({
+		templates: templatesArray,
+		nextId: collection.nextId,
+		selectedTemplateId: collection.selectedTemplateId,
+	});
+}
+
+function deserializeTemplateCollection(serialized) {
+	const parsed = JSON.parse(serialized);
+	const collection = new TemplateCollection();
+	collection.templates.clear();
+	collection.nextId = parsed.nextId;
+	collection.selectedTemplateId = parsed.selectedTemplateId;
+	parsed.templates.forEach(({id, name, prefix, suffix}) => {
+		collection.templates.set(id, {name, prefix, suffix});
+		collection.nextId = Math.max(collection.nextId, id + 1);
+	});
+	return collection;
+}
+
+function usePersistentTemplateCollection(name, initialState) {
+	const handleChangeRef = useRef(() => {});
+
+	const [templateStorage, setTemplateStorage] = useState(() => {
+		const init = () => {
+			try {
+				const item = localStorage.getItem(name);
+				return item ? deserializeTemplateCollection(item) : new TemplateCollection();
+			} catch (e) {
+				console.error(e);
+				return new TemplateCollection();
+			}
+		};
+		return init();
+	});
+
+	handleChangeRef.current = (newState) => {
+		setTemplateStorage(newState);
+		localStorage.setItem(name, serializeTemplateCollection(newState));
+	};
+
+	useEffect(() => {
+		if (templateStorage.setChangeListener && templateStorage.removeChangeListener) {
+			templateStorage.setChangeListener(handleChangeRef.current);
+			return () => {
+				templateStorage.removeChangeListener(handleChangeRef.current);
+			};
+		}
+	}, [templateStorage]);
+
+	return [templateStorage, setTemplateStorage];
+}
+
+
 export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 	const promptArea = useRef();
 	const promptOverlay = useRef();
@@ -2128,6 +2522,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 	const probsDelayTimer = useRef();
 	const keyState = useRef({});
 	const sessionReconnectTimer = useRef();
+	const [templateStorage, setTemplateStorage] = usePersistentTemplateCollection('templateStorage', new TemplateCollection());
 	const [currentPromptChunk, setCurrentPromptChunk] = useState(undefined);
 	const [undoHovered, setUndoHovered] = useState(false);
 	const [showProbs, setShowProbs] = useState(true);
@@ -2744,7 +3139,6 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 			case 'false:false:true:y':
 				if (cancel || !redo()) return;
 				break;
-
 			default:
 				keyState.current = e;
 				return;
@@ -3013,6 +3407,13 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 					disabled=${!!cancel}
 					onSessionChange=${onSessionChange}
 					onSessionError=${onSessionError}/>
+			</${CollapsibleGroup}>					
+			<${CollapsibleGroup} label="Instruct Templates">
+				<${Templates} templateStorage=${ templateStorage}
+					promptArea=${promptArea}
+					disabled=${!!cancel}
+					onInput=${onInput},
+					setTemplateStorage=${setTemplateStorage} />
 			</${CollapsibleGroup}>
 			<${CollapsibleGroup} label="Parameters" expanded>
 				<${InputBox} label="Server"
