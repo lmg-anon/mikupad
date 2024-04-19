@@ -1247,8 +1247,8 @@ async function openaiModels({ endpoint, endpointAPIKey, realEndpoint, signal, ..
 	return data.map(item => item.id);
 }
 
-function openaiConvertOptions(options, endpoint) {
-	const isOpenAI = endpoint.toLowerCase().includes("openai.com") || endpoint.toLowerCase().includes("together.xyz");
+function openaiConvertOptions(options, realEndpoint){
+	const isOpenAI = realEndpoint.toLowerCase().includes("openai.com") || realEndpoint.toLowerCase().includes("together.xyz");
 	const swapOption = (lhs, rhs) => {
 		if (lhs in options) {
 			options[rhs] = options[lhs];
@@ -1280,9 +1280,9 @@ function openaiConvertOptions(options, endpoint) {
 	swapOption("mirostat", "mirostat_mode");
 	swapOption("ignore_eos", "ban_eos_token")
 
-	if (endpoint.toLowerCase().includes("together.xyz")) {
+	if (realEndpoint.toLowerCase().includes("together.xyz")) {
 		// errors 400 without this.
-		delete options.logprobs
+		delete options.logprobs;
 	}
 
 	return options;
@@ -1299,7 +1299,7 @@ async function* openaiCompletion({ endpoint, endpointAPIKey, realEndpoint, signa
 			...(realEndpoint ? { 'X-Real-URL': realEndpoint } : {})
 		},
 		body: JSON.stringify({
-			...openaiConvertOptions(options, endpoint),
+			...openaiConvertOptions(options, realEndpoint),
 			stream: true,
 		}),
 		signal,
