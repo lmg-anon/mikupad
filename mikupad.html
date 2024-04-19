@@ -1249,7 +1249,7 @@ async function openaiModels({ endpoint, endpointAPIKey, realEndpoint, signal, ..
 
 function openaiConvertOptions(options, realEndpoint){
 	const isOpenAI = realEndpoint.toLowerCase().includes("openai.com");
-	const isTogetherAI = realEndpoint.toLowerCase().includes("together.xyz")
+	const isTogetherAI = realEndpoint.toLowerCase().includes("together.xyz");
 	const swapOption = (lhs, rhs) => {
 		if (lhs in options) {
 			options[rhs] = options[lhs];
