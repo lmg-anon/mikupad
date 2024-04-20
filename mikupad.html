@@ -3208,17 +3208,6 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 				<${InputBox} label="Tokens" value=${tokens} readOnly/>`}
 			<div className="buttons">
 				<button
-					id="button-settings"
-					onClick=${() => {
-						toggleModal("settings");
-						document.getElementsByClassName("SelectBox")[0].classList.toggle("hide", modalState.settings);
-						document.getElementsByClassName("horz-separator")[0].classList.toggle("hide", modalState.settings);
-						for (const collapseGroup of document.getElementsByClassName("collapsible-group"))
-							collapseGroup.classList.toggle("hide", modalState.settings);
-					}}>
-					Settings
-				</button>
-				<button
 					title="Run next prediction (Ctrl + Enter)"
 					className=${cancel && !sessionEndpointConnecting ? (predictStartTokens === tokens ? 'processing' : 'completing') : ''}
 					disabled=${!!cancel || stoppingStringsError}
@@ -3258,6 +3247,17 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 						<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24"><path d="M6.974 22.957c-10.957-11.421 2.326-20.865 10.384-13.309l-2.464 2.352h9.106v-8.947l-2.232 2.229c-14.794-13.203-31.51 7.051-14.794 17.675z" fill="var(--color-light)"/></svg>
 					</button>
 				</div>
+				<button
+					id="button-settings"
+					onClick=${() => {
+						toggleModal("settings");
+						document.getElementsByClassName("SelectBox")[0].classList.toggle("hide", modalState.settings);
+						document.getElementsByClassName("horz-separator")[0].classList.toggle("hide", modalState.settings);
+						for (const collapseGroup of document.getElementsByClassName("collapsible-group"))
+							collapseGroup.classList.toggle("hide", modalState.settings);
+					}}>
+					Settings
+				</button>
 			</div>
 			${!!lastError && html`
 				<span className="error-text">${lastError}</span>`}
