@@ -10,6 +10,7 @@
   -- work.  If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
   -->
 <title>mikupad</title>
+<meta name="viewport" content="width=device-width, height=device-height, initial-scale=1.0">
 <script type="importmap">
 {
 	"imports": {
@@ -882,6 +883,29 @@ html.monospace-dark .Session.selected {
 }
 html.monospace-dark .horz-separator {
 	border-top: 3px dotted var(--color-base-20);
+}
+
+.buttons #show-settings {
+	display: none;
+}
+
+.hide {
+	display: none;
+}
+
+@media (max-width: 768px) {
+  #prompt-container {
+    font-size: 1.35rem;
+	height: 96.9vh; /* There's a better way to this */
+  }
+  html.monospace-dark #sidebar {
+	width: 100%;
+    position: fixed;	
+	bottom: 0%;
+  }
+  .buttons #show-settings {
+	  display: block;
+  }
 }
 
 </style>
@@ -3183,6 +3207,16 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 			${!!tokens && html`
 				<${InputBox} label="Tokens" value=${tokens} readOnly/>`}
 			<div className="buttons">
+				<button
+					onClick=${() => {
+						toggleModal("settings");
+						document.getElementsByClassName("SelectBox")[0].classList.toggle("hide", modalState.settings);
+						document.getElementsByClassName("horz-separator")[0].classList.toggle("hide", modalState.settings);
+						for (const collapseGroup of document.getElementsByClassName("collapsible-group"))
+							collapseGroup.classList.toggle("hide", modalState.settings);
+					}}>
+					Settings
+				</button>
 				<button
 					title="Run next prediction (Ctrl + Enter)"
 					className=${cancel && !sessionEndpointConnecting ? (predictStartTokens === tokens ? 'processing' : 'completing') : ''}
