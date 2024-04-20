@@ -1149,7 +1149,7 @@ function openaiFixEndpoint(endpoint) {
 	if (url.pathname.endsWith("/v1")) {
 		url.pathname = url.pathname.replace("/v1", "");
 	}
-	return url.toString();
+	return url.toString().endsWith("/") ? url.toString().slice(0, -1) : url.toString();
 }
 
 async function openaiAphroditeTokenCount({ endpoint, endpointAPIKey, realEndpoint, signal, ...options }) {
