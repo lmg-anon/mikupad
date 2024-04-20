@@ -885,7 +885,7 @@ html.monospace-dark .horz-separator {
 	border-top: 3px dotted var(--color-base-20);
 }
 
-.buttons #show-settings {
+#button-settings {
 	display: none;
 }
 
@@ -903,7 +903,7 @@ html.monospace-dark .horz-separator {
     position: fixed;	
 	bottom: 0%;
   }
-  .buttons #show-settings {
+  #button-settings {
 	  display: block;
   }
 }
@@ -3208,6 +3208,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 				<${InputBox} label="Tokens" value=${tokens} readOnly/>`}
 			<div className="buttons">
 				<button
+					id="button-settings"
 					onClick=${() => {
 						toggleModal("settings");
 						document.getElementsByClassName("SelectBox")[0].classList.toggle("hide", modalState.settings);
