@@ -916,10 +916,8 @@ export async function getTokenCount({ endpoint, endpointAPI, endpointAPIKey, sig
 		case 2: // koboldcpp
 			return await koboldCppTokenCount({ endpoint, signal, ...options });
 		case 3: // openai
-			// OpenAI itself doesn't have a token count endpoint...
+			// These endpoints don't have a token count endpoint...
 			if (new URL(endpoint).host === 'api.openai.com' || new URL(endpoint).host === 'api.together.xyz')
-				return 0;
-			if (options.realEndpoint && new URL(options.realEndpoint).host === 'api.openai.com' || new URL(options.realEndpoint).host === 'api.together.xyz')
 				return 0;
 
 			// Each backend that exposes an OpenAI-compatible API may have a different token count endpoint.
@@ -1016,13 +1014,13 @@ async function* parseEventStream(eventStream) {
 	}
 }
 
-async function llamaCppTokenCount({ endpoint, endpointAPIKey, realEndpoint, signal, ...options }) {
-	const res = await fetch(`${endpoint}/tokenize`, {
+async function llamaCppTokenCount({ endpoint, endpointAPIKey, proxyEndpoint, signal, ...options }) {
+	const res = await fetch(`${proxyEndpoint ?? endpoint}/tokenize`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
 			...(endpointAPIKey ? { 'Authorization': `Bearer ${endpointAPIKey}` } : {}),
-			...(realEndpoint ? { 'X-Real-URL': realEndpoint } : {})
+			...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
 		},
 		body: JSON.stringify(options),
 		signal,
@@ -1033,13 +1031,13 @@ async function llamaCppTokenCount({ endpoint, endpointAPIKey, realEndpoint, sign
 	return tokens.length + 1; // + 1 for BOS, I guess.
 }
 
-async function* llamaCppCompletion({ endpoint, endpointAPIKey, realEndpoint, signal, ...options }) {
-	const res = await fetch(`${endpoint}/completion`, {
+async function* llamaCppCompletion({ endpoint, endpointAPIKey, proxyEndpoint, signal, ...options }) {
+	const res = await fetch(`${proxyEndpoint ?? endpoint}/completion`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
 			...(endpointAPIKey ? { 'Authorization': `Bearer ${endpointAPIKey}` } : {}),
-			...(realEndpoint ? { 'X-Real-URL': realEndpoint } : {})
+			...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
 		},
 		body: JSON.stringify({
 			...options,
@@ -1063,14 +1061,13 @@ function koboldFixEndpoint(endpoint) {
 	return url.toString();
 }
 
-async function koboldCppTokenCount({ endpoint, realEndpoint, signal, ...options }) {
+async function koboldCppTokenCount({ endpoint, proxyEndpoint, signal, ...options }) {
 	endpoint = koboldFixEndpoint(endpoint);
-	realEndpoint = koboldFixEndpoint(realEndpoint);
-	const res = await fetch(`${endpoint}/api/extra/tokencount`, {
+	const res = await fetch(`${proxyEndpoint ?? endpoint}/api/extra/tokencount`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
-			...(realEndpoint ? { 'X-Real-URL': realEndpoint } : {})
+			...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
 		},
 		body: JSON.stringify({
 			prompt: options.content
@@ -1105,14 +1102,13 @@ function koboldCppConvertOptions(options) {
 	return options;
 }
 
-async function* koboldCppCompletion({ endpoint, realEndpoint, signal, ...options }) {
+async function* koboldCppCompletion({ endpoint, proxyEndpoint, signal, ...options }) {
 	endpoint = koboldFixEndpoint(endpoint);
-	realEndpoint = koboldFixEndpoint(realEndpoint);
-	const res = await fetch(`${endpoint}/api/extra/generate/stream`, {
+	const res = await fetch(`${proxyEndpoint ?? endpoint}/api/extra/generate/stream`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
-			...(realEndpoint ? { 'X-Real-URL': realEndpoint } : {})
+			...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
 		},
 		body: JSON.stringify({
 			...koboldCppConvertOptions(options),
@@ -1127,14 +1123,13 @@ async function* koboldCppCompletion({ endpoint, realEndpoint, signal, ...options
 	}
 }
 
-async function koboldCppAbortCompletion({ endpoint, realEndpoint, ...options }) {
+async function koboldCppAbortCompletion({ endpoint, proxyEndpoint, ...options }) {
 	try {
 		endpoint = koboldFixEndpoint(endpoint);
-		realEndpoint = koboldFixEndpoint(realEndpoint);
-		await fetch(`${endpoint}/api/extra/abort`, {
+		await fetch(`${proxyEndpoint ?? endpoint}/api/extra/abort`, {
 			method: 'POST',
 			headers: {
-				...(realEndpoint ? { 'X-Real-URL': realEndpoint } : {})
+				...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
 			},
 		});
 	} catch (e) {
@@ -1152,16 +1147,15 @@ function openaiFixEndpoint(endpoint) {
 	return url.toString().endsWith("/") ? url.toString().slice(0, -1) : url.toString();
 }
 
-async function openaiAphroditeTokenCount({ endpoint, endpointAPIKey, realEndpoint, signal, ...options }) {
+async function openaiAphroditeTokenCount({ endpoint, endpointAPIKey, proxyEndpoint, signal, ...options }) {
 	try {
 		endpoint = openaiFixEndpoint(endpoint);
-		realEndpoint = openaiFixEndpoint(realEndpoint);
-		const res = await fetch(`${endpoint}/v1/token/encode`, {
+		const res = await fetch(`${proxyEndpoint ?? endpoint}/v1/token/encode`, {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',
 				'Authorization': `Bearer ${endpointAPIKey}`,
-				...(realEndpoint ? { 'X-Real-URL': realEndpoint } : {})
+				...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
 			},
 			body: JSON.stringify({
 				prompt: options.content
@@ -1178,15 +1172,14 @@ async function openaiAphroditeTokenCount({ endpoint, endpointAPIKey, realEndpoin
 	}
 }
 
-async function openaiOobaTokenCount({ endpoint, realEndpoint, signal, ...options }) {
+async function openaiOobaTokenCount({ endpoint, proxyEndpoint, signal, ...options }) {
 	try {
 		endpoint = openaiFixEndpoint(endpoint);
-		realEndpoint = openaiFixEndpoint(realEndpoint);
-		const res = await fetch(`${endpoint}/v1/internal/token-count`, {
+		const res = await fetch(`${proxyEndpoint ?? endpoint}/v1/internal/token-count`, {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',
-				...(realEndpoint ? { 'X-Real-URL': realEndpoint } : {})
+				...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
 			},
 			body: JSON.stringify({
 				text: options.content
@@ -1203,16 +1196,15 @@ async function openaiOobaTokenCount({ endpoint, realEndpoint, signal, ...options
 	}
 }
 
-async function openaiTabbyTokenCount({ endpoint, endpointAPIKey, realEndpoint, signal, ...options }) {
+async function openaiTabbyTokenCount({ endpoint, endpointAPIKey, proxyEndpoint, signal, ...options }) {
 	try {
 		endpoint = openaiFixEndpoint(endpoint);
-		realEndpoint = openaiFixEndpoint(realEndpoint);
-		const res = await fetch(`${endpoint}/v1/token/encode`, {
+		const res = await fetch(`${proxyEndpoint ?? endpoint}/v1/token/encode`, {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',
 				'Authorization': `Bearer ${endpointAPIKey}`,
-				...(realEndpoint ? { 'X-Real-URL': realEndpoint } : {})
+				...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
 			},
 			body: JSON.stringify({
 				text: options.content
@@ -1229,15 +1221,14 @@ async function openaiTabbyTokenCount({ endpoint, endpointAPIKey, realEndpoint, s
 	}
 }
 
-async function openaiModels({ endpoint, endpointAPIKey, realEndpoint, signal, ...options }) {
+async function openaiModels({ endpoint, endpointAPIKey, proxyEndpoint, signal, ...options }) {
 	endpoint = openaiFixEndpoint(endpoint);
-	realEndpoint = openaiFixEndpoint(realEndpoint);
-	const res = await fetch(`${endpoint}/v1/models`, {
+	const res = await fetch(`${proxyEndpoint ?? endpoint}/v1/models`, {
 		method: 'GET',
 		headers: {
 			'Content-Type': 'application/json',
 			'Authorization': `Bearer ${endpointAPIKey}`,
-			...(realEndpoint ? { 'X-Real-URL': realEndpoint } : {})
+			...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
 		},
 		signal,
 	});
@@ -1247,9 +1238,9 @@ async function openaiModels({ endpoint, endpointAPIKey, realEndpoint, signal, ..
 	return data.map(item => item.id);
 }
 
-function openaiConvertOptions(options, realEndpoint){
-	const isOpenAI = realEndpoint.toLowerCase().includes("openai.com");
-	const isTogetherAI = realEndpoint.toLowerCase().includes("together.xyz");
+function openaiConvertOptions(options, endpoint){
+	const isOpenAI = endpoint.toLowerCase().includes("openai.com");
+	const isTogetherAI = endpoint.toLowerCase().includes("together.xyz");
 	const swapOption = (lhs, rhs) => {
 		if (lhs in options) {
 			options[rhs] = options[lhs];
@@ -1272,6 +1263,10 @@ function openaiConvertOptions(options, realEndpoint){
 		// oobabooga specific.
 		options.do_sample = false;
 	}
+	if (isTogetherAI) {
+		// errors 400 without this.
+		delete options.logprobs;
+	}
 	swapOption("n_ctx", "max_context_length");
 	swapOption("n_predict", "max_tokens");
 	swapOption("n_probs", "logprobs");
@@ -1280,27 +1275,20 @@ function openaiConvertOptions(options, realEndpoint){
 	swapOption("tfs_z", "tfs");
 	swapOption("mirostat", "mirostat_mode");
 	swapOption("ignore_eos", "ban_eos_token")
-
-	if (isTogetherAI) {
-		// errors 400 without this.
-		delete options.logprobs;
-	}
-
 	return options;
 }
 
-async function* openaiCompletion({ endpoint, endpointAPIKey, realEndpoint, signal, ...options }) {
+async function* openaiCompletion({ endpoint, endpointAPIKey, proxyEndpoint, signal, ...options }) {
 	endpoint = openaiFixEndpoint(endpoint);
-	realEndpoint = openaiFixEndpoint(realEndpoint);
-	const res = await fetch(`${endpoint}/v1/completions`, {
+	const res = await fetch(`${proxyEndpoint ?? endpoint}/v1/completions`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
 			'Authorization': `Bearer ${endpointAPIKey}`,
-			...(realEndpoint ? { 'X-Real-URL': realEndpoint } : {})
+			...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
 		},
 		body: JSON.stringify({
-			...openaiConvertOptions(options, realEndpoint),
+			...openaiConvertOptions(options, endpoint),
 			stream: true,
 		}),
 		signal,
@@ -1320,14 +1308,13 @@ async function* openaiCompletion({ endpoint, endpointAPIKey, realEndpoint, signa
 	}
 }
 
-async function openaiOobaAbortCompletion({ endpoint, realEndpoint, ...options }) {
+async function openaiOobaAbortCompletion({ endpoint, proxyEndpoint, ...options }) {
 	endpoint = openaiFixEndpoint(endpoint);
-	realEndpoint = openaiFixEndpoint(realEndpoint);
 	try {
-		await fetch(`${endpoint}/v1/internal/stop-generation`, {
+		await fetch(`${proxyEndpoint ?? endpoint}/v1/internal/stop-generation`, {
 			method: 'POST',
 			headers: {
-				...(realEndpoint ? { 'X-Real-URL': realEndpoint } : {})
+				...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
 			},
 		});
 	} catch (e) {
@@ -2424,7 +2411,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 			abortCompletion({
 				endpoint,
 				endpointAPI,
-				...(isMikupadEndpoint ? { endpoint: sessionStorage.proxyEndpoint, realEndpoint: endpoint } : {})
+				...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {})
 			});
 			ac.abort();
 		};
@@ -2442,7 +2429,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 				...(endpointAPI == 3 || endpointAPI == 0 ? { endpointAPIKey } : {}),
 				content: ` ${prompt}`,
 				signal: ac.signal,
-				...(isMikupadEndpoint ? { endpoint: sessionStorage.proxyEndpoint, realEndpoint: endpoint } : {})
+				...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {})
 			});
 			setTokens(tokenCount);
 			setPredictStartTokens(tokenCount);
@@ -2491,7 +2478,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 				n_probs: 10,
 				...(JSON.parse(stoppingStrings).length ? { stop: JSON.parse(stoppingStrings) } : {}),
 				signal: ac.signal,
-				...(isMikupadEndpoint ? { endpoint: sessionStorage.proxyEndpoint, realEndpoint: endpoint } : {})
+				...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {})
 			})) {
 				ac.signal.throwIfAborted();
 				if (chunk.stopping_word)
@@ -2685,7 +2672,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 					...(endpointAPI == 3 || endpointAPI == 0 ? { endpointAPIKey } : {}),
 					content: ` ${modifiedPrompt}`,
 					signal: ac.signal,
-					...(isMikupadEndpoint ? { endpoint: sessionStorage.proxyEndpoint, realEndpoint: endpoint } : {})
+					...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {})
 				});
 				setTokens(tokenCount);
 			} catch (e) {
@@ -2709,7 +2696,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 					endpointAPI,
 					...(endpointAPI == 3 ? { endpointAPIKey } : {}),
 					signal: ac.signal,
-					...(isMikupadEndpoint ? { endpoint: sessionStorage.proxyEndpoint, realEndpoint: endpoint } : {})
+					...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {})
 				});
 				setOpenaiModels(models);
 			} catch (e) {
