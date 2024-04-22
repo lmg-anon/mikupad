@@ -2134,8 +2134,8 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 	const [showProbsMode, setShowProbsMode] = usePersistentState('showProbsMode', 0);
 	const [highlightGenTokens, setHighlightGenTokens] = usePersistentState('highlightGenTokens', true);
 	const [preserveCursorPosition, setPreserveCursorPosition] = usePersistentState('preserveCursorPosition', true);
-	const [darkMode, _] = usePersistentState('darkMode', false); // legacy
-	const [theme, setTheme] = usePersistentState('theme', darkMode ? 1 : 0);
+	const [promptAreaWidth, setPromptAreaWidth] = usePersistentState('promptAreaWidth', undefined);
+	const [theme, setTheme] = usePersistentState('theme', 0);
 	const [sessionEndpointConnecting, setSessionEndpointConnecting] = useState(false);
 	const [sessionEndpointError, setSessionEndpointError] = useState(undefined);
 	const [endpoint, setEndpoint] = useSessionState('endpoint', defaultPresets.endpoint);
@@ -2564,6 +2564,14 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 	}, [attachSidebar]);
 
 	useLayoutEffect(() => {
+		if (promptAreaWidth) {
+			const container = document.querySelector('#prompt-container');
+			container.style.setProperty('min-width', promptAreaWidth);
+			container.style.setProperty('max-width', promptAreaWidth);
+		}
+	}, [promptAreaWidth]);
+
+	useLayoutEffect(() => {
 		document.documentElement.classList.remove('serif-dark');
 		document.documentElement.classList.remove('monospace-dark');
 		document.documentElement.classList.remove('nockoffAI');
@@ -2762,6 +2770,83 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 			window.removeEventListener('keyup', onKeyUp)
 		};
 	}, [predict, cancel]);
+
+	// textarea resize
+	useEffect(() => {
+		const container = document.querySelector('#prompt-container');
+
+		let isDragging = false;
+		let startX;
+		let startMaxWidth;
+		let startEdge;
+		let edgeDetectionZone = 10; // Pixels from edge to trigger resize
+
+		function getNearEdge(e) {
+			const rect = promptArea.current.getBoundingClientRect();
+			if ((e.clientX - rect.left < edgeDetectionZone && e.clientX - rect.left > 0)) {
+				return 'left';
+			} else if ((rect.right - e.clientX < edgeDetectionZone && rect.right - e.clientX > 0)) {
+				return 'right';
+			}
+			return false;
+		}
+
+		function startDragging(e) {
+			const edge = getNearEdge(e);
+			if (!edge) return; // Only drag from edges
+
+			// reset selection
+			promptArea.current.selectionStart = promptArea.current.selectionEnd;
+
+			isDragging = true;
+
+			const invEdgePos = edge == 'right' ? promptArea.current.getBoundingClientRect().left : promptArea.current.getBoundingClientRect().right;
+			startX = e.clientX - invEdgePos;
+			startMaxWidth = getComputedStyle(container).getPropertyValue('max-width');
+			startEdge = edge;
+		}
+
+		function drag(e) {
+			switch (getNearEdge(e)) {
+				case 'right':
+					promptArea.current.style.cursor = 'col-resize';
+					promptArea.current.style.borderRight = '1px dotted var(--color-light)';
+					break;
+				case 'left':
+					promptArea.current.style.cursor = 'col-resize';
+					promptArea.current.style.borderLeft = '1px dotted var(--color-light)';
+					break;
+				default:
+					promptArea.current.style.cursor = '';
+					promptArea.current.style.border = '';
+					break;
+			}
+			
+			if (!isDragging) return;
+
+			// reset selection
+			promptArea.current.selectionStart = promptArea.current.selectionEnd;
+
+			const invEdgePos = startEdge == 'right' ? promptArea.current.getBoundingClientRect().left : promptArea.current.getBoundingClientRect().right;
+			const currentX = e.clientX - invEdgePos;
+			setPromptAreaWidth(`calc(${startMaxWidth} + ${(currentX - startX) * (startEdge == 'right' ? 1 : -1)}px)`);
+		}
+
+		function stopDragging() {
+			isDragging = false;
+		}
+
+		promptArea.current.addEventListener('mousedown', startDragging);
+		document.addEventListener('mousemove', drag);
+		document.addEventListener('mouseup', stopDragging);
+		document.addEventListener('mouseleave', stopDragging);
+		return () => {
+			promptArea.current.removeEventListener('mousedown', startDragging);
+			document.removeEventListener('mousemove', drag);
+			document.removeEventListener('mouseup', stopDragging);
+			document.removeEventListener('mouseleave', stopDragging);
+		};
+	}, [promptArea]);
 
 	function onInput({ target }) {
 		setPromptChunks(oldPrompt => {
