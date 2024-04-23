@@ -5,6 +5,7 @@ const sqlite3 = require('sqlite3');
 const path = require('path');
 const minimist = require('minimist');
 const axios = require('axios');
+const open = require('open');
 
 const app = express();
 
@@ -13,6 +14,7 @@ const args = minimist(process.argv.slice(2));
 // Default fallbacks: command line args -> environment variables -> static defaults
 const port = args.port || process.env.MIKUPAD_PORT || 3000;
 const host = args.host || process.env.MIKUPAD_HOST || '0.0.0.0';
+const noOpen = (args.open !== undefined && !args.open) || process.env.MIKUPAD_NO_OPEN;
 
 app.use(cors(), bodyParser.json({limit: "100mb"}));
 
@@ -175,6 +177,9 @@ app.post('/delete', (req, res) => {
 // Start the server
 app.listen(port, host, () => {
     console.log(`Server listening at http://${host}:${port}`);
+    if (!noOpen) {
+        open(`http://127.0.0.1:${port}/`);
+    }
 });
 
 // Close db connection on server close
