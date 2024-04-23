@@ -1043,7 +1043,20 @@ if (!(Symbol.asyncIterator in ReadableStream.prototype)) {
 	};
 }
 
+function normalizeEndpoint(endpoint) {
+	const url = new URL(endpoint.trim());
+	url.pathname = url.pathname.replace(/\/+/g, "/"); // normalize consecutive slashes
+	
+	let urlString = url.toString();
+	urlString = urlString.replace(/\/v1\/?$/, ""); // remove "/v1" from the end of the string
+	urlString = urlString.replace(/\/api\/?$/, ""); // remove "/api" from the end of the string
+	urlString = urlString.replace(/\/$/, ""); // remove "/" from the end of the string
+	
+	return urlString;
+}
+
 export async function getTokenCount({ endpoint, endpointAPI, endpointAPIKey, signal, ...options }) {
+	endpoint = normalizeEndpoint(endpoint);
 	switch (endpointAPI) {
 		case 0: // llama.cpp
 			return await llamaCppTokenCount({ endpoint, endpointAPIKey, signal, ...options });
@@ -1085,6 +1098,7 @@ export async function getTokens({ endpoint, endpointAPI, endpointAPIKey, signal,
 }
 
 export async function getModels({ endpoint, endpointAPI, endpointAPIKey, signal, ...options }) {
+	endpoint = normalizeEndpoint(endpoint);
 	switch (endpointAPI) {
 		case 3: // openai
 			return await openaiModels({ endpoint, endpointAPIKey, signal, ...options });
@@ -1094,6 +1108,7 @@ export async function getModels({ endpoint, endpointAPI, endpointAPIKey, signal,
 }
 
 export async function* completion({ endpoint, endpointAPI, endpointAPIKey, signal, ...options }) {
+	endpoint = normalizeEndpoint(endpoint);
 	switch (endpointAPI) {
 		case 0: // llama.cpp
 			return yield* await llamaCppCompletion({ endpoint, endpointAPIKey, signal, ...options });
@@ -1105,6 +1120,7 @@ export async function* completion({ endpoint, endpointAPI, endpointAPIKey, signa
 }
 
 export async function abortCompletion({ endpoint, endpointAPI, ...options }) {
+	endpoint = normalizeEndpoint(endpoint);
 	switch (endpointAPI) {
 		case 2: // koboldcpp
 			return await koboldCppAbortCompletion({ endpoint, ...options });
@@ -1257,7 +1273,6 @@ function koboldFixEndpoint(endpoint) {
 }
 
 async function koboldCppTokenCount({ endpoint, proxyEndpoint, signal, ...options }) {
-	endpoint = koboldFixEndpoint(endpoint);
 	const res = await fetch(`${proxyEndpoint ?? endpoint}/api/extra/tokencount`, {
 		method: 'POST',
 		headers: {
@@ -1322,7 +1337,6 @@ function koboldCppConvertOptions(options) {
 }
 
 async function* koboldCppCompletion({ endpoint, proxyEndpoint, signal, ...options }) {
-	endpoint = koboldFixEndpoint(endpoint);
 	const res = await fetch(`${proxyEndpoint ?? endpoint}/api/extra/generate/stream`, {
 		method: 'POST',
 		headers: {
@@ -1344,7 +1358,6 @@ async function* koboldCppCompletion({ endpoint, proxyEndpoint, signal, ...option
 
 async function koboldCppAbortCompletion({ endpoint, proxyEndpoint, ...options }) {
 	try {
-		endpoint = koboldFixEndpoint(endpoint);
 		await fetch(`${proxyEndpoint ?? endpoint}/api/extra/abort`, {
 			method: 'POST',
 			headers: {
@@ -1356,24 +1369,37 @@ async function koboldCppAbortCompletion({ endpoint, proxyEndpoint, ...options })
 	}
 }
 
-function openaiFixEndpoint(endpoint) {
-	const url = new URL(endpoint.trim());
-	url.pathname = url.pathname.replace(/\/+/g, "/"); // normalize consecutive slashes
-	
-	let urlString = url.toString();
-	urlString = urlString.replace(/\/v1\/?$/, ""); // remove "/v1" from the end of the string
-	urlString = urlString.replace(/\/$/, ""); // remove "/" from the end of the string
-	
-	return urlString;
-}
-
 async function openaiAphroditeTokenCount({ endpoint, endpointAPIKey, proxyEndpoint, signal, ...options }) {
 	try {
-		endpoint = openaiFixEndpoint(endpoint);
 		const res = await fetch(`${proxyEndpoint ?? endpoint}/v1/token/encode`, {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',
+				'Authorization': `Bearer ${endpointAPIKey}`,
+				...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
+			},
+			body: JSON.stringify({
+				prompt: options.content
+			}),
+			signal,
+		});
+		if (!res.ok)
+			throw new Error(`HTTP ${res.status}`);
+		const tokens = await res.json();
+		return tokens.length;
+	} catch (e) {
+		reportError(e);
+		return -1;
+	}
+}
+
+async function openaiOobaTokenCount({ endpoint, proxyEndpoint, signal, ...options }) {
+	try {
+		const res = await fetch(`${proxyEndpoint ?? endpoint}/v1/internal/token-count`, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
 			},
 			body: JSON.stringify({
 				text: options.content
@@ -1392,7 +1418,6 @@ async function openaiAphroditeTokenCount({ endpoint, endpointAPIKey, proxyEndpoi
 
 async function openaiTabbyTokenCount({ endpoint, endpointAPIKey, proxyEndpoint, signal, ...options }) {
 	try {
-		endpoint = openaiFixEndpoint(endpoint);
 		const res = await fetch(`${proxyEndpoint ?? endpoint}/v1/token/encode`, {
 			method: 'POST',
 			headers: {
@@ -1416,7 +1441,6 @@ async function openaiTabbyTokenCount({ endpoint, endpointAPIKey, proxyEndpoint, 
 }
 
 async function openaiModels({ endpoint, endpointAPIKey, proxyEndpoint, signal, ...options }) {
-	endpoint = openaiFixEndpoint(endpoint);
 	const res = await fetch(`${proxyEndpoint ?? endpoint}/v1/models`, {
 		method: 'GET',
 		headers: {
@@ -1473,7 +1497,6 @@ function openaiConvertOptions(options, endpoint){
 }
 
 async function* openaiCompletion({ endpoint, endpointAPIKey, proxyEndpoint, signal, ...options }) {
-	endpoint = openaiFixEndpoint(endpoint);
 	const res = await fetch(`${proxyEndpoint ?? endpoint}/v1/completions`, {
 		method: 'POST',
 		headers: {
@@ -1503,7 +1526,6 @@ async function* openaiCompletion({ endpoint, endpointAPIKey, proxyEndpoint, sign
 }
 
 async function openaiOobaAbortCompletion({ endpoint, proxyEndpoint, ...options }) {
-	endpoint = openaiFixEndpoint(endpoint);
 	try {
 		await fetch(`${proxyEndpoint ?? endpoint}/v1/internal/stop-generation`, {
 			method: 'POST',
@@ -3195,9 +3217,9 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 
 		function getNearEdge(e) {
 			const rect = promptArea.current.getBoundingClientRect();
-			if ((e.clientX - rect.left < edgeDetectionZone && e.clientX - rect.left > 0)) {
+			if (e.clientX - rect.left < edgeDetectionZone && e.clientX - rect.left > 0) {
 				return 'left';
-			} else if ((rect.right - e.clientX < edgeDetectionZone && rect.right - e.clientX > 0)) {
+			} else if (rect.right - e.clientX < edgeDetectionZone && rect.right - e.clientX > 0) {
 				return 'right';
 			}
 			return false;
