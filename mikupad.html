@@ -3313,7 +3313,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 		<${Modal} isOpen=${modalState.prompt} onClose=${() => closeModal("prompt")}
 		title="Editor Preferences"
 		description=""
-		style=${{ 'width': '30%' }}>
+		style=${{ 'max-width': '20em' }}>
 			<div className="vbox">
 				<${Checkbox} label="Enable spell checking"
 					value=${spellCheck} onValueChange=${setSpellCheck}/>
