@@ -2422,13 +2422,13 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 
 		const ac = new AbortController();
 		console.log("input","."+biasString+".",biasPower)
-
+		console.log("replace","."+biasString.replace(/\\n/g, '\n')+".")
 		try {
 			const tokens = await getTokens({
 				endpoint,
 				endpointAPI,
 				...(endpointAPI == 3 || endpointAPI == 0 ? { endpointAPIKey } : {}),
-				content: `${biasString}`,
+				content: `${biasString}`.replace(/\\n/g, '\n'),
 				signal: ac.signal,
 				...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {})
 			});
@@ -2465,7 +2465,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 		for (const key in logitBias.bias) {
 			console.log("retok",key,logitBias.bias[key])
 			await logitBiasAdd(Number(logitBias.bias[key].power),key);
-			await new Promise(r => setTimeout(r, 200));
+			//await new Promise(r => setTimeout(r, 200));
 		}
 	};
 
@@ -2474,6 +2474,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 	const llamaCppSetLogitBiasParams = () => {
 		const param = [];
 		// TODO grab multi-token strings here and put them in a separate state variable
+		// for phrase bias
 		Object.keys(logitBias.bias).forEach(entry => {
 			// set banned tokens to false
 			const power = logitBias.bias[entry].power < -99 ? false : Number(logitBias.bias[entry].power);
@@ -2492,12 +2493,11 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 		setLogitBiasParam(param)
 	};
 	const updateLogitBiasParam = useMemo(() => {
-		// console.log("endpoint",endpointAPI)
+		// set the parameters sent to the model in the format expected by the endpoint
 		switch (endpointAPI) {
 			case 0:
 				llamaCppSetLogitBiasParams()
 				break;
-			
 			case 2:
 				koboldCppSetLogitBiasParams()
 				break;
@@ -2846,7 +2846,9 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 			setUndoHovered(false);
 			setRejectedAPIKey(false);
 
-			console.log("AAAAAAAAAAAAAAAAAAAA",logitBiasParam)
+			console.log("AAAAAAAAAAAAAAAAAAAA",logitBias)
+			console.log(logitBias.bias)
+			console.log(logitBias.bias.length)
 			for await (const chunk of completion({
 				endpoint,
 				endpointAPI,
@@ -2865,7 +2867,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 					penalize_nl: penalizeNl,
 					ignore_eos: ignoreEos,
 				} : {}),
-				...(logitBias.bias.length > 0 ? {
+				...(Object.keys(logitBias.bias).length > 0 ? {
 					logit_bias: logitBiasParam, // [[39,-20],[37934,-20]], //
 				} : {}),
 				presence_penalty: presencePenalty,
