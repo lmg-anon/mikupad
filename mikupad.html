@@ -1276,7 +1276,7 @@ async function koboldCppTokenCount({ endpoint, proxyEndpoint, signal, ...options
 }
 
 async function koboldCppTokenize({ endpoint, signal, ...options }) {
-	// console.log("kcpp",options.content)
+	console.log("kcpp",options.content)
 	const res = await fetch(new URL('/api/extra/tokencount', endpoint), {
 		method: 'POST',
 		headers: {
@@ -1290,8 +1290,11 @@ async function koboldCppTokenize({ endpoint, signal, ...options }) {
 	if (!res.ok)
 		throw new Error(`HTTP ${res.status}`);
 	const { ids } = await res.json();
+	console.log(ids)
 	ids.shift() // kobold automatically adds a token, so we need to remove it
-	// console.log("shift",ids)
+	// at this point I think kobold just automatically adds a space to the front of
+	// requests, which fucks up the token IDs for things at the beginning of a sentence.
+	console.log("shift",ids)
 	return {ids:ids,str:""};
 	
 }
@@ -2428,7 +2431,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 				endpoint,
 				endpointAPI,
 				...(endpointAPI == 3 || endpointAPI == 0 ? { endpointAPIKey } : {}),
-				content: `${biasString}`.replace(/\\n/g, '\n'),
+				content: `${biasString}`.replace(/\\n/g,'\n'),
 				signal: ac.signal,
 				...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {})
 			});
@@ -2472,6 +2475,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 
 
 	const llamaCppSetLogitBiasParams = () => {
+		// limits unclear. breaks down at around +-11
 		const param = [];
 		// TODO grab multi-token strings here and put them in a separate state variable
 		// for phrase bias
@@ -2484,10 +2488,10 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 		setLogitBiasParam(param)
 	};
 	const koboldCppSetLogitBiasParams = () => {
+		// 100.0 to -100.0
 		const param = {};
 		Object.keys(logitBias.bias).forEach(entry => {
 			param[Number(logitBias.bias[entry].ids[0])] = Number(logitBias.bias[entry].power)
-			// console.log(logitBias.bias[entry].ids[0])
 		})
 		console.log("params",param)
 		setLogitBiasParam(param)
@@ -2846,9 +2850,8 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 			setUndoHovered(false);
 			setRejectedAPIKey(false);
 
-			console.log("AAAAAAAAAAAAAAAAAAAA",logitBias)
-			console.log(logitBias.bias)
-			console.log(logitBias.bias.length)
+			console.log("AAAAAAAAAAAAAAAAAAAA",logitBiasParam)
+			console.log(Object.keys(logitBias.bias).length, Object.keys(logitBias.bias).length > 0)
 			for await (const chunk of completion({
 				endpoint,
 				endpointAPI,
@@ -2868,7 +2871,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 					ignore_eos: ignoreEos,
 				} : {}),
 				...(Object.keys(logitBias.bias).length > 0 ? {
-					logit_bias: logitBiasParam, // [[39,-20],[37934,-20]], //
+					logit_bias: logitBiasParam, // [[" The",false]], // [[39,-20],[37934,-20]], // { 415: 100 }, //
 				} : {}),
 				presence_penalty: presencePenalty,
 				frequency_penalty: frequencyPenalty,
