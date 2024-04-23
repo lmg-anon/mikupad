@@ -1371,32 +1371,6 @@ async function openaiAphroditeTokenCount({ endpoint, endpointAPIKey, proxyEndpoi
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',
-				'Authorization': `Bearer ${endpointAPIKey}`,
-				...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
-			},
-			body: JSON.stringify({
-				prompt: options.content
-			}),
-			signal,
-		});
-		if (!res.ok)
-			throw new Error(`HTTP ${res.status}`);
-		const tokens = await res.json();
-		return tokens.length;
-	} catch (e) {
-		reportError(e);
-		return -1;
-	}
-}
-
-async function openaiOobaTokenCount({ endpoint, proxyEndpoint, signal, ...options }) {
-	try {
-		endpoint = openaiFixEndpoint(endpoint);
-		const res = await fetch(`${proxyEndpoint ?? endpoint}/v1/internal/token-count`, {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json',
-				...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
 			},
 			body: JSON.stringify({
 				text: options.content
@@ -3804,7 +3778,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 		<${Modal} isOpen=${modalState.prompt} onClose=${() => closeModal("prompt")}
 		title="Editor Preferences"
 		description=""
-		style=${{ 'width': '30%' }}>
+		style=${{ 'max-width': '20em' }}>
 			<div className="vbox">
 				<${Checkbox} label="Enable spell checking"
 					value=${spellCheck} onValueChange=${setSpellCheck}/>
