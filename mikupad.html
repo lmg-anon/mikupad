@@ -1045,6 +1045,7 @@ export async function getTokens({ endpoint, endpointAPI, endpointAPIKey, signal,
 	// returns a json object in the format of:
 	// { ids:[ array of token ids ], str:[ array of detokenized ids ] }
 	// example: { ids:[9288,4731],str:["test"," string"] }
+	endpoint = normalizeEndpoint(endpoint);
 	switch (endpointAPI) {
 		case 0: // llama.cpp
 			return await llamaCppTokenize({ endpoint, endpointAPIKey, signal, ...options });
@@ -2846,7 +2847,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 					ignore_eos: ignoreEos,
 				} : {}),
 				...(Object.keys(logitBias.bias).length > 0 ? {
-					logit_bias: logitBiasParam, // [[" The",false]], // [[39,-20],[37934,-20]], // { 415: 100 }, //
+					logit_bias: logitBiasParam,
 				} : {}),
 				presence_penalty: presencePenalty,
 				frequency_penalty: frequencyPenalty,
