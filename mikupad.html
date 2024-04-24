@@ -2898,6 +2898,12 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 
 		const newTop = target.scrollTop;
 		const oldTop = promptOverlay.current.scrollTop;
+
+		if (newTop < oldTop) {
+			// user scrolled up
+			target.scrollTarget = undefined;
+		}
+
 		promptOverlay.current.scrollTop = target.scrollTop;
 		promptOverlay.current.scrollLeft = target.scrollLeft;
 		setSavedScrollTop(newTop);
