@@ -501,6 +501,10 @@ html.nockoffAI .wi-entry-name input {
 	position: relative;
 	flex-wrap: unset !important;
 }
+.logitBiasPower-sidebar {
+	width:10ch !important;
+} 
+
 
 .overflow-container {
 	overflow-y:auto;
@@ -3608,13 +3612,9 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 							</div>`}
 					`}
 				`}
-				${(!openaiPresets || endpointAPI != 3) && html`
-					<${Checkbox} label="Ignore <eos>"
-						disabled=${!!cancel} value=${ignoreEos} onValueChange=${setIgnoreEos}/>`}
-
 				${(endpointAPI == 0 || endpointAPI == 2) && html`
 					<div className="hbox-flex logitBiasContainer">
-						<div class="small-inputBox">
+						<div class="logitBiasPower-sidebar">
 							<${InputBox} label="Bias" className="logitBiasPower-container"
 								type="enumber"  max=100 min=-100 step=1
 								readOnly=${!!cancel}
@@ -3640,7 +3640,12 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 							/>
 						<button disabled=${!!cancel} class="hbox-button" onClick=${() => logitBiasAdd(logitBiasInput.power,logitBiasInput.string)}>+</button>
 						
-					</div>`}
+					</div>
+				`}
+				${(!openaiPresets || endpointAPI != 3) && html`
+					<${Checkbox} label="Ignore <eos>"
+						disabled=${!!cancel} value=${ignoreEos} onValueChange=${setIgnoreEos}/>`}
+
 
 			</${CollapsibleGroup}>
 			<${CollapsibleGroup} label="Persistent Context">
