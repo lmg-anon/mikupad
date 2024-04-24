@@ -381,9 +381,9 @@ html.nockoffAI  #context-order-desc,
 html.nockoffAI .modal-desc {
 	color:var(--color-base-80);
 }
-.modal-content {
+/* .modal-content {
 	overflow-y: auto;
-}
+} */
 
 .button-modal-top {
 	all:unset;
@@ -412,7 +412,8 @@ hr {
 .modal-wi-content {
 	display: flex;
 	flex-direction:column;
-	overflow-y: auto;
+	margin-top:0.5em;
+	max-height:50vh;
 }
 
 #modal-wi-global{
@@ -423,9 +424,6 @@ hr {
 
 #button-wi-new {
 	width: 100%;
-}
-.modal-wi-content{
-	margin-top:0.5em;
 }
 
 .wi-entry {
@@ -501,6 +499,7 @@ html.nockoffAI .wi-entry-name input {
 }
 .logitBiasContainer {
 	position: relative;
+	flex-wrap: unset !important;
 }
 
 .overflow-container {
@@ -514,8 +513,9 @@ html.nockoffAI .wi-entry-name input {
 	display: grid;
 	grid-auto-rows: min-content;
 	gap: 8px;
-	max-height: 60vh;
+	max-height: 55vh;
 	padding-right: .75em;
+
 }
 .lb-modal-grid-row  {
 	display: grid;
@@ -545,11 +545,14 @@ html.nockoffAI .wi-entry-name input {
 .lb-modal-tokenized { 
 	grid-area: tokens;
 	font-family: monospace;
-	font-size:0.85rem;
+	font-size:0.7rem;
 	margin-top: auto;
 	display: grid;
 	align-content: center;
-	height: 1.625rem;
+	margin: auto 0 auto 0;
+	/* height: 1.625rem; */
+	width: 100%;
+	overflow-wrap: anywhere;
 }
 .lb-modal-biasList hr {
 	grid-area: hr;
@@ -1171,7 +1174,8 @@ async function llamaCppTokenize({ endpoint, endpointAPIKey, proxyEndpoint, signa
 				tokens: [ tokens[i] ],
 				signal: signal,
 		}); // maybe batch all tokens together with a bos token between them
-			// something? don't know what's more efficient.
+			// something? that'd probably be more efficient. don't know how
+			// to get the bos token ID though.
 		strings.push(string);
 	};
 	return {ids:tokens,str:strings};
@@ -2343,7 +2347,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 	const [logitBiasParam, setLogitBiasParam] = useState({});
 	const [logitBiasTemp, setLogitBiasTemp] = useState([]);
 	const [logitBiasSorted, setLogitBiasSorted] = useState([]);
-	const [logitBiasInput, setLogitBiasInput] = useState({power:"2",string:"string"});
+	const [logitBiasInput, setLogitBiasInput] = useState({power:"0",string:""});
 
 	const handleLogitBiasInput = (key,value) => {
 		setLogitBiasInput((prevLogitBiasInput) => {
@@ -2357,10 +2361,9 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 
 	const logitBiasAdd = async (biasPower="",biasString="",origValue="") => {
 		setLastError(undefined)
-		console.log("values",biasPower,biasString,origValue)
+		//console.log("values",biasPower,biasString,origValue)
 		// abort if no input or power is NaN
 		if(!biasString) {return}
-		//console.log("power",biasPower)
 		if (isNaN(+biasPower) || biasPower == "") { 
 			setLastError("Error: Bias is NaN")
 			return
@@ -2403,8 +2406,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 				tokens = {
 					ids: isTokenIds[0].replaceAll("/","").split(",").map( item => Number(item.trim()) ),
 					str: ""
-				} 
-				console.log("token ids RAW!!!", tokens.ids)
+				}
 			}
 			// else process like normal
 			else {
@@ -2442,7 +2444,10 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 				}
 			}
 
-			console.log("add",tokens.ids)
+			console.log("Biasing tokens [",tokens.ids.join(", "),"]",
+				Array.isArray(tokens.str) ? "'"+tokens.str.join("|")+"'"
+					: "'"+biasString+"'",
+				"by power",biasPower)
 			//console.log("shift",[ ...tokens.ids ],[ ...tokens.ids ].shift())
 			await setLogitBias((prevLogitBias) => ({
 				...prevLogitBias,
@@ -2455,7 +2460,6 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 					}
 				}
 			}));
-			console.log("added",logitBias.bias[biasString].ids)
 		}
 		catch(e) {
 			if (e.name !== 'AbortError') {
@@ -3783,10 +3787,9 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 
 		<${Modal} isOpen=${modalState.bias} onClose=${() => { closeModal("bias")}}
 		title="Logit Bias"
-		description="Make certain tokens more or less likely to be generated. 
+		description="Make certain tokens more or less likely to be generated. Recommended ranges are 100 to -100, with -100 being a total ban of the token.
 		Currently only works on the first token of multi-token phrases/words.
-		
-		Some models prepend spaces to any input sent to their detokenizer. If your bias doesn't appear to be working, try inputting the correct token IDs manually in a comma separated list, wrapped in '/'. Example: /382,1449,1802/
+		You can bias IDs directly in a comma separated list, wrapped in '/'. Example: /382,1449,1802/
 
 		Different models might tokenize words differently. Always Re-Tokenize your biases when switching models by pressing the '+' button again for every entry.">
 		${modalState.bias 
@@ -3838,7 +3841,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 							<div class="lb-modal-tokenized">
 								${endpointAPI == 0 && bias.strings != ""
 									? "["+bias.strings.join("|")+"] "
-									: "["+bias.tokens+"]" } (${bias.tokens.length} tokens)
+									: "["+bias.tokens+"]" } 
 								
 							</div>
 							<button
@@ -3851,7 +3854,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 							<button
 								disabled=${!!cancel}
 								class="hbox-button lb-modal-button lb-modal-button-remove"
-								onClick=${() => logitBiasAdd(Number(0), bias.valueBack, bias.valueBack)}
+								onClick=${() => logitBiasAdd("0", bias.valueBack, bias.valueBack)}
 								>
 								-
 							</button>
@@ -3984,7 +3987,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 				</${CollapsibleGroup}>
 				<button id="button-wi-new" disabled=${!!cancel} onClick=${handleWorldInfoNew}>New Entry</button>
 			</div>
-			<div className="modal-wi-content">
+			<div className="modal-wi-content overflow-container">
 				${ !Array.isArray(worldInfo.entries) ? null : worldInfo.entries.map((entry, index) => html`
 				<div class="wi-entry" key=${index}>
 					<div class="wi-entry-controls">
