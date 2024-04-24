@@ -510,59 +510,6 @@ html.nockoffAI .wi-entry-name input {
 	text-align: center;
 }
 
-#logitBiasSearchSuggestions {
-	--search-width: 95%;
-	position: absolute;
-	bottom:2.75em;
-	left: calc( (100% - var(--search-width)) / 2 );
-	width: var(--search-width);
-	background: var(--color-base-40);
-	min-height:0em;
-	margin: 0 auto 0;
-	border-radius: 5px;
-	box-shadow: 0 0 .5em black;
-}
-html.nockoffAI #logitBiasSearchSuggestions {
-	background: var(--color-disabled);
-}
-#logitBiasSearchSuggestions > .overflow-container {
-	max-height: 19.5em;
-	margin: .2em;
-}
-.lb-search-entry {
-	display: grid;
-	grid-template-columns: minmax(min-content, 1fr) min-content 5fr min-content;
-	gap: 8px;
-	padding: 0.25em;
-	margin: 0.2em;
-	background: var(--color-base-50);
-	border-radius: 3px;
-	word-break: break-all;
-}
-.lb-search-entry > * {
-	margin: auto 0 auto;
-}
-html.nockoffAI .lb-search-entry {
-	background: var(--color-base-10);
-	color: var(--color-text);
-}
-html.monospace-dark .lb-search-entry {
-	background: var(--color-base-20);
-}
-
-.lb-search-power {
-	text-align: right;
-}
-
-.lb-search-string,
-.lb-tokenCount {
-	font-family: monospace;
-	font-size: 0.8rem;
-}
-
-
-
-
 .lb-modal-grid-column {
 	display: grid;
 	grid-auto-rows: min-content;
@@ -574,10 +521,10 @@ html.monospace-dark .lb-search-entry {
 	display: grid;
 	grid-template-columns: 4em 1fr min-content;
 	grid-template-rows: min-content min-content min-content;
-	gap: 0 8px;
+	gap: 1px 8px;
 	grid-template-areas: 
 		"power input add"
-		". tokens ."
+		". tokens remove"
 		"hr hr hr"; 
 	padding: 1px;
 }
@@ -589,8 +536,11 @@ html.monospace-dark .lb-search-entry {
 	grid-area: input;
 	text-align: left;
 }
-.lb-modal-button { 
+.lb-modal-button.lb-modal-button-add { 
 	grid-area: add;
+}
+.lb-modal-button.lb-modal-button-remove { 
+	grid-area: remove;
 }
 .lb-modal-tokenized { 
 	grid-area: tokens;
@@ -809,6 +759,10 @@ button.textAreaSettings {
 	position:absolute;
 	top:calc(1.25em + 1px);
 	right:1px;
+}
+button.textAreaSettings.textAreaSettings-bias {
+	top: 1.45em;
+	right: 5px;
 }
 button:hover {
 	background: var(--color-base-40);
@@ -2388,9 +2342,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 	const [logitBias, setLogitBias] = useSessionState('logitBias', defaultPresets.logitBias);
 	const [logitBiasParam, setLogitBiasParam] = useState({});
 	const [logitBiasTemp, setLogitBiasTemp] = useState([]);
-	const [logitBiasSearchList, setLogitBiasSearchList] = useState([]);
 	const [logitBiasSorted, setLogitBiasSorted] = useState([]);
-	const [logitBiasSearchState, setLogitBiasSearchState] = useState(false);
 	const [logitBiasInput, setLogitBiasInput] = useState({power:"2",string:"string"});
 
 	const handleLogitBiasInput = (key,value) => {
@@ -2405,7 +2357,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 
 	const logitBiasAdd = async (biasPower="",biasString="",origValue="") => {
 		setLastError(undefined)
-		//console.log("values",biasPower,biasString,origValue)
+		console.log("values",biasPower,biasString,origValue)
 		// abort if no input or power is NaN
 		if(!biasString) {return}
 		//console.log("power",biasPower)
@@ -2521,18 +2473,6 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 			return
 		}
 	};
-	const logitBiasRetokenize = async () => { // I don't understand why this doesn't work.
-		console.log(logitBias.bias)
-		const logitBiasLocal = logitBias.bias
-		for (const key in logitBiasLocal) {
-			console.log("retok",key,logitBiasLocal[key].ids)
-
-			await logitBiasAdd(Number(logitBiasLocal[key].power),key,key);
-			await new Promise(r => setTimeout(r, 2000));
-			console.log("done",key,logitBias.bias[key].ids)
-			console.log("--------------------")
-		}
-	};
 
 
 
@@ -2603,12 +2543,6 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 		});
 	};
 
-	const logitBiasSearch = (value) => {
-		const filteredList = value ? Object.keys(logitBias.bias).filter(key => key.startsWith(value)) : []
-		const sorted = logitBiasSorted;
-		setLogitBiasSearchList(filteredList);
-	}
-
 	const logitBiasSort = useMemo(() => {
 		const biasListToSort = Object.entries(logitBias.bias);
 		const sortPowerString = (a, b) => {
@@ -2632,11 +2566,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 	// 	console.log("logit bias",logitBias)
 	// }, [logitBias]);
 
-	// const debugLogitBiasSearch = useMemo(() => {
-	// 	console.log("searchlist",logitBiasSearchList)
-	// }, [logitBiasSearchList]);
 
-	//- Persistent Context --//
 
 	const [contextLength, setContextLength] = useSessionState('contextLength', defaultPresets.contextLength);
 	const [memoryTokens, setMemoryTokens] = useSessionState('memoryTokens', defaultPresets.memoryTokens);
@@ -3708,57 +3638,21 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 								id="logitBiasPower"/>
 						</div>
 						<${InputBox} label="Token (string or /IDs/)" type="text"
-							tooltip="aaaaaaaaa"
+							tooltip="Currently, only the first token of multi-token strings will be biased."
 							readOnly=${!!cancel}
 							value=${logitBiasInput.string}
-							onInput=${(e) => {logitBiasSearch(e.target.value); handleLogitBiasInput("string",e.target.value)} }
-							onFocus=${(e) => {logitBiasSearch(e.target.value); setLogitBiasSearchState(true)} }
-							onBlur=${() => setLogitBiasSearchState(false)}
-							/>
-						<label className="InputBox">
-							Token
-						<input label="Token" type="text" id="logitBiasTokens-container"
-							readOnly=${!!cancel} 
-							onInput=${(e) => {logitBiasSearch(e.target.value); handleLogitBiasInput("string",e.target.value)} }
-							onFocus=${(e) => {logitBiasSearch(e.target.value); setLogitBiasSearchState(true)} }
-							onBlur=${() => setLogitBiasSearchState(false)}
-							value=${logitBiasInput.string} 
-							id="logitBiasTokens"/>
-							<button
-								className="textAreaSettings"
+							onValueChange=${() => {} }
+							onInput=${(e) => {handleLogitBiasInput("string",e.target.value)} }
+							children=${ html`
+								<button
+								className="textAreaSettings textAreaSettings-bias"
 								disabled=${!!cancel}
-								onClick=${() => { toggleModal("bias")}}>
+								onClick=${() => toggleModal("bias")}>
 								<svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="-1 -5 8 7" xmlns="http://www.w3.org/2000/svg"><path d="M0 0 3-3C3-4 3-5 5-5L4-4 5-3 6-4C6-2 5-2 4-2L1 1C0 2-1 1 0 0"></path></svg>
-							</button>
-						</label>
+								</button>
+							`}
+							/>
 						<button disabled=${!!cancel} class="hbox-button" onClick=${() => logitBiasAdd(logitBiasInput.power,logitBiasInput.string)}>+</button>
-						${logitBiasSearchState 
-							&& logitBiasSearchList.length > 0
-							&& html`<div id="logitBiasSearchSuggestions">
-							<div class="overflow-container">
-								${ !Array.isArray(logitBiasSearchList) ? null : logitBiasSorted.map((string, index) => {
-									if (logitBiasSearchList.includes(string)) {
-										return !logitBias.bias[string] ? null : html`
-											<div class="lb-search-entry" key=${index}>
-												<div class="lb-search-power">
-													${logitBias.bias[string].power}  
-												</div>
-												<div>></div>
-												<div class="lb-search-string">
-													[${logitBias.bias[string].strings.join("|")}]
-												</div>
-												<div class="lb-tokenCount">
-													(${logitBias.bias[string].ids.length})
-												</div>
-
-												
-											</div>`
-									}
-								}
-								)}
-
-							</div>
-						</div>`}
 						
 					</div>`}
 
@@ -3898,11 +3792,6 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 		${modalState.bias 
 			&& html`
 					<div className="hbox-flex logitBiasContainer">
-						<button style=${{"margin-top":"auto"}}
-							id="retokenize" disabled=${!!cancel}
-							onClick=${logitBiasRetokenize}>
-								Retokenize
-						</button>
 						<div class="small-inputBox">
 							<${InputBox} label="Bias" className="logitBiasPower-container"
 								type="enumber"  max=100 min=-100 step=1
@@ -3911,14 +3800,13 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 								value=${logitBiasInput.power} 
 								id="logitBiasPower"/>
 						</div>
-						<label className="InputBox">
-							Token
-						<input label="Token" type="text" id="logitBiasTokens-container"
-							readOnly=${!!cancel} 
-							onInput=${(e) => {logitBiasSearch(e.target.value); handleLogitBiasInput("string",e.target.value)} }
-							value=${logitBiasInput.string} 
-							id="logitBiasTokens"/>
-						</label>
+						<${InputBox} label="Token (string or /IDs/)" type="text"
+							tooltip="Currently, only the first token of multi-token strings will be biased."
+							readOnly=${!!cancel}
+							value=${logitBiasInput.string}
+							onValueChange=${() => {} }
+							onInput=${(e) => {handleLogitBiasInput("string",e.target.value)} }
+							/>
 						<button disabled=${!!cancel} class="hbox-button" onClick=${() => logitBiasAdd(logitBiasInput.power,logitBiasInput.string)}>+</button>
 					</div>
 			${!!lastError && html`
@@ -3939,21 +3827,34 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 								readOnly=${!!cancel}
 								onValueChange=${(value) => {handleBiasTempChange(key,"power", index, value)} }
 								value=${bias.power}/>
-							<label className="InputBox">
-								Token
-								<input label="String" type="text" class="lb-modal-stringInput"
-									readOnly=${!!cancel} 
-									onInput=${(e) => handleBiasTempChange(key,"value", index, e.target.value) }
-									value=${bias.value}
-									id="lb-modal-input-${index}"/>
-							</label>
+
+							<${InputBox} label="Token (string or /IDs/)" type="text"
+								tooltip="Currently, only the first token of multi-token strings will be biased."
+								readOnly=${!!cancel}
+								value=${bias.value}
+								onValueChange=${() => {} }
+								onInput=${(e) => handleBiasTempChange(key,"value", index, e.target.value) }
+								/>
 							<div class="lb-modal-tokenized">
 								${endpointAPI == 0 && bias.strings != ""
 									? "["+bias.strings.join("|")+"] "
 									: "["+bias.tokens+"]" } (${bias.tokens.length} tokens)
 								
 							</div>
-							<button disabled=${!!cancel} class="hbox-button lb-modal-button" onClick=${() => logitBiasAdd(bias.power, bias.value, bias.valueBack)}>+</button>
+							<button
+								disabled=${!!cancel}
+								class="hbox-button lb-modal-button lb-modal-button-add"
+								onClick=${() => logitBiasAdd(bias.power, bias.value, bias.valueBack)}
+								>
+								+
+							</button>
+							<button
+								disabled=${!!cancel}
+								class="hbox-button lb-modal-button lb-modal-button-remove"
+								onClick=${() => logitBiasAdd(Number(0), bias.valueBack, bias.valueBack)}
+								>
+								-
+							</button>
 							<hr/>
 						</div>
 
