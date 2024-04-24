@@ -2110,6 +2110,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 	const probsDelayTimer = useRef();
 	const keyState = useRef({});
 	const sessionReconnectTimer = useRef();
+	const useScrollSmoothing = useRef(true);
 	const [currentPromptChunk, setCurrentPromptChunk] = useState(undefined);
 	const [undoHovered, setUndoHovered] = useState(false);
 	const [showProbs, setShowProbs] = useState(true);
@@ -2427,6 +2428,8 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 			redoStack.current = [];
 			setUndoHovered(false);
 			setRejectedAPIKey(false);
+			promptArea.current.scrollTarget = undefined;
+			useScrollSmoothing.current = true;
 
 			for await (const chunk of completion({
 				endpoint,
@@ -2636,10 +2639,14 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 			}
 			const newHeight = elem.scrollHeight;
 			if (atBottom && oldHeight !== newHeight) {
+				if (elem.scrollHeight - (elem.scrollTop + elem.clientHeight + 1) >= 100) {
+					// smooth scroll isn't keeping up with prediction speed =(
+					useScrollSmoothing.current = false;
+				}
 				elem.scrollTarget = newHeight - elem.clientHeight;
 				elem.scrollTo({
 					top: newHeight - elem.clientHeight,
-					behavior: 'smooth',
+					behavior: useScrollSmoothing.current ? 'smooth' : 'instant',
 				});
 			}
 		} else {
