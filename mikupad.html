@@ -1085,7 +1085,6 @@ export async function getTokenCount({ endpoint, endpointAPI, endpointAPIKey, sig
 
 export async function getTokens({ endpoint, endpointAPI, endpointAPIKey, signal, ...options }) {
 	// currently only implemented for llama.cpp and koboldcpp
-	// to implement other APIs, make a function that takes an input of a string and
 	// returns a json object in the format of:
 	// { ids:[ array of token ids ], str:[ array of detokenized ids ] }
 	// example: { ids:[9288,4731],str:["test"," string"] }
@@ -1290,12 +1289,13 @@ async function koboldCppTokenCount({ endpoint, proxyEndpoint, signal, ...options
 	return value;
 }
 
-async function koboldCppTokenize({ endpoint, signal, ...options }) {
+async function koboldCppTokenize({ endpoint, proxyEndpoint, signal, ...options }) {
 	console.log("kcpp",options.content)
 	const res = await fetch(new URL('/api/extra/tokencount', endpoint), {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
+			...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
 		},
 		body: JSON.stringify({
 			prompt: options.content
@@ -1307,8 +1307,6 @@ async function koboldCppTokenize({ endpoint, signal, ...options }) {
 	const { ids } = await res.json();
 	console.log(ids)
 	ids.shift() // kobold automatically adds a token, so we need to remove it
-	// at this point I think kobold just automatically adds a space to the front of
-	// requests, which fucks up the token IDs for things at the beginning of a sentence.
 	console.log("shift",ids)
 	return {ids:ids,str:""};
 	
@@ -2450,15 +2448,38 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 		console.log("input","."+biasString+".",biasPower)
 		console.log("replace","."+biasString.replace(/\\n/g, '\n')+".")
 		try {
-			const tokens = await getTokens({
-				endpoint,
-				endpointAPI,
-				...(endpointAPI == 3 || endpointAPI == 0 ? { endpointAPIKey } : {}),
-				content: `${biasString}`.replace(/\\n/g,'\n'),
-				signal: ac.signal,
-				...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {})
-			});
+			// if the string is a comma separated list of numbers wrapped in /
+			var tokens
+			const isTokenIds = biasString.match(/^(?<!\\)\/(\s*\d+\s*,?\s*)+(?<!\\)\/$/g)
+			if ( isTokenIds != null ) {
+				// split by , and use it as token ids directly
+				tokens = {
+					ids: isTokenIds[0].replaceAll("/","").split(",").map( item => Number(item.trim()) ),
+					str: ""
+				} 
+				console.log("token ids RAW!!!", tokens.ids)
+			}
+			// else process like normal
+			else {
+				// KNOWN ISSUE: some models automatically prepend a space to any tokenization input.
+				// to work around this, I'm prepending the input with a "|", then shifting the output
+				// array by one to remove the " |" token. I know this is an absolute hack, but this is
+				// the best I could come up with.
+				tokens = await getTokens({
+					endpoint,
+					endpointAPI,
+					...(endpointAPI == 3 || endpointAPI == 0 ? { endpointAPIKey } : {}),
+					content: `|${biasString}`.replace(/\\n/g,'\n'),
+					signal: ac.signal,
+					...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {})
+				});
+			}
+			tokens.ids.shift()
+			if ( Array.isArray(tokens.str) ) {
+				tokens.str.shift()
+			}
 			console.log("add",tokens)
+			//console.log("shift",[ ...tokens.ids ],[ ...tokens.ids ].shift())
 			setLogitBias((prevLogitBias) => ({
 				...prevLogitBias,
 				bias: {
@@ -2537,7 +2558,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 			value: string,
 			valueBack: string,
 			strings: logitBias.bias[string].strings,
-			tokens: logitBias.bias[string].ids.length,
+			tokens: logitBias.bias[string].ids,
 			power: logitBias.bias[string].power
 		}));
 		setLogitBiasTemp({
@@ -3664,13 +3685,21 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 				${(endpointAPI == 0 || endpointAPI == 2) && html`
 					<div className="hbox-flex logitBiasContainer">
 						<div class="small-inputBox">
-							<${InputBox} label="Bias" classList="logitBiasPower-container"
+							<${InputBox} label="Bias" className="logitBiasPower-container"
 								type="enumber"  max=100 min=-100 step=1
 								readOnly=${!!cancel}
 								onValueChange=${(value) => { handleLogitBiasInput("power",value)} }
 								value=${logitBiasInput.power} 
 								id="logitBiasPower"/>
 						</div>
+						<${InputBox} label="Token (string or /IDs/)" type="text"
+							tooltip="aaaaaaaaa"
+							readOnly=${!!cancel}
+							value=${logitBiasInput.string}
+							onInput=${(e) => {logitBiasSearch(e.target.value); handleLogitBiasInput("string",e.target.value)} }
+							onFocus=${(e) => {logitBiasSearch(e.target.value); setLogitBiasSearchState(true)} }
+							onBlur=${() => setLogitBiasSearchState(false)}
+							/>
 						<label className="InputBox">
 							Token
 						<input label="Token" type="text" id="logitBiasTokens-container"
@@ -3848,7 +3877,9 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 		description="Make certain tokens more or less likely to be generated. 
 		Currently only works on the first token of multi-token phrases/words.
 		
-		Different models might tokenize words differently. Always Re-Tokenize when switching models!">
+		Some models prepend spaces to any input sent to their detokenizer. If your bias doesn't appear to be working, try inputting the correct token IDs manually in a comma separated list, wrapped in '/'. Example: /382,1449,1802/
+
+		Different models might tokenize words differently. Always Re-Tokenize your biases when switching models by pressing the '+' button again for every entry.">
 		${modalState.bias 
 			&& html`
 					<div className="hbox-flex logitBiasContainer">
@@ -3858,7 +3889,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 								Retokenize
 						</button>
 						<div class="small-inputBox">
-							<${InputBox} label="Bias" classList="logitBiasPower-container"
+							<${InputBox} label="Bias" className="logitBiasPower-container"
 								type="enumber"  max=100 min=-100 step=1
 								readOnly=${!!cancel}
 								onValueChange=${(value) => { handleLogitBiasInput("power",value)} }
@@ -3902,9 +3933,9 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 									id="lb-modal-input-${index}"/>
 							</label>
 							<div class="lb-modal-tokenized">
-								${endpointAPI == 0
+								${endpointAPI == 0 && bias.strings != ""
 									? "["+bias.strings.join("|")+"] "
-									: "["+bias.value+"]" } (${bias.tokens} tokens)
+									: "["+bias.tokens+"]" } (${bias.tokens.length} tokens)
 								
 							</div>
 							<button disabled=${!!cancel} class="hbox-button lb-modal-button" onClick=${() => logitBiasAdd(bias.power, bias.value, bias.valueBack)}>+</button>
