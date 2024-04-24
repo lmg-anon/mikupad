@@ -3622,10 +3622,11 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 								value=${logitBiasInput.power} 
 								id="logitBiasPower"/>
 						</div>
-						<${InputBox} label="Token (string or /IDs/)" type="text"
+						<${InputBox} label="Token" type="text"
 							tooltip="Currently, only the first token of multi-token strings will be biased."
 							readOnly=${!!cancel}
 							value=${logitBiasInput.string}
+							placeholder="String or /ID,.../"
 							onValueChange=${() => {} }
 							onInput=${(e) => {handleLogitBiasInput("string",e.target.value)} }
 							children=${ html`
@@ -3784,10 +3785,11 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 								value=${logitBiasInput.power} 
 								id="logitBiasPower"/>
 						</div>
-						<${InputBox} label="Token (string or /IDs/)" type="text"
+						<${InputBox} label="Token" type="text"
 							tooltip="Currently, only the first token of multi-token strings will be biased."
 							readOnly=${!!cancel}
 							value=${logitBiasInput.string}
+							placeholder="String or /ID,.../"
 							onValueChange=${() => {} }
 							onInput=${(e) => {handleLogitBiasInput("string",e.target.value)} }
 							/>
@@ -3812,10 +3814,11 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 								onValueChange=${(value) => {handleBiasTempChange(key,"power", index, value)} }
 								value=${bias.power}/>
 
-							<${InputBox} label="Token (string or /IDs/)" type="text"
+							<${InputBox} label="Token" type="text"
 								tooltip="Currently, only the first token of multi-token strings will be biased."
 								readOnly=${!!cancel}
 								value=${bias.value}
+								placeholder="String or /ID,.../"
 								onValueChange=${() => {} }
 								onInput=${(e) => handleBiasTempChange(key,"value", index, e.target.value) }
 								/>
