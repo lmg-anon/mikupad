@@ -2344,6 +2344,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 	const [stoppingStrings, setStoppingStrings] = useSessionState('stoppingStrings', defaultPresets.stoppingStrings);
 	const [stoppingStringsError, setStoppingStringsError] = useState(undefined);
 	const [savedScrollTop, setSavedScrollTop] = useSessionState('scrollTop', defaultPresets.scrollTop);
+	const [modalState, setModalState] = useState({});
 	const [logitBias, setLogitBias] = useSessionState('logitBias', defaultPresets.logitBias);
 	const [logitBiasParam, setLogitBiasParam] = useState({});
 	const [logitBiasTemp, setLogitBiasTemp] = useState([]);
@@ -2525,7 +2526,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 			positive: tempArray.filter(item => item.power > 0),
 			negative: tempArray.filter(item => item.power < 0)
 		});
-	},[logitBiasSorted]);
+	},[logitBiasSorted,modalState.bias]);
 
 
 	const handleBiasTempChange = (posneg, key, index, value) => {
@@ -2638,7 +2639,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 		}));
 	}
 
-	const [modalState, setModalState] = useState({});
+	
 	const toggleModal = (modalKey) => {
 		setModalState((prevState) => ({
 			...prevState,
