@@ -1194,7 +1194,6 @@ async function llamaCppDetokenize({ endpoint, endpointAPIKey, proxyEndpoint, sig
 	if (!res.ok)
 		throw new Error(`HTTP ${res.status}`);
 	const { content } = await res.json();
-	//console.log("detokenized","." + content + ".")
 	return content
 }
 
@@ -1248,7 +1247,6 @@ async function koboldCppTokenCount({ endpoint, proxyEndpoint, signal, ...options
 }
 
 async function koboldCppTokenize({ endpoint, proxyEndpoint, signal, ...options }) {
-	//console.log("kcpp",options.content)
 	const res = await fetch(new URL('/api/extra/tokencount', endpoint), {
 		method: 'POST',
 		headers: {
@@ -1263,9 +1261,7 @@ async function koboldCppTokenize({ endpoint, proxyEndpoint, signal, ...options }
 	if (!res.ok)
 		throw new Error(`HTTP ${res.status}`);
 	const { ids } = await res.json();
-	//console.log(ids)
 	ids.shift() // kobold automatically adds a token, so we need to remove it
-	//console.log("shift",ids)
 	return {ids:ids,str:""};
 	
 }
@@ -2348,6 +2344,10 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 	const [logitBiasTemp, setLogitBiasTemp] = useState([]);
 	const [logitBiasSorted, setLogitBiasSorted] = useState([]);
 	const [logitBiasInput, setLogitBiasInput] = useState({power:"0",string:""});
+	const [contextLength, setContextLength] = useSessionState('contextLength', defaultPresets.contextLength);
+	const [memoryTokens, setMemoryTokens] = useSessionState('memoryTokens', defaultPresets.memoryTokens);
+	const [authorNoteTokens, setAuthorNoteTokens] = useSessionState('authorNoteTokens', defaultPresets.authorNoteTokens);
+	const [authorNoteDepth, setAuthorNoteDepth] = useSessionState('authorNoteDepth', defaultPresets.authorNoteDepth);
 
 	const handleLogitBiasInput = (key,value) => {
 		setLogitBiasInput((prevLogitBiasInput) => {
@@ -2361,7 +2361,6 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 
 	const logitBiasAdd = async (biasPower="",biasString="",origValue="") => {
 		setLastError(undefined)
-		//console.log("values",biasPower,biasString,origValue)
 		// abort if no input or power is NaN
 		if(!biasString) {return}
 		if (isNaN(+biasPower) || biasPower == "") { 
@@ -2390,13 +2389,10 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 		}
 		// if overwriting the string value of an entry, delete the original one
 		if (origValue && origValue != biasString) {
-			console.log("delete orig",origValue)
 			delete modBias[origValue]
 		}
 
 		const ac = new AbortController();
-		//console.log("input","."+biasString+".",biasPower)
-		//console.log("replace","."+biasString.replace(/\\n/g, '\n')+".")
 		try {
 			// if the string is a comma separated list of numbers wrapped in /
 			var tokens
@@ -2448,12 +2444,11 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 				Array.isArray(tokens.str) ? "'"+tokens.str.join("|")+"'"
 					: "'"+biasString+"'",
 				"by power",biasPower)
-			//console.log("shift",[ ...tokens.ids ],[ ...tokens.ids ].shift())
 			await setLogitBias((prevLogitBias) => ({
 				...prevLogitBias,
 				bias: {
 					...modBias,
-					[biasString]: { // REMOVED STRING() HERE IF SHIT BREAKS
+					[biasString]: { // removed Number() here
 						ids: [ ...tokens.ids ],
 						strings: [ ...tokens.str ],
 						power: biasPower
@@ -2490,7 +2485,6 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 			const power = logitBias.bias[entry].power < -99 ? false : Number(logitBias.bias[entry].power) / 10;
 			param.push( [ Number(logitBias.bias[entry].ids[0]), power ] );
 		})
-		//console.log("params",param)
 		setLogitBiasParam(param)
 	};
 	const koboldCppSetLogitBiasParams = () => {
@@ -2499,7 +2493,6 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 			// no manip needed here. range is documented to be 100 to -100
 			param[Number(logitBias.bias[entry].ids[0])] = Number(logitBias.bias[entry].power)
 		})
-		//console.log("params",param)
 		setLogitBiasParam(param)
 	};
 	const updateLogitBiasParam = useMemo(() => {
@@ -2531,7 +2524,6 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 
 
 	const handleBiasTempChange = (posneg, key, index, value) => {
-		// console.log("up temp",key, value)
 		setLogitBiasTemp((prevLogitBiasTemp) => {
 			const rest = { ...prevLogitBiasTemp };
 			const updatedTemp = [ ...prevLogitBiasTemp[posneg] ];
@@ -2566,18 +2558,8 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 		setLogitBiasSorted(resultArray);
 	}, [logitBias]);
 
-	// const debugLogitBias = useMemo(() => {
-	// 	console.log("logit bias",logitBias)
-	// }, [logitBias]);
 
-
-
-	const [contextLength, setContextLength] = useSessionState('contextLength', defaultPresets.contextLength);
-	const [memoryTokens, setMemoryTokens] = useSessionState('memoryTokens', defaultPresets.memoryTokens);
-
-	const [authorNoteTokens, setAuthorNoteTokens] = useSessionState('authorNoteTokens', defaultPresets.authorNoteTokens);
-	const [authorNoteDepth, setAuthorNoteDepth] = useSessionState('authorNoteDepth', defaultPresets.authorNoteDepth);
-
+	// AN and Memory
 	const handleAuthorNoteDepthChange = (value) => {
 		setAuthorNoteDepth(!isNaN(+value) && value >= 0 ? value : 0);
 	};
@@ -2845,8 +2827,6 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 			promptArea.current.scrollTarget = undefined;
 			useScrollSmoothing.current = true;
 
-			console.log("AAAAAAAAAAAAAAAAAAAA",logitBiasParam)
-			//console.log(Object.keys(logitBias.bias).length, Object.keys(logitBias.bias).length > 0)
 			for await (const chunk of completion({
 				endpoint,
 				endpointAPI,
