@@ -1242,6 +1242,9 @@ function openaiConvertOptions(options, endpoint){
 	if (isOpenAI && options.n_probs > 5) {
 		options.n_probs = 5;
 	}
+	if (isTogetherAI && options.n_probs > 1) {
+		options.n_probs = 1;
+	}
 	if ("dynatemp_range" in options && options.dynatemp_range !== 0) {
 		// oobabooga specific.
 		options.dynamic_temperature = true;
