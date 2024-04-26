@@ -1212,6 +1212,8 @@ async function openaiTabbyTokenCount({ endpoint, endpointAPIKey, proxyEndpoint, 
 }
 
 async function openaiModels({ endpoint, endpointAPIKey, proxyEndpoint, signal, ...options }) {
+	const isTogetherAI = endpoint.toLowerCase().includes("together.xyz");
+
 	const res = await fetch(`${proxyEndpoint ?? endpoint}/v1/models`, {
 		method: 'GET',
 		headers: {
@@ -1223,7 +1225,15 @@ async function openaiModels({ endpoint, endpointAPIKey, proxyEndpoint, signal, .
 	});
 	if (!res.ok)
 		throw new Error(`HTTP ${res.status}`);
-	const { data } = await res.json();
+
+	const response = await res.json();
+	let data;
+
+	if (isTogetherAI) {
+		data = response;
+	} else {
+		data = response.data;
+	}
 	return data.map(item => item.id);
 }
 
