@@ -1266,10 +1266,6 @@ function openaiConvertOptions(options, endpoint){
 		// oobabooga specific.
 		options.do_sample = false;
 	}
-	if (isTogetherAI) {
-		// errors 400 without this.
-		delete options.logprobs;
-	}
 	swapOption("n_ctx", "max_context_length");
 	swapOption("n_predict", "max_tokens");
 	swapOption("n_probs", "logprobs");
