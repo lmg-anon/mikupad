@@ -1230,6 +1230,7 @@ async function openaiModels({ endpoint, endpointAPIKey, proxyEndpoint, signal, .
 	let data;
 
 	if (isTogetherAI) {
+		// TogetherAI returns an array.
 		data = response;
 	} else {
 		data = response.data;
