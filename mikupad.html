@@ -3250,10 +3250,10 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 		let startX;
 		let startMaxWidth;
 		let startEdge;
-		let edgeDetectionZone = 10; // Pixels from edge to trigger resize
+		let edgeDetectionZone = 5; // Pixels from edge to trigger resize
 
 		function getNearEdge(e) {
-			const rect = promptArea.current.getBoundingClientRect();
+			const rect = container.getBoundingClientRect();
 			if (e.clientX - rect.left < edgeDetectionZone && e.clientX - rect.left > 0) {
 				return 'left';
 			} else if (rect.right - e.clientX < edgeDetectionZone && rect.right - e.clientX > 0) {
@@ -3271,7 +3271,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 
 			isDragging = true;
 
-			const invEdgePos = edge == 'right' ? promptArea.current.getBoundingClientRect().left : promptArea.current.getBoundingClientRect().right;
+			const invEdgePos = edge == 'right' ? container.getBoundingClientRect().left : container.getBoundingClientRect().right;
 			startX = e.clientX - invEdgePos;
 			startMaxWidth = getComputedStyle(container).getPropertyValue('max-width');
 			startEdge = edge;
@@ -3279,12 +3279,21 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 
 		function drag(e) {
 			switch (getNearEdge(e)) {
-				case 'left':
 				case 'right':
 					promptArea.current.style.cursor = 'col-resize';
+					container.style.cursor = 'col-resize';
+					container.style.borderRight = '2px dotted var(--color-light)';
+					break;
+				case 'left':
+					promptArea.current.style.cursor = 'col-resize';
+					container.style.cursor = 'col-resize';
+					container.style.borderLeft = '2px dotted var(--color-light)';
 					break;
 				default:
 					promptArea.current.style.cursor = '';
+					container.style.cursor = '';
+					container.style.borderRight = '2px dotted transparent';
+					container.style.borderLeft = '2px dotted transparent';
 					break;
 			}
 			
@@ -3293,7 +3302,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 			// reset selection
 			promptArea.current.selectionStart = promptArea.current.selectionEnd;
 
-			const invEdgePos = startEdge == 'right' ? promptArea.current.getBoundingClientRect().left : promptArea.current.getBoundingClientRect().right;
+			const invEdgePos = startEdge == 'right' ? container.getBoundingClientRect().left : container.getBoundingClientRect().right;
 			const currentX = e.clientX - invEdgePos;
 			setPromptAreaWidth(`calc(${startMaxWidth} + ${(currentX - startX) * (startEdge == 'right' ? 1 : -1)}px)`);
 		}
@@ -3302,12 +3311,12 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 			isDragging = false;
 		}
 
-		promptArea.current.addEventListener('mousedown', startDragging);
+		container.addEventListener('mousedown', startDragging);
 		document.addEventListener('mousemove', drag);
 		document.addEventListener('mouseup', stopDragging);
 		document.addEventListener('mouseleave', stopDragging);
 		return () => {
-			promptArea.current.removeEventListener('mousedown', startDragging);
+			container.removeEventListener('mousedown', startDragging);
 			document.removeEventListener('mousemove', drag);
 			document.removeEventListener('mouseup', stopDragging);
 			document.removeEventListener('mouseleave', stopDragging);
