@@ -2382,6 +2382,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 	const [tokens, setTokens] = useState(0);
 	const [predictStartTokens, setPredictStartTokens] = useState(0);
 	const [lastError, setLastError] = useState(undefined);
+	const [lastBiasError, setLastBiasError] = useState(undefined);
 	const [stoppingStrings, setStoppingStrings] = useSessionState('stoppingStrings', defaultPresets.stoppingStrings);
 	const [stoppingStringsError, setStoppingStringsError] = useState(undefined);
 	const [savedScrollTop, setSavedScrollTop] = useSessionState('scrollTop', defaultPresets.scrollTop);
@@ -2407,11 +2408,11 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 	}
 
 	const logitBiasAdd = async (biasPower="",biasString="",origValue="") => {
-		setLastError(undefined)
+		setLastBiasError(undefined)
 		// abort if no input or power is NaN
 		if(!biasString) {return}
 		if (isNaN(+biasPower) || biasPower == "") { 
-			setLastError("Error: Bias is NaN")
+			setLastBiasError("Error: Bias must be a number")
 			return
 		}
 		biasPower = Number(biasPower)
@@ -2421,7 +2422,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 		// delete entry if power 0 or empty
 		if (biasPower == 0) {	
 			if (!logitBias.bias[biasString]) {
-				setLastError("Error: Bias is 0")
+				setLastBiasError("Error: Bias 0 = no Bias")
 				return
 			}
 			console.log("delete",biasString)
@@ -3671,36 +3672,14 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 							</div>`}
 					`}
 				`}
-				
-				${(!openaiPresets || endpointAPI != 3) && html`
-					<div className="hbox-flex logitBiasContainer">
-						<div class="logitBiasPower-sidebar">
-							<${InputBox} label="Bias" className="logitBiasPower-container"
-								type="enumber"  max=100 min=-100 step=1
-								readOnly=${!!cancel}
-								onValueChange=${(value) => { handleLogitBiasInput("power",value)} }
-								value=${logitBiasInput.power} 
-								id="logitBiasPower"/>
-						</div>
-						<${InputBox} label="Token" type="text"
-							tooltip="Currently, only the first token of multi-token strings will be biased."
-							readOnly=${!!cancel}
-							value=${logitBiasInput.string}
-							placeholder="String or /ID,.../"
-							onValueChange=${() => {} }
-							onInput=${(e) => {handleLogitBiasInput("string",e.target.value)} }
-							children=${ html`
-								<button
-								className="textAreaSettings textAreaSettings-bias"
-								disabled=${!!cancel}
-								onClick=${() => toggleModal("bias")}>
-								<svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="-1 -5 8 7" xmlns="http://www.w3.org/2000/svg"><path d="M0 0 3-3C3-4 3-5 5-5L4-4 5-3 6-4C6-2 5-2 4-2L1 1C0 2-1 1 0 0"></path></svg>
-								</button>
-							`}
-							/>
-						<button disabled=${!!cancel} class="hbox-button" onClick=${() => logitBiasAdd(logitBiasInput.power,logitBiasInput.string)}>+</button>
-					</div>`}
-			
+				${(endpointAPI != 3) && html`
+					<button
+						disabled=${!!cancel}
+						onClick=${() => toggleModal("bias")}>
+						Logit Bias
+						</button>
+					${!!lastBiasError && html`
+						<div className="error-text">${lastBiasError}</div>`}`}
 				${(!openaiPresets || endpointAPI != 3) && html`
 					<${Checkbox} label="Ignore <eos>"
 						disabled=${!!cancel} value=${ignoreEos} onValueChange=${setIgnoreEos}/>`}
@@ -3859,8 +3838,8 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 							/>
 						<button disabled=${!!cancel} class="hbox-button" onClick=${() => logitBiasAdd(logitBiasInput.power,logitBiasInput.string)}>+</button>
 					</div>
-			${!!lastError && html`
-				<div style=${{"margin":"8px auto"}} className="error-text">${lastError}</div>`}
+					${!!lastBiasError && html`
+						<div style=${{"margin":"8px auto"}} className="error-text">${lastBiasError}</div>`}
 			<hr style=${{"width":"95%","margin":"8px auto"}} />
 			<div class="lb-modal-biasList" >
 				${ Object.keys(logitBiasTemp).map((key) => {
