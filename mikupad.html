@@ -1156,7 +1156,7 @@ async function llamaCppTokenCount({ endpoint, endpointAPIKey, proxyEndpoint, sig
 }
 
 async function llamaCppTokenize({ endpoint, endpointAPIKey, proxyEndpoint, signal, ...options }) {
-	const res = await fetch(new URL('/tokenize', endpoint), {
+	const res = await fetch(`${proxyEndpoint ?? endpoint}/tokenize`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
@@ -1185,7 +1185,7 @@ async function llamaCppTokenize({ endpoint, endpointAPIKey, proxyEndpoint, signa
 	return {ids:tokens,str:strings};
 }
 async function llamaCppDetokenize({ endpoint, endpointAPIKey, proxyEndpoint, signal, ...options }) {
-	const res = await fetch(new URL('/detokenize', endpoint), {
+	const res = await fetch(`${proxyEndpoint ?? endpoint}/detokenize`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
@@ -1221,17 +1221,6 @@ async function* llamaCppCompletion({ endpoint, endpointAPIKey, proxyEndpoint, si
 	return yield* await parseEventStream(res.body);
 }
 
-function koboldFixEndpoint(endpoint) {
-	const url = new URL(endpoint.trim());
-	url.pathname = url.pathname.replace(/\/+/g, "/"); // normalize consecutive slashes
-	
-	let urlString = url.toString();
-	urlString = urlString.replace(/\/api\/?$/, ""); // remove "/api" from the end of the string
-	urlString = urlString.replace(/\/$/, ""); // remove "/" from the end of the string
-	
-	return urlString;
-}
-
 async function koboldCppTokenCount({ endpoint, proxyEndpoint, signal, ...options }) {
 	const res = await fetch(`${proxyEndpoint ?? endpoint}/api/extra/tokencount`, {
 		method: 'POST',
@@ -1251,7 +1240,7 @@ async function koboldCppTokenCount({ endpoint, proxyEndpoint, signal, ...options
 }
 
 async function koboldCppTokenize({ endpoint, proxyEndpoint, signal, ...options }) {
-	const res = await fetch(new URL('/api/extra/tokencount', endpoint), {
+	const res = await fetch(`${proxyEndpoint ?? endpoint}/api/extra/tokencount`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
@@ -2431,8 +2420,10 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 		
 		// delete entry if power 0 or empty
 		if (biasPower == 0) {	
-			if (!logitBias.bias[biasString])
+			if (!logitBias.bias[biasString]) {
+				setLastError("Error: Bias is 0")
 				return
+			}
 			console.log("delete",biasString)
 			setLogitBias((prevLogitBias) => {
 				delete modBias[biasString]
