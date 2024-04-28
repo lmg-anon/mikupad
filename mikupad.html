@@ -2511,12 +2511,12 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 				reportError(e);
 				const errStr = e.toString();
 				if ((endpointAPI == 3 || endpointAPI == 0) && errStr.includes("401")) {
-					setLastError("Error: Rejected API Key");
+					setLastBiasError("Error: Rejected API Key");
 					setRejectedAPIKey(true);
 				} else if (endpointAPI == 3 && errStr.includes("429")) {
-					setLastError("Error: Insufficient Quota");
+					setLastBiasError("Error: Insufficient Quota");
 				} else {
-					setLastError(errStr);
+					setLastBiasError(errStr);
 				}
 			}
 			return
