@@ -3279,17 +3279,12 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 
 		function drag(e) {
 			switch (getNearEdge(e)) {
+				case 'left':
 				case 'right':
 					promptArea.current.style.cursor = 'col-resize';
-					promptArea.current.style.borderRight = '1px dotted var(--color-light)';
-					break;
-				case 'left':
-					promptArea.current.style.cursor = 'col-resize';
-					promptArea.current.style.borderLeft = '1px dotted var(--color-light)';
 					break;
 				default:
 					promptArea.current.style.cursor = '';
-					promptArea.current.style.border = '';
 					break;
 			}
 			
