@@ -381,9 +381,6 @@ html.nockoffAI  #context-order-desc,
 html.nockoffAI .modal-desc {
 	color:var(--color-base-80);
 }
-/* .modal-content {
-	overflow-y: auto;
-} */
 
 .button-modal-top {
 	all:unset;
@@ -1031,7 +1028,7 @@ export async function getTokenCount({ endpoint, endpointAPI, endpointAPIKey, sig
 			// Each backend that exposes an OpenAI-compatible API may have a different token count endpoint.
 			// Instead of asking the user which backend they are using, let's try each one.
 			let tokenCount = 0;
-			tokenCount = await openaiAphroditeTokenCount({ endpoint, endpointAPIKey, signal, ...options });
+			//tokenCount = await openaiAphroditeTokenCount({ endpoint, endpointAPIKey, signal, ...options });
 			if (tokenCount != -1)
 				return tokenCount;
 			tokenCount = await openaiOobaTokenCount({ endpoint, signal, ...options });
@@ -1055,6 +1052,8 @@ export async function getTokens({ endpoint, endpointAPI, endpointAPIKey, signal,
 			return await llamaCppTokenize({ endpoint, endpointAPIKey, signal, ...options });
 		case 2: // koboldcpp
 			return await koboldCppTokenize({ endpoint, signal, ...options });
+		case 3: // openai
+			return await openaiTokenize({ endpoint, endpointAPIKey, signal, ...options })
 	}
 }
 
@@ -1395,6 +1394,59 @@ async function openaiTabbyTokenCount({ endpoint, endpointAPIKey, proxyEndpoint, 
 		reportError(e);
 		return -1;
 	}
+}
+
+async function openaiTokenize({ endpoint, endpointAPIKey, proxyEndpoint, signal, ...options }) {
+	try {
+		const res = await fetch(`${proxyEndpoint ?? endpoint}/v1/internal/encode`, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
+			},
+			body: JSON.stringify({
+				text: options.content
+			}),
+			signal,
+		});
+		if (!res.ok)
+			throw new Error(`HTTP ${res.status}`);
+		const { tokens } = await res.json();
+
+		const strings = [];
+		for (let i=0; i<tokens.length; i++) {
+			const string = await openaiDetokenize({
+					endpoint,
+					...(endpointAPIKey ? {
+						endpointAPIKey,
+					} : {}),
+					tokens: [ tokens[i] ],
+					signal: signal,
+			});
+			strings.push(string);
+		};
+		return {ids:tokens,str:strings};
+		
+	} catch (e) {
+		reportError(e);
+		return -1;
+	}
+}
+async function openaiDetokenize({ endpoint, endpointAPIKey, proxyEndpoint, signal, ...options }) {
+
+	const res = await fetch(`${proxyEndpoint ?? endpoint}/v1/internal/decode`, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+			...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
+		},
+		body: JSON.stringify(options),
+		signal,
+	});
+	if (!res.ok)
+		throw new Error(`HTTP ${res.status}`);
+	const { text } = await res.json();
+	return text
 }
 
 async function openaiModels({ endpoint, endpointAPIKey, proxyEndpoint, signal, ...options }) {
@@ -2479,7 +2531,9 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 		}
 	};
 
-
+	const clamp = (num, min = -Infinity, max = Infinity) => {
+		return Math.min(Math.max(num, min), max);
+	}
 
 	const llamaCppSetLogitBiasParams = () => {
 		const param = [];
@@ -2496,11 +2550,20 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 	const koboldCppSetLogitBiasParams = () => {
 		const param = {};
 		Object.keys(logitBias.bias).forEach(entry => {
-			// no manip needed here. range is documented to be 100 to -100
-			param[Number(logitBias.bias[entry].ids[0])] = Number(logitBias.bias[entry].power)
+			// -100 to 100
+			param[Number(logitBias.bias[entry].ids[0])] = clamp(Number(logitBias.bias[entry].power),-100,100)
 		})
 		setLogitBiasParam(param)
 	};
+	const openaiSetLogitBiasParams = () => {
+		const param = {};
+		Object.keys(logitBias.bias).forEach(entry => {
+			// -100 to 100
+			param[Number(logitBias.bias[entry].ids[0])] = clamp(Number(logitBias.bias[entry].power),-100,100).toFixed(1)
+		})
+		setLogitBiasParam(param)
+	};
+
 	const updateLogitBiasParam = useMemo(() => {
 		// set the parameters sent to the model in the format expected by the endpoint
 		switch (endpointAPI) {
@@ -2509,6 +2572,10 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 				break;
 			case 2:
 				koboldCppSetLogitBiasParams()
+				break;
+			case 3:
+				//openaiSetLogitBiasParams()
+				// for some reason this causes an error
 				break;
 		}
 	}, [logitBias, endpointAPI]);
@@ -2851,7 +2918,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 					penalize_nl: penalizeNl,
 					ignore_eos: ignoreEos,
 				} : {}),
-				...(Object.keys(logitBias.bias).length > 0 ? {
+				...(Object.keys(logitBias.bias).length > 0 && endpointAPI != 3 ? {
 					logit_bias: logitBiasParam,
 				} : {}),
 				presence_penalty: presencePenalty,
@@ -3613,7 +3680,8 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 							</div>`}
 					`}
 				`}
-				${(endpointAPI == 0 || endpointAPI == 2) && html`
+				
+				${(!openaiPresets || endpointAPI != 3) && html`
 					<div className="hbox-flex logitBiasContainer">
 						<div class="logitBiasPower-sidebar">
 							<${InputBox} label="Bias" className="logitBiasPower-container"
@@ -3640,9 +3708,8 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 							`}
 							/>
 						<button disabled=${!!cancel} class="hbox-button" onClick=${() => logitBiasAdd(logitBiasInput.power,logitBiasInput.string)}>+</button>
-						
-					</div>
-				`}
+					</div>`}
+			
 				${(!openaiPresets || endpointAPI != 3) && html`
 					<${Checkbox} label="Ignore <eos>"
 						disabled=${!!cancel} value=${ignoreEos} onValueChange=${setIgnoreEos}/>`}
