@@ -397,6 +397,10 @@ html.nockoffAI .modal-desc {
 	margin-bottom: .25em;
 }
 
+.modal-content {
+	overflow: hidden;
+}
+
 hr {
 	border:unset;
 	border-top: 1px solid var(--color-base-40);
@@ -514,7 +518,7 @@ html.nockoffAI .wi-entry-name input {
 	display: grid;
 	grid-auto-rows: min-content;
 	gap: 8px;
-	max-height: 55vh;
+	max-height: 40vh;
 	padding-right: .75em;
 
 }
@@ -3819,27 +3823,27 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 		Different models might tokenize words differently. Always Re-Tokenize your biases when switching models by pressing the '+' button again for every entry.">
 		${modalState.bias 
 			&& html`
-					<div className="hbox-flex logitBiasContainer">
-						<div class="small-inputBox">
-							<${InputBox} label="Bias" className="logitBiasPower-container"
-								type="enumber"  max=100 min=-100 step=1
-								readOnly=${!!cancel}
-								onValueChange=${(value) => { handleLogitBiasInput("power",value)} }
-								value=${logitBiasInput.power} 
-								id="logitBiasPower"/>
-						</div>
-						<${InputBox} label="Token" type="text"
-							tooltip="Currently, only the first token of multi-token strings will be biased."
+				<div className="hbox-flex logitBiasContainer">
+					<div class="small-inputBox">
+						<${InputBox} label="Bias" className="logitBiasPower-container"
+							type="enumber"  max=100 min=-100 step=1
 							readOnly=${!!cancel}
-							value=${logitBiasInput.string}
-							placeholder="String or /ID,.../"
-							onValueChange=${() => {} }
-							onInput=${(e) => {handleLogitBiasInput("string",e.target.value)} }
-							/>
-						<button disabled=${!!cancel} class="hbox-button" onClick=${() => logitBiasAdd(logitBiasInput.power,logitBiasInput.string)}>+</button>
+							onValueChange=${(value) => { handleLogitBiasInput("power",value)} }
+							value=${logitBiasInput.power} 
+							id="logitBiasPower"/>
 					</div>
-					${!!lastBiasError && html`
-						<div style=${{"margin":"8px auto"}} className="error-text">${lastBiasError}</div>`}
+					<${InputBox} label="Token" type="text"
+						tooltip="Currently, only the first token of multi-token strings will be biased."
+						readOnly=${!!cancel}
+						value=${logitBiasInput.string}
+						placeholder="String or /ID,.../"
+						onValueChange=${() => {} }
+						onInput=${(e) => {handleLogitBiasInput("string",e.target.value)} }
+						/>
+					<button disabled=${!!cancel} class="hbox-button" onClick=${() => logitBiasAdd(logitBiasInput.power,logitBiasInput.string)}>+</button>
+				</div>
+				${!!lastBiasError && html`
+					<div style=${{"margin":"8px auto"}} className="error-text">${lastBiasError}</div>`}
 			<hr style=${{"width":"95%","margin":"8px auto"}} />
 			<div class="lb-modal-biasList" >
 				${ Object.keys(logitBiasTemp).map((key) => {
