@@ -381,9 +381,6 @@ html.nockoffAI  #context-order-desc,
 html.nockoffAI .modal-desc {
 	color:var(--color-base-80);
 }
-.modal-content {
-	overflow-y: auto;
-}
 
 .button-modal-top {
 	all:unset;
@@ -400,6 +397,10 @@ html.nockoffAI .modal-desc {
 	margin-bottom: .25em;
 }
 
+.modal-content {
+	overflow: hidden;
+}
+
 hr {
 	border:unset;
 	border-top: 1px solid var(--color-base-40);
@@ -412,7 +413,8 @@ hr {
 .modal-wi-content {
 	display: flex;
 	flex-direction:column;
-	overflow-y: auto;
+	margin-top:0.5em;
+	max-height:50vh;
 }
 
 #modal-wi-global{
@@ -423,9 +425,6 @@ hr {
 
 #button-wi-new {
 	width: 100%;
-}
-.modal-wi-content{
-	margin-top:0.5em;
 }
 
 .wi-entry {
@@ -482,6 +481,98 @@ html.nockoffAI .wi-entry-name input {
 	grid-area: wi-entry-text;
 	margin-bottom:4px;
 }
+
+/* logit bias */
+.hbox-button {
+	margin-top: auto;
+	width: 1.625rem;
+}
+.hbox-flex {
+	display: flex;
+	flex-direction: row;
+	gap: 8px;
+}
+.hbox-flex > .InputBox {
+  width: 100%;
+}
+.small-inputBox {
+	width: 8em;
+}
+.logitBiasContainer {
+	position: relative;
+	flex-wrap: unset !important;
+}
+.logitBiasPower-sidebar {
+	width:10ch !important;
+} 
+
+
+.overflow-container {
+	overflow-y:auto;
+}
+#logitBiasPower {
+	text-align: center;
+}
+
+.lb-modal-grid-column {
+	display: grid;
+	grid-auto-rows: min-content;
+	gap: 8px;
+	max-height: 40vh;
+	padding-right: .75em;
+
+}
+.lb-modal-grid-row  {
+	display: grid;
+	grid-template-columns: 4em 1fr min-content;
+	grid-template-rows: min-content min-content min-content;
+	gap: 1px 8px;
+	grid-template-areas: 
+		"power input add"
+		". tokens remove"
+		"hr hr hr"; 
+	padding: 1px;
+}
+.lb-modal-power {
+	grid-area: power;
+	text-align: center;
+}
+.lb-modal-input { 
+	grid-area: input;
+	text-align: left;
+}
+.lb-modal-button.lb-modal-button-add { 
+	grid-area: add;
+}
+.lb-modal-button.lb-modal-button-remove { 
+	grid-area: remove;
+}
+.lb-modal-tokenized { 
+	grid-area: tokens;
+	font-family: monospace;
+	font-size:0.7rem;
+	margin-top: auto;
+	display: grid;
+	align-content: center;
+	margin: auto 0 auto 0;
+	/* height: 1.625rem; */
+	width: 100%;
+	overflow-wrap: anywhere;
+}
+.lb-modal-biasList hr {
+	grid-area: hr;
+	width: 90%;
+	margin: 4px auto auto auto;
+}
+
+.lb-modal-biasList {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 8px;
+}
+
+
+
 
 #sidebar {
 	font-family: inherit;
@@ -549,6 +640,7 @@ html.nockoffAI #sidebar {
 	border-radius: 2px;
 	color: inherit;
 	background: var(--color-base-30);
+	flex: none;
 }
 
 html.monospace-dark .InputBox > div > input, html.monospace-dark .SelectBox > select,
@@ -675,6 +767,10 @@ button.textAreaSettings {
 	position:absolute;
 	top:calc(1.25em + 1px);
 	right:1px;
+}
+button.textAreaSettings.textAreaSettings-bias {
+	top: 1.45em;
+	right: 5px;
 }
 button:hover {
 	background: var(--color-base-40);
@@ -949,6 +1045,22 @@ export async function getTokenCount({ endpoint, endpointAPI, endpointAPIKey, sig
 	}
 }
 
+export async function getTokens({ endpoint, endpointAPI, endpointAPIKey, signal, ...options }) {
+	// currently only implemented for llama.cpp and koboldcpp
+	// returns a json object in the format of:
+	// { ids:[ array of token ids ], str:[ array of detokenized ids ] }
+	// example: { ids:[9288,4731],str:["test"," string"] }
+	endpoint = normalizeEndpoint(endpoint);
+	switch (endpointAPI) {
+		case 0: // llama.cpp
+			return await llamaCppTokenize({ endpoint, endpointAPIKey, signal, ...options });
+		case 2: // koboldcpp
+			return await koboldCppTokenize({ endpoint, signal, ...options });
+		case 3: // openai
+			return await openaiTokenize({ endpoint, endpointAPIKey, signal, ...options })
+	}
+}
+
 export async function getModels({ endpoint, endpointAPI, endpointAPIKey, signal, ...options }) {
 	endpoint = normalizeEndpoint(endpoint);
 	switch (endpointAPI) {
@@ -1051,6 +1163,52 @@ async function llamaCppTokenCount({ endpoint, endpointAPIKey, proxyEndpoint, sig
 	return tokens.length + 1; // + 1 for BOS, I guess.
 }
 
+async function llamaCppTokenize({ endpoint, endpointAPIKey, proxyEndpoint, signal, ...options }) {
+	const res = await fetch(`${proxyEndpoint ?? endpoint}/tokenize`, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+			...(endpointAPIKey ? { 'Authorization': `Bearer ${endpointAPIKey}` } : {}),
+			...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
+		},
+		body: JSON.stringify(options),
+		signal,
+	});
+	if (!res.ok)
+		throw new Error(`HTTP ${res.status}`);
+	const { tokens } = await res.json();
+
+	const strings = [];
+	for (let i=0; i<tokens.length; i++) {
+		const string = await llamaCppDetokenize({
+				endpoint,
+				endpointAPIKey,
+				tokens: [ tokens[i] ],
+				signal: signal,
+		}); // maybe batch all tokens together with a bos token between them
+			// something? that'd probably be more efficient. don't know how
+			// to get the bos token ID though.
+		strings.push(string);
+	};
+	return {ids:tokens,str:strings};
+}
+async function llamaCppDetokenize({ endpoint, endpointAPIKey, proxyEndpoint, signal, ...options }) {
+	const res = await fetch(`${proxyEndpoint ?? endpoint}/detokenize`, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+			...(endpointAPIKey ? { 'Authorization': `Bearer ${endpointAPIKey}` } : {}),
+			...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
+		},
+		body: JSON.stringify(options),
+		signal,
+	});
+	if (!res.ok)
+		throw new Error(`HTTP ${res.status}`);
+	const { content } = await res.json();
+	return content
+}
+
 async function* llamaCppCompletion({ endpoint, endpointAPIKey, proxyEndpoint, signal, ...options }) {
 	const res = await fetch(`${proxyEndpoint ?? endpoint}/completion`, {
 		method: 'POST',
@@ -1087,6 +1245,26 @@ async function koboldCppTokenCount({ endpoint, proxyEndpoint, signal, ...options
 		throw new Error(`HTTP ${res.status}`);
 	const { value } = await res.json();
 	return value;
+}
+
+async function koboldCppTokenize({ endpoint, proxyEndpoint, signal, ...options }) {
+	const res = await fetch(`${proxyEndpoint ?? endpoint}/api/extra/tokencount`, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+			...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
+		},
+		body: JSON.stringify({
+			prompt: options.content
+		}),
+		signal,
+	});
+	if (!res.ok)
+		throw new Error(`HTTP ${res.status}`);
+	const { ids } = await res.json();
+	ids.shift() // kobold automatically adds a token, so we need to remove it
+	return {ids:ids,str:""};
+	
 }
 
 function koboldCppConvertOptions(options) {
@@ -1210,6 +1388,59 @@ async function openaiTabbyTokenCount({ endpoint, endpointAPIKey, proxyEndpoint, 
 	} catch (e) {
 		return -1;
 	}
+}
+
+async function openaiTokenize({ endpoint, endpointAPIKey, proxyEndpoint, signal, ...options }) {
+	try {
+		const res = await fetch(`${proxyEndpoint ?? endpoint}/v1/internal/encode`, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
+			},
+			body: JSON.stringify({
+				text: options.content
+			}),
+			signal,
+		});
+		if (!res.ok)
+			throw new Error(`HTTP ${res.status}`);
+		const { tokens } = await res.json();
+
+		const strings = [];
+		for (let i=0; i<tokens.length; i++) {
+			const string = await openaiDetokenize({
+					endpoint,
+					...(endpointAPIKey ? {
+						endpointAPIKey,
+					} : {}),
+					tokens: [ tokens[i] ],
+					signal: signal,
+			});
+			strings.push(string);
+		};
+		return {ids:tokens,str:strings};
+		
+	} catch (e) {
+		reportError(e);
+		return -1;
+	}
+}
+async function openaiDetokenize({ endpoint, endpointAPIKey, proxyEndpoint, signal, ...options }) {
+
+	const res = await fetch(`${proxyEndpoint ?? endpoint}/v1/internal/decode`, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+			...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
+		},
+		body: JSON.stringify(options),
+		signal,
+	});
+	if (!res.ok)
+		throw new Error(`HTTP ${res.status}`);
+	const { text } = await res.json();
+	return text
 }
 
 async function openaiModels({ endpoint, endpointAPIKey, proxyEndpoint, signal, ...options }) {
@@ -2046,6 +2277,7 @@ const defaultPresets = {
 		"prefix": "",
 		"suffix": ""
 	}),
+	logitBias:{ bias:{},model:"none" },
 	scrollTop: 0
 };
 
@@ -2165,16 +2397,249 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 	const [tokens, setTokens] = useState(0);
 	const [predictStartTokens, setPredictStartTokens] = useState(0);
 	const [lastError, setLastError] = useState(undefined);
+	const [lastBiasError, setLastBiasError] = useState(undefined);
 	const [stoppingStrings, setStoppingStrings] = useSessionState('stoppingStrings', defaultPresets.stoppingStrings);
 	const [stoppingStringsError, setStoppingStringsError] = useState(undefined);
 	const [savedScrollTop, setSavedScrollTop] = useSessionState('scrollTop', defaultPresets.scrollTop);
-
+	const [modalState, setModalState] = useState({});
+	const [logitBias, setLogitBias] = useSessionState('logitBias', defaultPresets.logitBias);
+	const [logitBiasParam, setLogitBiasParam] = useState({});
+	const [logitBiasTemp, setLogitBiasTemp] = useState([]);
+	const [logitBiasSorted, setLogitBiasSorted] = useState([]);
+	const [logitBiasInput, setLogitBiasInput] = useState({power:"0",string:""});
 	const [contextLength, setContextLength] = useSessionState('contextLength', defaultPresets.contextLength);
 	const [memoryTokens, setMemoryTokens] = useSessionState('memoryTokens', defaultPresets.memoryTokens);
-
 	const [authorNoteTokens, setAuthorNoteTokens] = useSessionState('authorNoteTokens', defaultPresets.authorNoteTokens);
 	const [authorNoteDepth, setAuthorNoteDepth] = useSessionState('authorNoteDepth', defaultPresets.authorNoteDepth);
 
+	const handleLogitBiasInput = (key,value) => {
+		setLogitBiasInput((prevLogitBiasInput) => {
+			return {
+				...prevLogitBiasInput,
+				[key]: value
+			}
+		});
+
+	}
+
+	const logitBiasAdd = async (biasPower="",biasString="",origValue="") => {
+		setLastBiasError(undefined)
+		// abort if no input or power is NaN
+		if(!biasString) {return}
+		if (isNaN(+biasPower) || biasPower == "") { 
+			setLastBiasError("Error: Bias must be a number")
+			return
+		}
+		biasPower = Number(biasPower)
+
+		const modBias = logitBias.bias;
+		
+		// delete entry if power 0 or empty
+		if (biasPower == 0) {	
+			if (!logitBias.bias[biasString]) {
+				setLastBiasError("Error: Bias 0 = no Bias")
+				return
+			}
+			console.log("delete",biasString)
+			setLogitBias((prevLogitBias) => {
+				delete modBias[biasString]
+				return { 
+					...prevLogitBias,
+					bias: {
+						...modBias
+					}
+				};
+			})
+			return
+		}
+		// if overwriting the string value of an entry, delete the original one
+		if (origValue && origValue != biasString) {
+			delete modBias[origValue]
+		}
+
+		const ac = new AbortController();
+		try {
+			// if the string is a comma separated list of numbers wrapped in /
+			var tokens
+			const isTokenIds = biasString.match(/^(?<!\\)\/(\s*\d+\s*,?\s*)+(?<!\\)\/$/g)
+			if ( isTokenIds != null ) {
+				// split by "," and use it as token ids directly
+				tokens = {
+					ids: isTokenIds[0].replaceAll("/","").split(",").map( item => Number(item.trim()) ),
+					str: ""
+				}
+			}
+			// else process like normal
+			else {
+				// KNOWN ISSUE: some models automatically prepend a space to any tokenization 
+				// input. to work around this, I'm prepending the input with a "!==", then 
+				// slicing the output array by the number of tokens of "!==".
+				// This could cause issues when trying to bias a token starting with ? where
+				// ? is any character that forms a single token together with " !==", like 
+				// this: " !==?" I've chosen "!==" because it seems to be a very conserved
+				// token between models.
+				//
+				// Now granted, I have not found any strings where this is actually an issue in 
+				// the tokenizers of the models I use, but this is still a huge hackjob of a 
+				// workaround. If anyone can think of a better solution, please let me know.
+				tokens = await getTokens({
+					endpoint,
+					endpointAPI,
+					...(endpointAPI == 3 || endpointAPI == 0 ? { endpointAPIKey } : {}),
+					content: `!==${biasString}`.replace(/\\n/g,'\n'),
+					signal: ac.signal,
+					...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {})
+				});
+				const logitBiasWorkaround = await getTokens({
+					endpoint,
+					endpointAPI,
+					...(endpointAPI == 3 || endpointAPI == 0 ? { endpointAPIKey } : {}),
+					content: `!==`,
+					signal: ac.signal,
+					...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {})
+				});
+				// Remove however many tokens !== is tokenized as for the workaround
+				tokens.ids = tokens.ids.slice(logitBiasWorkaround.ids.length)
+				if ( Array.isArray(tokens.str) ) {
+					tokens.str = tokens.str.slice(logitBiasWorkaround.ids.length)
+				}
+			}
+
+			console.log("Biasing tokens [",tokens.ids.join(", "),"]",
+				Array.isArray(tokens.str) ? "'"+tokens.str.join("|")+"'"
+					: "'"+biasString+"'",
+				"by power",biasPower)
+			await setLogitBias((prevLogitBias) => ({
+				...prevLogitBias,
+				bias: {
+					...modBias,
+					[biasString]: { // removed Number() here
+						ids: [ ...tokens.ids ],
+						strings: [ ...tokens.str ],
+						power: biasPower
+					}
+				}
+			}));
+		}
+		catch(e) {
+			if (e.name !== 'AbortError') {
+				reportError(e);
+				const errStr = e.toString();
+				if ((endpointAPI == 3 || endpointAPI == 0) && errStr.includes("401")) {
+					setLastBiasError("Error: Rejected API Key");
+					setRejectedAPIKey(true);
+				} else if (endpointAPI == 3 && errStr.includes("429")) {
+					setLastBiasError("Error: Insufficient Quota");
+				} else {
+					setLastBiasError(errStr);
+				}
+			}
+			return
+		}
+	};
+
+	const clamp = (num, min = -Infinity, max = Infinity) => {
+		return Math.min(Math.max(num, min), max);
+	}
+
+	const llamaCppSetLogitBiasParams = () => {
+		const param = [];
+		// TODO grab multi-token strings here and put them in a separate state variable
+		// for phrase bias
+		Object.keys(logitBias.bias).forEach(entry => {
+			// set banned tokens to false, else divide power by 10 to remain within
+			// reasonable range
+			const power = logitBias.bias[entry].power < -99 ? false : Number(logitBias.bias[entry].power) / 10;
+			param.push( [ Number(logitBias.bias[entry].ids[0]), power ] );
+		})
+		setLogitBiasParam(param)
+	};
+	const koboldCppSetLogitBiasParams = () => {
+		const param = {};
+		Object.keys(logitBias.bias).forEach(entry => {
+			// -100 to 100
+			param[Number(logitBias.bias[entry].ids[0])] = clamp(Number(logitBias.bias[entry].power),-100,100)
+		})
+		setLogitBiasParam(param)
+	};
+	const openaiSetLogitBiasParams = () => {
+		const param = {};
+		Object.keys(logitBias.bias).forEach(entry => {
+			// -100 to 100
+			param[Number(logitBias.bias[entry].ids[0])] = clamp(Number(logitBias.bias[entry].power),-100,100).toFixed(1)
+		})
+		setLogitBiasParam(param)
+	};
+
+	const updateLogitBiasParam = useMemo(() => {
+		// set the parameters sent to the model in the format expected by the endpoint
+		switch (endpointAPI) {
+			case 0:
+				llamaCppSetLogitBiasParams()
+				break;
+			case 2:
+				koboldCppSetLogitBiasParams()
+				break;
+			case 3:
+				//openaiSetLogitBiasParams()
+				// for some reason this causes an error
+				break;
+		}
+	}, [logitBias, endpointAPI]);
+
+
+	const updateLogitBiasTemp =  useEffect(() => {
+		const tempArray = logitBiasSorted.map((string, index) =>  ({
+			value: string,
+			valueBack: string,
+			strings: logitBias.bias[string].strings,
+			tokens: logitBias.bias[string].ids,
+			power: logitBias.bias[string].power
+		}));
+		setLogitBiasTemp({
+			positive: tempArray.filter(item => item.power > 0),
+			negative: tempArray.filter(item => item.power < 0)
+		});
+	},[logitBiasSorted,modalState.bias]);
+
+
+	const handleBiasTempChange = (posneg, key, index, value) => {
+		setLogitBiasTemp((prevLogitBiasTemp) => {
+			const rest = { ...prevLogitBiasTemp };
+			const updatedTemp = [ ...prevLogitBiasTemp[posneg] ];
+			 
+			updatedTemp[index] = {
+				...updatedTemp[index],
+				[key]: value,
+			};
+			return {
+				...rest,
+				[posneg]: updatedTemp
+			};
+		});
+	};
+
+	const logitBiasSort = useMemo(() => {
+		const biasListToSort = Object.entries(logitBias.bias);
+		const sortPowerString = (a, b) => {
+			const powerDiff = parseInt(b[1].power) - parseInt(a[1].power);
+			if (powerDiff !== 0) {
+				// If powers are different, sort by power
+				return powerDiff;
+			} else {
+				// If powers are the same, sort alphabetically by string value
+				return a[0].localeCompare(b[0]);
+			}
+		};
+
+		const biasListSorted = biasListToSort.sort(sortPowerString);
+		const resultArray = biasListSorted.map(([key]) => key);
+
+		setLogitBiasSorted(resultArray);
+	}, [logitBias]);
+
+
+	// AN and Memory
 	const handleAuthorNoteDepthChange = (value) => {
 		setAuthorNoteDepth(!isNaN(+value) && value >= 0 ? value : 0);
 	};
@@ -2248,7 +2713,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 		}));
 	}
 
-	const [modalState, setModalState] = useState({});
+	
 	const toggleModal = (modalKey) => {
 		setModalState((prevState) => ({
 			...prevState,
@@ -2459,6 +2924,9 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 					repeat_last_n: repeatLastN,
 					penalize_nl: penalizeNl,
 					ignore_eos: ignoreEos,
+				} : {}),
+				...(Object.keys(logitBias.bias).length > 0 && endpointAPI != 3 ? {
+					logit_bias: logitBiasParam,
 				} : {}),
 				presence_penalty: presencePenalty,
 				frequency_penalty: frequencyPenalty,
@@ -3219,9 +3687,19 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 							</div>`}
 					`}
 				`}
+				${(endpointAPI != 3) && html`
+					<button
+						disabled=${!!cancel}
+						onClick=${() => toggleModal("bias")}>
+						Logit Bias
+						</button>
+					${!!lastBiasError && html`
+						<div className="error-text">${lastBiasError}</div>`}`}
 				${(!openaiPresets || endpointAPI != 3) && html`
 					<${Checkbox} label="Ignore <eos>"
 						disabled=${!!cancel} value=${ignoreEos} onValueChange=${setIgnoreEos}/>`}
+
+
 			</${CollapsibleGroup}>
 			<${CollapsibleGroup} label="Persistent Context">
 				<label className="TextArea">
@@ -3347,6 +3825,92 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 			</div>
 		</${Modal}>
 
+		<${Modal} isOpen=${modalState.bias} onClose=${() => { closeModal("bias")}}
+		title="Logit Bias"
+		description="Make certain tokens more or less likely to be generated. Recommended ranges are 100 to -100, with -100 being a total ban of the token.
+		Currently only works on the first token of multi-token phrases/words.
+		You can bias IDs directly in a comma separated list, wrapped in '/'. Example: /382,1449,1802/
+
+		Different models might tokenize words differently. Always Re-Tokenize your biases when switching models by pressing the '+' button again for every entry.">
+		${modalState.bias 
+			&& html`
+				<div className="hbox-flex logitBiasContainer">
+					<div class="small-inputBox">
+						<${InputBox} label="Bias" className="logitBiasPower-container"
+							type="enumber"  max=100 min=-100 step=1
+							readOnly=${!!cancel}
+							onValueChange=${(value) => { handleLogitBiasInput("power",value)} }
+							value=${logitBiasInput.power} 
+							id="logitBiasPower"/>
+					</div>
+					<${InputBox} label="Token" type="text"
+						tooltip="Currently, only the first token of multi-token strings will be biased."
+						readOnly=${!!cancel}
+						value=${logitBiasInput.string}
+						placeholder="String or /ID,.../"
+						onValueChange=${() => {} }
+						onInput=${(e) => {handleLogitBiasInput("string",e.target.value)} }
+						/>
+					<button disabled=${!!cancel} class="hbox-button" onClick=${() => logitBiasAdd(logitBiasInput.power,logitBiasInput.string)}>+</button>
+				</div>
+				${!!lastBiasError && html`
+					<div style=${{"margin":"8px auto"}} className="error-text">${lastBiasError}</div>`}
+			<hr style=${{"width":"95%","margin":"8px auto"}} />
+			<div class="lb-modal-biasList" >
+				${ Object.keys(logitBiasTemp).map((key) => {
+					return html`
+
+					<div class="overflow-container lb-modal-grid-column" id="lb-modal-${key}">
+					${ logitBiasTemp[key].map((bias, index) => {
+						return html`
+						<div class="lb-modal-entry lb-modal-grid-row" key=${index}>
+
+							<${InputBox} label="Bias" class="lb-modal-power"
+								type="enumber" max=100 min=-100 step=1
+								id="lb-modal-power-${index}"
+								readOnly=${!!cancel}
+								onValueChange=${(value) => {handleBiasTempChange(key,"power", index, value)} }
+								value=${bias.power}/>
+
+							<${InputBox} label="Token" type="text"
+								tooltip="Currently, only the first token of multi-token strings will be biased."
+								readOnly=${!!cancel}
+								value=${bias.value}
+								placeholder="String or /ID,.../"
+								onValueChange=${() => {} }
+								onInput=${(e) => handleBiasTempChange(key,"value", index, e.target.value) }
+								/>
+							<div class="lb-modal-tokenized">
+								${endpointAPI == 0 && bias.strings != ""
+									? "["+bias.strings.join("|")+"] "
+									: "["+bias.tokens+"]" } 
+								
+							</div>
+							<button
+								disabled=${!!cancel}
+								class="hbox-button lb-modal-button lb-modal-button-add"
+								onClick=${() => logitBiasAdd(bias.power, bias.value, bias.valueBack)}
+								>
+								+
+							</button>
+							<button
+								disabled=${!!cancel}
+								class="hbox-button lb-modal-button lb-modal-button-remove"
+								onClick=${() => logitBiasAdd("0", bias.valueBack, bias.valueBack)}
+								>
+								-
+							</button>
+							<hr/>
+						</div>
+
+					`})}
+				</div>
+				`})}
+				
+			</div>`}
+
+		</${Modal}>
+
 		<${Modal} isOpen=${modalState.memory} onClose=${() => closeModal("memory")}
 		title="Memory"
 		description="This text will be added at the very top of your context.
@@ -3465,7 +4029,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 				</${CollapsibleGroup}>
 				<button id="button-wi-new" disabled=${!!cancel} onClick=${handleWorldInfoNew}>New Entry</button>
 			</div>
-			<div className="modal-wi-content">
+			<div className="modal-wi-content overflow-container">
 				${ !Array.isArray(worldInfo.entries) ? null : worldInfo.entries.map((entry, index) => html`
 				<div class="wi-entry" key=${index}>
 					<div class="wi-entry-controls">
