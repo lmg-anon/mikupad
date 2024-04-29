@@ -1005,6 +1005,19 @@ if (!(Symbol.asyncIterator in ReadableStream.prototype)) {
 	};
 }
 
+function exportText(filename, text) {
+	const textBlob = new Blob([text], {type: 'text/plain;charset=utf-8'});
+	const textURL = URL.createObjectURL(textBlob);
+	var element = document.createElement('a');
+	element.setAttribute('href', textURL);
+	element.setAttribute('download', filename);
+	element.style.display = 'none';
+	document.body.appendChild(element);
+	element.click();
+	URL.revokeObjectURL(textURL);
+	document.body.removeChild(element);
+}
+
 function normalizeEndpoint(endpoint) {
 	const url = new URL(endpoint.trim());
 	url.pathname = url.pathname.replace(/\/+/g, "/"); // normalize consecutive slashes
@@ -1653,42 +1666,6 @@ function CollapsibleGroup({ label, expanded, children }) {
 		</div>`;
 }
 
-function Modal({ isOpen, onClose, title, description, children, ...props }) {
-	if (!isOpen) {
-		return null;
-	}
-	useEffect(() => {
-		const onKeyDown = (event) => {
-			if (event.key === 'Escape') {
-				onClose();
-			}
-		};
-		document.addEventListener('keydown', onKeyDown);
-		return () => {
-			document.removeEventListener('keydown', onKeyDown);
-		};
-	});
-	return html`
-	<div className="modal-overlay" onClick=${onClose}>
-		<div className="modal-container">
-			<div className="modal" onClick=${(e) => e.stopPropagation()} ...${props}>
-				<div class="modal-title">${title}</div>
-				${ description=="" ? false : html`<div style=${{ whiteSpace: 'pre-line' }} class='modal-desc'>${description}</div>` }
-				<hr/>
-				<div className="modal-content">
-					${children}
-				</div>
-				<button
-				class="button-modal-top"
-				onClick=${onClose}>
-					<svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="-1 -1 10 10" xmlns="http://www.w3.org/2000/svg"><path d="M 0 1 L 3 4 L 0 7 L 1 8 L 4 5 L 7 8 L 8 7 L 5 4 L 8 1 L 7 0 L 4 3 L 1 0 L 1 0 Z"></path></svg>
-				</button>
-			</div>
-		</div>
-	</div>
-	`;
-}
-
 function Sessions({ sessionStorage, disabled }) {
 	const [version, setVersion] = useState(0);
 	const [newSessionName, setNewSessionName] = useState('');
@@ -1762,18 +1739,12 @@ function Sessions({ sessionStorage, disabled }) {
 	};
 
 	const exportSession = () => {
-		var element = document.createElement('a');
 		const sessionObj = { ...sessionStorage.sessions[sessionStorage.selectedSession] };
 		for (const [key, value] of Object.entries(sessionObj)) {
 			// This is done for compatibility with localStorage export files.
 			sessionObj[key] = JSON.stringify(value);
 		}
-		element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(JSON.stringify(sessionObj)));
-		element.setAttribute('download', `${sessionStorage.getProperty('name')}.json`);
-		element.style.display = 'none';
-		document.body.appendChild(element);
-		element.click();
-		document.body.removeChild(element);
+		exportText(`${sessionStorage.getProperty('name')}.json`, JSON.stringify(sessionObj));
 	};
 
 	const cloneSession = async () => {
@@ -1865,6 +1836,628 @@ function Sessions({ sessionStorage, disabled }) {
 				<button disabled=${disabled} onClick=${cloneSession}>Clone</button>
 			</div>
 		</div>`;
+}
+
+
+
+function Modal({ isOpen, onClose, title, description, children, ...props }) {
+	if (!isOpen) {
+		return null;
+	}
+
+	useEffect(() => {
+		const onKeyDown = (event) => {
+			if (event.key === 'Escape') {
+				onClose();
+			}
+		};
+		document.addEventListener('keydown', onKeyDown);
+		return () => {
+			document.removeEventListener('keydown', onKeyDown);
+		};
+	}, []);
+
+	return html`
+		<div className="modal-overlay" onClick=${onClose}>
+			<div className="modal-container">
+				<div className="modal" onClick=${(e) => e.stopPropagation()} ...${props}>
+					<div class="modal-title">${title}</div>
+					${ description=="" ? false : html`<div style=${{ whiteSpace: 'pre-line' }} class='modal-desc'>${description}</div>` }
+					<hr/>
+					<div className="modal-content">
+						${children}
+					</div>
+					<button
+					class="button-modal-top"
+					onClick=${onClose}>
+						<svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="-1 -1 10 10" xmlns="http://www.w3.org/2000/svg"><path d="M 0 1 L 3 4 L 0 7 L 1 8 L 4 5 L 7 8 L 8 7 L 5 4 L 8 1 L 7 0 L 4 3 L 1 0 L 1 0 Z"></path></svg>
+					</button>
+				</div>
+			</div>
+		</div>`;
+}
+
+function EditorPreferencesModal({ isOpen, closeModal, children }) {
+	return html`
+		<${Modal} isOpen=${isOpen} onClose=${closeModal}
+			title="Editor Preferences"
+			description=""
+			style=${{ 'max-width': '20em' }}>
+				<div className="vbox">
+					${children}
+				</div>
+			</${Modal}>`;
+}
+
+function MemoryModal({ isOpen, closeModal, memoryTokens, handleMemoryTokensChange, cancel }) {
+	return html`
+		<${Modal} isOpen=${isOpen} onClose=${closeModal}
+			title="Memory"
+			description="This text will be added at the very top of your context.
+			Prefix and suffix will be attached at the beginning or end of your memory respectively. \\n for newlines in pre/suffix.">
+				<div className="hbox">
+					<${InputBox} label="Prefix" type="text" placeholder="[INST]"
+						readOnly=${!!cancel} value=${memoryTokens.prefix} onValueChange=${(value) => handleMemoryTokensChange("prefix", value)}/>
+					<${InputBox} label="Suffix" type="text" placeholder="[/INST]"
+						readOnly=${!!cancel} value=${memoryTokens.suffix} onValueChange=${(value) => handleMemoryTokensChange("suffix", value)}/>
+				</div>
+				<textarea
+					readOnly=${!!cancel}
+					placeholder="Anything written here will be injected at the head of the prompt. Tokens here DO count towards the Context Limit."
+					defaultValue=${memoryTokens.text}
+					value=${memoryTokens.text}
+					onInput=${(e) => handleMemoryTokensChange("text", e.target.value) }
+					class="expanded-text-area-settings"
+					id="memory-area-settings"/>
+			</${Modal}>`;
+}
+
+function AuthorNoteModal({ isOpen, closeModal, authorNoteTokens, handleauthorNoteTokensChange, authorNoteDepth, setAuthorNoteDepth, cancel }) {
+	const handleAuthorNoteDepthChange = (value) => {
+		setAuthorNoteDepth(!isNaN(+value) && value >= 0 ? value : 0);
+	};
+
+	return html`
+		<${Modal} isOpen=${isOpen} onClose=${closeModal}
+			title="Author's Note"
+			description="This text will be injected N newlines from the bottom of your prompt.
+			Prefix and suffix will be attached at the beginning or end of your author's note respectively. \\n for newlines in pre/suffix.">
+				<div className="hbox">
+					<${InputBox} label="Prefix" type="text" placeholder="[INST]"
+						readOnly=${!!cancel} value=${authorNoteTokens.prefix} onValueChange=${(value) => handleauthorNoteTokensChange("prefix", value)}/>
+					<${InputBox} label="Suffix" type="text" placeholder="[/INST]"
+						readOnly=${!!cancel} value=${authorNoteTokens.suffix} onValueChange=${(value) => handleauthorNoteTokensChange("suffix", value)}/>
+					<${InputBox} label="AN Injection Depth (0-N)" type="number" step="1"
+						readOnly=${!!cancel} value=${authorNoteDepth} onValueChange=${handleAuthorNoteDepthChange}/>
+				</div>
+				<textarea
+					readOnly=${!!cancel}
+					placeholder="Anything written here will be injected ${authorNoteDepth} newlines from bottom into context."
+					defaultValue=${authorNoteTokens.text}
+					value=${authorNoteTokens.text}
+					onInput=${(e) => handleauthorNoteTokensChange("text", e.target.value) }
+					class="expanded-text-area-settings"
+					id="expanded-an-settings"/>
+			</${Modal}>`;
+}
+
+function ContextModal({ isOpen, closeModal, memoryTokens, handleMemoryTokensChange, modifiedPrompt, defaultPresets, cancel }) {
+	return html`
+		<${Modal} isOpen=${isOpen} onClose=${closeModal}
+			title="Context"
+			description="This is the prompt being sent to your large language model.">
+			<${CollapsibleGroup} label="Advanced Context Ordering">
+				<div id="context-order-desc">
+					You can use the following placeholders to order the context according to your needs:<br />
+					<div id="advancedContextPlaceholders">
+						<table border="1" frame="void" rules="all">
+							<thead>
+							<tr>
+								<th></th>
+								<th>Prefix</th>
+								<th>Text</th>
+								<th>Suffix</th>
+							</tr>
+							</thead>
+							<tbody>
+							<tr>
+								<th>Memory</th>
+								<td>{memPrefix}</td>
+								<td>{memText}</td>
+								<td>{memSuffix}</td>
+							</tr>
+							<tr>
+								<th>World Info</th>
+								<td>{wiPrefix}</td>
+								<td>{wiText}</td>
+								<td>{wiSuffix}</td>
+							</tr>
+							<tr>
+								<th>Prompt</th>
+								<td></td>
+								<td>{prompt}</td>
+								<td></td>
+							</tr>
+							</tbody>
+						</table>
+					</div>
+					Any text that is not a placeholder will be added into the context as is.
+				</div>
+				<textarea
+					readOnly=${!!cancel}
+					placeholder=${defaultPresets.memoryTokens.contextOrder}
+					defaultValue=${memoryTokens.contextOrder}
+					value=${memoryTokens.contextOrder}
+					onInput=${(e) => handleMemoryTokensChange("contextOrder", e.target.value)}
+					class="expanded-text-area-settings"
+					id="advanced-context-order-settings"/>
+			</${CollapsibleGroup}>
+			<textarea
+				readOnly=${!!cancel}
+				value=${modifiedPrompt}
+				class="expanded-text-area-settings"
+				id="context-area-settings" readOnly/>
+		</${Modal}>`;
+}
+
+function WorldInfoModal({ isOpen, closeModal, worldInfo, setWorldInfo, cancel }) {
+	const handleWorldInfoNew = () => {
+		setWorldInfo((prevWorldInfo) => {
+			return {
+				...prevWorldInfo,
+				entries: [ { "displayName":"New Entry","text":"","keys":[], "search":"" },...prevWorldInfo.entries ],
+			};
+		});
+	};
+	const handleWorldInfoMove = (index,move) => {
+		const modEntries = worldInfo.entries;
+		if (index+move < 0 || index+move > modEntries.length-1 ) {
+			return;
+		}
+		modEntries.splice(index+move, 0, modEntries.splice(index, 1)[0]);
+		setWorldInfo((prevWorldInfo) => {
+			return {
+				...prevWorldInfo,
+				entries: [ ...modEntries ],
+			};
+		});
+	};
+	const handleWorldInfoDel = (index) => {
+		if (!window.confirm("Are you sure you want to delete the world info entry #" + (index + 1) + ": "+ worldInfo.entries[index].displayName + "?\nThis action cannot be undone."))
+			return;
+		if (index > -1 && index < worldInfo.entries.length) {
+			setWorldInfo((prevWorldInfo) => {
+				console.warn(`Deleting world info entry #${(index + 1)}:`,prevWorldInfo.entries[index])
+				return {
+					...prevWorldInfo,
+					entries: prevWorldInfo.entries.filter((_, i) => i !== index),
+				};
+			});
+		}
+		else {
+			alert("Index " + index + " out of range!");
+		}
+	};
+	const handleWorldInfoChange = (key,index,value) => {
+		setWorldInfo((prevWorldInfo) => {
+			const updatedEntries = [...prevWorldInfo.entries];
+			const updatedEntry = key == "keys"
+				? { ...updatedEntries[index], [key]: value.split(/(?<!\\), ?/) } //.map(item => item.trim())
+				: { ...updatedEntries[index], [key]: value };
+			updatedEntries[index] = updatedEntry;
+
+			return {
+				...prevWorldInfo,
+				entries: updatedEntries,
+			};
+		});
+	};
+	const handleWorldInfoAffixChange = (key, value) => {
+		setWorldInfo((prevWorldInfo) => ({
+			...prevWorldInfo,
+			[key]: value,
+		}));
+	};
+
+	return html`
+		<${Modal} isOpen=${isOpen} onClose=${closeModal}
+			title="World Info"
+			description="Additional information that is added when specific keywords are found in context.
+			World info will be added at the top of your memory, in the order specified here.
+
+			Each entry will begin on a newline. Keys will be interpreted as case-insensitive regular expressions. Search Range specifies how many tokens back into the context will be searched for activation keys. Search range 0 to disable an entry.">
+			<div id="modal-wi-global">
+				<${CollapsibleGroup} label="Prefix/Suffix">
+					The prefix and suffix will be added at the beginning or end of all your active World Info entries respectively.
+					<br />
+					<div className="hbox">
+						<${InputBox} label="Prefix" type="text" placeholder="\\n"
+							readOnly=${!!cancel} value=${worldInfo.prefix} onValueChange=${(value) => handleWorldInfoAffixChange("prefix", value)}/>
+						<${InputBox} label="Suffix" type="text" placeholder="\\n"
+							readOnly=${!!cancel} value=${worldInfo.suffix} onValueChange=${(value) => handleWorldInfoAffixChange("suffix", value)}/>
+					</div>
+				</${CollapsibleGroup}>
+				<button id="button-wi-new" disabled=${!!cancel} onClick=${handleWorldInfoNew}>New Entry</button>
+			</div>
+			<div className="modal-wi-content overflow-container">
+				${!Array.isArray(worldInfo.entries) ? null : worldInfo.entries.map((entry, index) => html`
+					<div class="wi-entry" key=${index}>
+						<div class="wi-entry-controls">
+							<div class="wi-entry-filler" />
+							<div class="wi-entry-name">
+								<${InputBox}
+								label="Entry #${index+1}"
+								type="text"
+								readOnly=${!!cancel}
+								placeholder="Name of this entry"
+								value=${entry.displayName}
+								onValueChange=${(value) => handleWorldInfoChange("displayName",index,value)}
+								/>
+							</div>
+							<div class="wi-entry-buttons">
+								<div class="wi-entry-buttons-container">
+									<button disabled=${!!cancel} onClick=${() => handleWorldInfoMove(index,-1)}>
+										<svg fill="var(--color-light)" height="12" width="12" viewBox="0 0 330 330"><path d="M325.606,229.393l-150.004-150C172.79,76.58,168.974,75,164.996,75c-3.979,0-7.794,1.581-10.607,4.394 l-149.996,150c-5.858,5.858-5.858,15.355,0,21.213c5.857,5.857,15.355,5.858,21.213,0l139.39-139.393l139.397,139.393 C307.322,253.536,311.161,255,315,255c3.839,0,7.678-1.464,10.607-4.394C331.464,244.748,331.464,235.251,325.606,229.393z"/></svg>
+									</button>
+									<button disabled=${!!cancel} onClick=${() => handleWorldInfoDel(index)}>
+										✕
+									</button>
+									<button disabled=${!!cancel} onClick=${() => handleWorldInfoMove(index,1)}>
+										<svg fill="var(--color-light)" height="12" width="12" viewBox="0 0 330 330"><path d="M325.607,79.393c-5.857-5.857-15.355-5.858-21.213,0.001l-139.39,139.393L25.607,79.393 c-5.857-5.857-15.355-5.858-21.213,0.001c-5.858,5.858-5.858,15.355,0,21.213l150.004,150c2.813,2.813,6.628,4.393,10.606,4.393 s7.794-1.581,10.606-4.394l149.996-150C331.465,94.749,331.465,85.251,325.607,79.393z"/></svg>
+									</button>
+								</div>
+							</div>
+							<div class="wi-entry-text">
+								<div class="hbox">
+									<${InputBox}
+										label="Comma Separated RegEx Keys"
+										type="text"
+										readOnly=${!!cancel}
+										value=${entry.keys.join(',')}
+										placeholder="Required to activate entry"
+										onValueChange=${(value) => handleWorldInfoChange("keys",index,value)}
+										/>
+									<${InputBox}
+										label="Search Range (0 = disabled)"
+										tooltip="Currently not accurate to the token count, it will be used as an estimate."
+
+										type="text"
+										readOnly=${!!cancel}
+										inputmode="numeric"
+										value=${entry.search}
+										placeholder="2048"
+										onValueChange=${(value) => handleWorldInfoChange("search",index,value)}
+										/>
+								</div>
+								<label class="TextArea">
+									Text
+									<textarea
+										readOnly=${!!cancel}
+										placeholder="Information to be inserted into context when key is found"
+										value=${entry.text ? entry.text : ""}
+										defaultValue=${entry.text ? entry.text : ""}
+										onInput=${(e) => handleWorldInfoChange("text",index, e.target.value)}
+										class="wi-textarea" />
+								</label>
+							</div>
+						</div>
+					</div>`)}
+			</div>
+		</${Modal}>`;
+}
+
+function LogitBiasModal({ isOpen, closeModal, logitBias, setLogitBias, logitBiasParam, setLogitBiasParam, sessionStorage, endpoint, endpointAPI, endpointAPIKey, isMikupadEndpoint, cancel }) {
+	const [lastBiasError, setLastBiasError] = useState(undefined);
+	const [logitBiasTemp, setLogitBiasTemp] = useState([]);
+	const [logitBiasSorted, setLogitBiasSorted] = useState([]);
+	const [logitBiasInput, setLogitBiasInput] = useState({power:"0",string:""});
+	
+	const handleLogitBiasInput = (key,value) => {
+		setLogitBiasInput((prevLogitBiasInput) => {
+			return {
+				...prevLogitBiasInput,
+				[key]: value
+			}
+		});
+	};
+
+	const logitBiasAdd = async (biasPower="",biasString="",origValue="") => {
+		setLastBiasError(undefined);
+		// abort if no input or power is NaN
+		if(!biasString) {
+			return;
+		}
+		if (isNaN(+biasPower) || biasPower == "") { 
+			setLastBiasError("Error: Bias must be a number");
+			return;
+		}
+		biasPower = Number(biasPower);
+
+		const modBias = logitBias.bias;
+		
+		// delete entry if power 0 or empty
+		if (biasPower == 0) {	
+			if (!logitBias.bias[biasString]) {
+				setLastBiasError("Error: Bias 0 = no Bias");
+				return;
+			}
+			console.log("delete",biasString);
+			setLogitBias((prevLogitBias) => {
+				delete modBias[biasString];
+				return { 
+					...prevLogitBias,
+					bias: {
+						...modBias
+					}
+				};
+			})
+			return;
+		}
+		// if overwriting the string value of an entry, delete the original one
+		if (origValue && origValue != biasString) {
+			delete modBias[origValue];
+		}
+
+		const ac = new AbortController();
+		try {
+			// if the string is a comma separated list of numbers wrapped in /
+			var tokens
+			const isTokenIds = biasString.match(/^(?<!\\)\/(\s*\d+\s*,?\s*)+(?<!\\)\/$/g);
+			if ( isTokenIds != null ) {
+				// split by "," and use it as token ids directly
+				tokens = {
+					ids: isTokenIds[0].replaceAll("/","").split(",").map( item => Number(item.trim()) ),
+					str: ""
+				};
+			}
+			// else process like normal
+			else {
+				// KNOWN ISSUE: some models automatically prepend a space to any tokenization 
+				// input. to work around this, I'm prepending the input with a "!==", then 
+				// slicing the output array by the number of tokens of "!==".
+				// This could cause issues when trying to bias a token starting with ? where
+				// ? is any character that forms a single token together with " !==", like 
+				// this: " !==?" I've chosen "!==" because it seems to be a very conserved
+				// token between models.
+				//
+				// Now granted, I have not found any strings where this is actually an issue in 
+				// the tokenizers of the models I use, but this is still a huge hackjob of a 
+				// workaround. If anyone can think of a better solution, please let me know.
+				tokens = await getTokens({
+					endpoint,
+					endpointAPI,
+					...(endpointAPI == 3 || endpointAPI == 0 ? { endpointAPIKey } : {}),
+					content: `!==${biasString}`.replace(/\\n/g,'\n'),
+					signal: ac.signal,
+					...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {})
+				});
+				const logitBiasWorkaround = await getTokens({
+					endpoint,
+					endpointAPI,
+					...(endpointAPI == 3 || endpointAPI == 0 ? { endpointAPIKey } : {}),
+					content: `!==`,
+					signal: ac.signal,
+					...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {})
+				});
+				// Remove however many tokens !== is tokenized as for the workaround
+				tokens.ids = tokens.ids.slice(logitBiasWorkaround.ids.length);
+				if ( Array.isArray(tokens.str) ) {
+					tokens.str = tokens.str.slice(logitBiasWorkaround.ids.length);
+				}
+			}
+
+			console.log("Biasing tokens [",tokens.ids.join(", "),"]",
+				Array.isArray(tokens.str) ? "'"+tokens.str.join("|")+"'"
+					: "'"+biasString+"'",
+				"by power",biasPower)
+			await setLogitBias((prevLogitBias) => ({
+				...prevLogitBias,
+				bias: {
+					...modBias,
+					[biasString]: { // removed Number() here
+						ids: [ ...tokens.ids ],
+						strings: [ ...tokens.str ],
+						power: biasPower
+					}
+				}
+			}));
+		}
+		catch(e) {
+			if (e.name !== 'AbortError') {
+				reportError(e);
+				const errStr = e.toString();
+				if ((endpointAPI == 3 || endpointAPI == 0) && errStr.includes("401")) {
+					setLastBiasError("Error: Rejected API Key");
+					setRejectedAPIKey(true);
+				} else if (endpointAPI == 3 && errStr.includes("429")) {
+					setLastBiasError("Error: Insufficient Quota");
+				} else {
+					setLastBiasError(errStr);
+				}
+			}
+			return;
+		}
+	};
+
+	const clamp = (num, min = -Infinity, max = Infinity) => {
+		return Math.min(Math.max(num, min), max);
+	};
+
+	const llamaCppSetLogitBiasParams = () => {
+		const param = [];
+		// TODO grab multi-token strings here and put them in a separate state variable
+		// for phrase bias
+		Object.keys(logitBias.bias).forEach(entry => {
+			// set banned tokens to false, else divide power by 10 to remain within
+			// reasonable range
+			const power = logitBias.bias[entry].power < -99 ? false : Number(logitBias.bias[entry].power) / 10;
+			param.push( [ Number(logitBias.bias[entry].ids[0]), power ] );
+		});
+		setLogitBiasParam(param);
+	};
+	const koboldCppSetLogitBiasParams = () => {
+		const param = {};
+		Object.keys(logitBias.bias).forEach(entry => {
+			// -100 to 100
+			param[Number(logitBias.bias[entry].ids[0])] = clamp(Number(logitBias.bias[entry].power),-100,100)
+		});
+		setLogitBiasParam(param);
+	};
+	const openaiSetLogitBiasParams = () => {
+		const param = {};
+		Object.keys(logitBias.bias).forEach(entry => {
+			// -100 to 100
+			param[Number(logitBias.bias[entry].ids[0])] = clamp(Number(logitBias.bias[entry].power),-100,100).toFixed(1)
+		});
+		setLogitBiasParam(param);
+	};
+
+	useMemo(() => {
+		// set the parameters sent to the model in the format expected by the endpoint
+		switch (endpointAPI) {
+			case 0:
+				llamaCppSetLogitBiasParams();
+				break;
+			case 2:
+				koboldCppSetLogitBiasParams();
+				break;
+			case 3:
+				//openaiSetLogitBiasParams()
+				// for some reason this causes an error
+				break;
+		}
+	}, [logitBias, endpointAPI]);
+
+
+	useEffect(() => {
+		const tempArray = logitBiasSorted.map((string, index) =>  ({
+			value: string,
+			valueBack: string,
+			strings: logitBias.bias[string].strings,
+			tokens: logitBias.bias[string].ids,
+			power: logitBias.bias[string].power
+		}));
+		setLogitBiasTemp({
+			positive: tempArray.filter(item => item.power > 0),
+			negative: tempArray.filter(item => item.power < 0)
+		});
+	},[logitBiasSorted,isOpen]);
+
+
+	const handleBiasTempChange = (posneg, key, index, value) => {
+		setLogitBiasTemp((prevLogitBiasTemp) => {
+			const rest = { ...prevLogitBiasTemp };
+			const updatedTemp = [ ...prevLogitBiasTemp[posneg] ];
+			 
+			updatedTemp[index] = {
+				...updatedTemp[index],
+				[key]: value,
+			};
+			return {
+				...rest,
+				[posneg]: updatedTemp
+			};
+		});
+	};
+
+	useMemo(() => {
+		const biasListToSort = Object.entries(logitBias.bias);
+		const sortPowerString = (a, b) => {
+			const powerDiff = parseInt(b[1].power) - parseInt(a[1].power);
+			if (powerDiff !== 0) {
+				// If powers are different, sort by power
+				return powerDiff;
+			} else {
+				// If powers are the same, sort alphabetically by string value
+				return a[0].localeCompare(b[0]);
+			}
+		};
+
+		const biasListSorted = biasListToSort.sort(sortPowerString);
+		const resultArray = biasListSorted.map(([key]) => key);
+
+		setLogitBiasSorted(resultArray);
+	}, [logitBias]);
+
+	return html`
+		<${Modal} isOpen=${isOpen} onClose=${closeModal}
+			title="Logit Bias"
+			description="Make certain tokens more or less likely to be generated. Recommended ranges are 100 to -100, with -100 being a total ban of the token.
+			Currently only works on the first token of multi-token phrases/words.
+			You can bias IDs directly in a comma separated list, wrapped in '/'. Example: /382,1449,1802/
+
+			Different models might tokenize words differently. Always Re-Tokenize your biases when switching models by pressing the '+' button again for every entry.">
+			${isOpen 
+				&& html`
+					<div className="hbox-flex logitBiasContainer">
+						<div class="small-inputBox">
+							<${InputBox} label="Bias" className="logitBiasPower-container"
+								type="enumber"  max=100 min=-100 step=1
+								readOnly=${!!cancel}
+								onValueChange=${(value) => { handleLogitBiasInput("power",value)} }
+								value=${logitBiasInput.power} 
+								id="logitBiasPower"/>
+						</div>
+						<${InputBox} label="Token" type="text"
+							tooltip="Currently, only the first token of multi-token strings will be biased."
+							readOnly=${!!cancel}
+							value=${logitBiasInput.string}
+							placeholder="String or /ID,.../"
+							onValueChange=${() => {} }
+							onInput=${(e) => {handleLogitBiasInput("string",e.target.value)} }
+							/>
+						<button disabled=${!!cancel} class="hbox-button" onClick=${() => logitBiasAdd(logitBiasInput.power,logitBiasInput.string)}>+</button>
+					</div>
+					${!!lastBiasError && html`
+						<div style=${{"margin":"8px auto"}} className="error-text">${lastBiasError}</div>`}
+				<hr style=${{"width":"95%","margin":"8px auto"}} />
+				<div class="lb-modal-biasList" >
+					${Object.keys(logitBiasTemp).map((key) => {
+						return html`
+							<div class="overflow-container lb-modal-grid-column" id="lb-modal-${key}">
+								${logitBiasTemp[key].map((bias, index) => {
+									return html`
+										<div class="lb-modal-entry lb-modal-grid-row" key=${index}>
+											<${InputBox} label="Bias" class="lb-modal-power"
+												type="enumber" max=100 min=-100 step=1
+												id="lb-modal-power-${index}"
+												readOnly=${!!cancel}
+												onValueChange=${(value) => {handleBiasTempChange(key,"power", index, value)} }
+												value=${bias.power}/>
+
+											<${InputBox} label="Token" type="text"
+												tooltip="Currently, only the first token of multi-token strings will be biased."
+												readOnly=${!!cancel}
+												value=${bias.value}
+												placeholder="String or /ID,.../"
+												onValueChange=${() => {} }
+												onInput=${(e) => handleBiasTempChange(key,"value", index, e.target.value) }
+												/>
+											<div class="lb-modal-tokenized">
+												${endpointAPI == 0 && bias.strings != ""
+													? "["+bias.strings.join("|")+"] "
+													: "["+bias.tokens+"]" } 
+												
+											</div>
+											<button
+												disabled=${!!cancel}
+												class="hbox-button lb-modal-button lb-modal-button-add"
+												onClick=${() => logitBiasAdd(bias.power, bias.value, bias.valueBack)}
+												>
+												+
+											</button>
+											<button
+												disabled=${!!cancel}
+												class="hbox-button lb-modal-button lb-modal-button-remove"
+												onClick=${() => logitBiasAdd("0", bias.valueBack, bias.valueBack)}
+												>
+												-
+											</button>
+											<hr/>
+										</div>`})}
+							</div>`})}
+				</div>`}
+			</${Modal}>`;
 }
 
 class SessionStorage extends EventTarget {
@@ -2393,322 +2986,25 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 	const [tokens, setTokens] = useState(0);
 	const [predictStartTokens, setPredictStartTokens] = useState(0);
 	const [lastError, setLastError] = useState(undefined);
-	const [lastBiasError, setLastBiasError] = useState(undefined);
 	const [stoppingStrings, setStoppingStrings] = useSessionState('stoppingStrings', defaultPresets.stoppingStrings);
 	const [stoppingStringsError, setStoppingStringsError] = useState(undefined);
 	const [savedScrollTop, setSavedScrollTop] = useSessionState('scrollTop', defaultPresets.scrollTop);
 	const [modalState, setModalState] = useState({});
 	const [logitBias, setLogitBias] = useSessionState('logitBias', defaultPresets.logitBias);
 	const [logitBiasParam, setLogitBiasParam] = useState({});
-	const [logitBiasTemp, setLogitBiasTemp] = useState([]);
-	const [logitBiasSorted, setLogitBiasSorted] = useState([]);
-	const [logitBiasInput, setLogitBiasInput] = useState({power:"0",string:""});
 	const [contextLength, setContextLength] = useSessionState('contextLength', defaultPresets.contextLength);
 	const [memoryTokens, setMemoryTokens] = useSessionState('memoryTokens', defaultPresets.memoryTokens);
 	const [authorNoteTokens, setAuthorNoteTokens] = useSessionState('authorNoteTokens', defaultPresets.authorNoteTokens);
 	const [authorNoteDepth, setAuthorNoteDepth] = useSessionState('authorNoteDepth', defaultPresets.authorNoteDepth);
-
-	const handleLogitBiasInput = (key,value) => {
-		setLogitBiasInput((prevLogitBiasInput) => {
-			return {
-				...prevLogitBiasInput,
-				[key]: value
-			}
-		});
-
-	}
-
-	const logitBiasAdd = async (biasPower="",biasString="",origValue="") => {
-		setLastBiasError(undefined)
-		// abort if no input or power is NaN
-		if(!biasString) {return}
-		if (isNaN(+biasPower) || biasPower == "") { 
-			setLastBiasError("Error: Bias must be a number")
-			return
-		}
-		biasPower = Number(biasPower)
-
-		const modBias = logitBias.bias;
-		
-		// delete entry if power 0 or empty
-		if (biasPower == 0) {	
-			if (!logitBias.bias[biasString]) {
-				setLastBiasError("Error: Bias 0 = no Bias")
-				return
-			}
-			console.log("delete",biasString)
-			setLogitBias((prevLogitBias) => {
-				delete modBias[biasString]
-				return { 
-					...prevLogitBias,
-					bias: {
-						...modBias
-					}
-				};
-			})
-			return
-		}
-		// if overwriting the string value of an entry, delete the original one
-		if (origValue && origValue != biasString) {
-			delete modBias[origValue]
-		}
-
-		const ac = new AbortController();
-		try {
-			// if the string is a comma separated list of numbers wrapped in /
-			var tokens
-			const isTokenIds = biasString.match(/^(?<!\\)\/(\s*\d+\s*,?\s*)+(?<!\\)\/$/g)
-			if ( isTokenIds != null ) {
-				// split by "," and use it as token ids directly
-				tokens = {
-					ids: isTokenIds[0].replaceAll("/","").split(",").map( item => Number(item.trim()) ),
-					str: ""
-				}
-			}
-			// else process like normal
-			else {
-				// KNOWN ISSUE: some models automatically prepend a space to any tokenization 
-				// input. to work around this, I'm prepending the input with a "!==", then 
-				// slicing the output array by the number of tokens of "!==".
-				// This could cause issues when trying to bias a token starting with ? where
-				// ? is any character that forms a single token together with " !==", like 
-				// this: " !==?" I've chosen "!==" because it seems to be a very conserved
-				// token between models.
-				//
-				// Now granted, I have not found any strings where this is actually an issue in 
-				// the tokenizers of the models I use, but this is still a huge hackjob of a 
-				// workaround. If anyone can think of a better solution, please let me know.
-				tokens = await getTokens({
-					endpoint,
-					endpointAPI,
-					...(endpointAPI == 3 || endpointAPI == 0 ? { endpointAPIKey } : {}),
-					content: `!==${biasString}`.replace(/\\n/g,'\n'),
-					signal: ac.signal,
-					...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {})
-				});
-				const logitBiasWorkaround = await getTokens({
-					endpoint,
-					endpointAPI,
-					...(endpointAPI == 3 || endpointAPI == 0 ? { endpointAPIKey } : {}),
-					content: `!==`,
-					signal: ac.signal,
-					...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {})
-				});
-				// Remove however many tokens !== is tokenized as for the workaround
-				tokens.ids = tokens.ids.slice(logitBiasWorkaround.ids.length)
-				if ( Array.isArray(tokens.str) ) {
-					tokens.str = tokens.str.slice(logitBiasWorkaround.ids.length)
-				}
-			}
-
-			console.log("Biasing tokens [",tokens.ids.join(", "),"]",
-				Array.isArray(tokens.str) ? "'"+tokens.str.join("|")+"'"
-					: "'"+biasString+"'",
-				"by power",biasPower)
-			await setLogitBias((prevLogitBias) => ({
-				...prevLogitBias,
-				bias: {
-					...modBias,
-					[biasString]: { // removed Number() here
-						ids: [ ...tokens.ids ],
-						strings: [ ...tokens.str ],
-						power: biasPower
-					}
-				}
-			}));
-		}
-		catch(e) {
-			if (e.name !== 'AbortError') {
-				reportError(e);
-				const errStr = e.toString();
-				if ((endpointAPI == 3 || endpointAPI == 0) && errStr.includes("401")) {
-					setLastBiasError("Error: Rejected API Key");
-					setRejectedAPIKey(true);
-				} else if (endpointAPI == 3 && errStr.includes("429")) {
-					setLastBiasError("Error: Insufficient Quota");
-				} else {
-					setLastBiasError(errStr);
-				}
-			}
-			return
-		}
-	};
-
-	const clamp = (num, min = -Infinity, max = Infinity) => {
-		return Math.min(Math.max(num, min), max);
-	}
-
-	const llamaCppSetLogitBiasParams = () => {
-		const param = [];
-		// TODO grab multi-token strings here and put them in a separate state variable
-		// for phrase bias
-		Object.keys(logitBias.bias).forEach(entry => {
-			// set banned tokens to false, else divide power by 10 to remain within
-			// reasonable range
-			const power = logitBias.bias[entry].power < -99 ? false : Number(logitBias.bias[entry].power) / 10;
-			param.push( [ Number(logitBias.bias[entry].ids[0]), power ] );
-		})
-		setLogitBiasParam(param)
-	};
-	const koboldCppSetLogitBiasParams = () => {
-		const param = {};
-		Object.keys(logitBias.bias).forEach(entry => {
-			// -100 to 100
-			param[Number(logitBias.bias[entry].ids[0])] = clamp(Number(logitBias.bias[entry].power),-100,100)
-		})
-		setLogitBiasParam(param)
-	};
-	const openaiSetLogitBiasParams = () => {
-		const param = {};
-		Object.keys(logitBias.bias).forEach(entry => {
-			// -100 to 100
-			param[Number(logitBias.bias[entry].ids[0])] = clamp(Number(logitBias.bias[entry].power),-100,100).toFixed(1)
-		})
-		setLogitBiasParam(param)
-	};
-
-	const updateLogitBiasParam = useMemo(() => {
-		// set the parameters sent to the model in the format expected by the endpoint
-		switch (endpointAPI) {
-			case 0:
-				llamaCppSetLogitBiasParams()
-				break;
-			case 2:
-				koboldCppSetLogitBiasParams()
-				break;
-			case 3:
-				//openaiSetLogitBiasParams()
-				// for some reason this causes an error
-				break;
-		}
-	}, [logitBias, endpointAPI]);
-
-
-	const updateLogitBiasTemp =  useEffect(() => {
-		const tempArray = logitBiasSorted.map((string, index) =>  ({
-			value: string,
-			valueBack: string,
-			strings: logitBias.bias[string].strings,
-			tokens: logitBias.bias[string].ids,
-			power: logitBias.bias[string].power
-		}));
-		setLogitBiasTemp({
-			positive: tempArray.filter(item => item.power > 0),
-			negative: tempArray.filter(item => item.power < 0)
-		});
-	},[logitBiasSorted,modalState.bias]);
-
-
-	const handleBiasTempChange = (posneg, key, index, value) => {
-		setLogitBiasTemp((prevLogitBiasTemp) => {
-			const rest = { ...prevLogitBiasTemp };
-			const updatedTemp = [ ...prevLogitBiasTemp[posneg] ];
-			 
-			updatedTemp[index] = {
-				...updatedTemp[index],
-				[key]: value,
-			};
-			return {
-				...rest,
-				[posneg]: updatedTemp
-			};
-		});
-	};
-
-	const logitBiasSort = useMemo(() => {
-		const biasListToSort = Object.entries(logitBias.bias);
-		const sortPowerString = (a, b) => {
-			const powerDiff = parseInt(b[1].power) - parseInt(a[1].power);
-			if (powerDiff !== 0) {
-				// If powers are different, sort by power
-				return powerDiff;
-			} else {
-				// If powers are the same, sort alphabetically by string value
-				return a[0].localeCompare(b[0]);
-			}
-		};
-
-		const biasListSorted = biasListToSort.sort(sortPowerString);
-		const resultArray = biasListSorted.map(([key]) => key);
-
-		setLogitBiasSorted(resultArray);
-	}, [logitBias]);
-
+	const [worldInfo, setWorldInfo] = useSessionState('worldInfo', defaultPresets.worldInfo);
 
 	// AN and Memory
-	const handleAuthorNoteDepthChange = (value) => {
-		setAuthorNoteDepth(!isNaN(+value) && value >= 0 ? value : 0);
-	};
-
 	function handleauthorNoteTokensChange(key,value) {
 		setAuthorNoteTokens((prevauthorNoteTokens) => ({ ...prevauthorNoteTokens, [key]: value }));
 	}
 	function handleMemoryTokensChange(key,value) {
 		setMemoryTokens((prevMemoryTokens) => ({ ...prevMemoryTokens, [key]: value }));
 	}
-
-	// world info
-	const [worldInfo, setWorldInfo] = useSessionState('worldInfo', defaultPresets.worldInfo)
-
-	const handleWorldInfoNew = () => {
-		setWorldInfo((prevWorldInfo) => {
-			return {
-				...prevWorldInfo,
-				entries: [ { "displayName":"New Entry","text":"","keys":[], "search":"" },...prevWorldInfo.entries ],
-			};
-		});
-	}
-	const handleWorldInfoMove = (index,move) => {
-		const modEntries = worldInfo.entries
-		if (index+move < 0 || index+move > modEntries.length-1 ) {
-			return
-		}
-		modEntries.splice(index+move, 0, modEntries.splice(index, 1)[0])
-		setWorldInfo((prevWorldInfo) => {
-		 return {
-			 ...prevWorldInfo,
-			 entries: [ ...modEntries ],
-		 };
-		});
-	}
-	const handleWorldInfoDel = (index) => {
-		if (!window.confirm("Are you sure you want to delete the world info entry #" + (index + 1) + ": "+ worldInfo.entries[index].displayName + "?\nThis action cannot be undone."))
-			return;
-		if (index > -1 && index < worldInfo.entries.length) {
-			setWorldInfo((prevWorldInfo) => {
-				console.warn(`Deleting world info entry #${(index + 1)}:`,prevWorldInfo.entries[index])
-				return {
-					...prevWorldInfo,
-					entries: prevWorldInfo.entries.filter((_, i) => i !== index),
-				};
-			});
-		}
-		else {
-			alert("Index " + index + " out of range!")
-		}
-	};
-
-	const handleWorldInfoChange = (key,index,value) => {
-		setWorldInfo((prevWorldInfo) => {
-			const updatedEntries = [...prevWorldInfo.entries];
-			const updatedEntry = key == "keys"
-				? { ...updatedEntries[index], [key]: value.split(/(?<!\\), ?/) } //.map(item => item.trim())
-				: { ...updatedEntries[index], [key]: value };
-			updatedEntries[index] = updatedEntry;
-
-			return {
-				...prevWorldInfo,
-				entries: updatedEntries,
-			};
-		});
-	}
-	const handleWorldInfoAffixChange = (key, value) => {
-		setWorldInfo((prevWorldInfo) => ({
-			...prevWorldInfo,
-			[key]: value,
-		}));
-	}
-
 	
 	const toggleModal = (modalKey) => {
 		setModalState((prevState) => ({
@@ -2721,18 +3017,6 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 			...prevState,
 			[modalKey]: false,
 		}));
-	};
-
-	const exportPadText = () => {
-		const textBlob = new Blob([promptArea.current.value], {type: 'text/plain;charset=utf-8'});
-		const textURL = URL.createObjectURL(textBlob);
-		var element = document.createElement('a');
-		element.setAttribute('href', textURL);
-		element.setAttribute('download', `${sessionStorage.getProperty('name') || 'default'}.txt`);
-		document.body.appendChild(element);
-		element.click();
-		URL.revokeObjectURL(textURL);
-		document.body.removeChild(element);
 	};
 
 	const promptText = useMemo(() => joinPrompt(promptChunks), [promptChunks]);
@@ -3317,7 +3601,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 			document.removeEventListener('mouseup', stopDragging);
 			document.removeEventListener('mouseleave', stopDragging);
 		};
-	}, [promptArea]);
+	}, []);
 
 	function onInput({ target }) {
 		setPromptChunks(oldPrompt => {
@@ -3696,9 +3980,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 						disabled=${!!cancel}
 						onClick=${() => toggleModal("bias")}>
 						Logit Bias
-						</button>
-					${!!lastBiasError && html`
-						<div className="error-text">${lastBiasError}</div>`}`}
+						</button>`}
 				${(!openaiPresets || endpointAPI != 3) && html`
 					<${Checkbox} label="Ignore <eos>"
 						disabled=${!!cancel} value=${ignoreEos} onValueChange=${setIgnoreEos}/>`}
@@ -3801,304 +4083,76 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 				<span className="error-text">${lastError}</span>`}
 		</div>
 
-		<${Modal} isOpen=${modalState.prompt} onClose=${() => closeModal("prompt")}
-		title="Editor Preferences"
-		description=""
-		style=${{ 'max-width': '20em' }}>
-			<div className="vbox">
-				<${Checkbox} label="Enable spell checking"
-					value=${spellCheck} onValueChange=${setSpellCheck}/>
-				<${Checkbox} label="Attach sidebar"
-					value=${attachSidebar} onValueChange=${setAttachSidebar}/>
-				<${Checkbox} label="Highlight generated tokens"
-					value=${highlightGenTokens} onValueChange=${setHighlightGenTokens}/>
-				<${Checkbox} label="Preserve cursor position after prediction"
-					value=${preserveCursorPosition} onValueChange=${setPreserveCursorPosition}/>
-				<${SelectBox}
-					label="Token probabilities"
-					value=${showProbsMode}
-					onValueChange=${setShowProbsMode}
-					options=${[
-						{ name: 'Show on hover', value: 0 },
-						{ name: 'Show on hover while holding CTRL', value: 1 },
-						{ name: 'Don\'t show', value: -1 },
-					]}/>
-				<div style=${{ display: 'flex', justifyContent: 'flex-start' }}>
-					<button onClick=${exportPadText}>Export prompt to plaintext</button>
-				</div>
+		<${EditorPreferencesModal}
+			isOpen=${modalState.prompt}
+			closeModal=${() => closeModal("prompt")}>
+			<${Checkbox} label="Enable spell checking"
+				value=${spellCheck} onValueChange=${setSpellCheck}/>
+			<${Checkbox} label="Attach sidebar"
+				value=${attachSidebar} onValueChange=${setAttachSidebar}/>
+			<${Checkbox} label="Highlight generated tokens"
+				value=${highlightGenTokens} onValueChange=${setHighlightGenTokens}/>
+			<${Checkbox} label="Preserve cursor position after prediction"
+				value=${preserveCursorPosition} onValueChange=${setPreserveCursorPosition}/>
+			<${SelectBox}
+				label="Token probabilities"
+				value=${showProbsMode}
+				onValueChange=${setShowProbsMode}
+				options=${[
+					{ name: 'Show on hover', value: 0 },
+					{ name: 'Show on hover while holding CTRL', value: 1 },
+					{ name: 'Don\'t show', value: -1 },
+				]}/>
+			<div style=${{ display: 'flex', justifyContent: 'flex-start' }}>
+				<button onClick=${() => exportText(`${sessionStorage.getProperty('name')}.txt`, promptArea.current.value)}>
+					Export prompt to plaintext
+				</button>
 			</div>
-		</${Modal}>
+		</${EditorPreferencesModal}>
 
-		<${Modal} isOpen=${modalState.bias} onClose=${() => { closeModal("bias")}}
-		title="Logit Bias"
-		description="Make certain tokens more or less likely to be generated. Recommended ranges are 100 to -100, with -100 being a total ban of the token.
-		Currently only works on the first token of multi-token phrases/words.
-		You can bias IDs directly in a comma separated list, wrapped in '/'. Example: /382,1449,1802/
+		<${MemoryModal}
+			isOpen=${modalState.memory}
+			closeModal=${() => closeModal("memory")}
+			memoryTokens=${memoryTokens}
+			handleMemoryTokensChange=${handleMemoryTokensChange}
+			cancel=${cancel}/>
 
-		Different models might tokenize words differently. Always Re-Tokenize your biases when switching models by pressing the '+' button again for every entry.">
-		${modalState.bias 
-			&& html`
-				<div className="hbox-flex logitBiasContainer">
-					<div class="small-inputBox">
-						<${InputBox} label="Bias" className="logitBiasPower-container"
-							type="enumber"  max=100 min=-100 step=1
-							readOnly=${!!cancel}
-							onValueChange=${(value) => { handleLogitBiasInput("power",value)} }
-							value=${logitBiasInput.power} 
-							id="logitBiasPower"/>
-					</div>
-					<${InputBox} label="Token" type="text"
-						tooltip="Currently, only the first token of multi-token strings will be biased."
-						readOnly=${!!cancel}
-						value=${logitBiasInput.string}
-						placeholder="String or /ID,.../"
-						onValueChange=${() => {} }
-						onInput=${(e) => {handleLogitBiasInput("string",e.target.value)} }
-						/>
-					<button disabled=${!!cancel} class="hbox-button" onClick=${() => logitBiasAdd(logitBiasInput.power,logitBiasInput.string)}>+</button>
-				</div>
-				${!!lastBiasError && html`
-					<div style=${{"margin":"8px auto"}} className="error-text">${lastBiasError}</div>`}
-			<hr style=${{"width":"95%","margin":"8px auto"}} />
-			<div class="lb-modal-biasList" >
-				${ Object.keys(logitBiasTemp).map((key) => {
-					return html`
+		<${AuthorNoteModal}
+			isOpen=${modalState.an}
+			closeModal=${() => closeModal("an")}
+			authorNoteTokens=${authorNoteTokens}
+			handleauthorNoteTokensChange=${handleauthorNoteTokensChange}
+			authorNoteDepth=${authorNoteDepth}
+			setAuthorNoteDepth=${setAuthorNoteDepth}
+			cancel=${cancel}/>
 
-					<div class="overflow-container lb-modal-grid-column" id="lb-modal-${key}">
-					${ logitBiasTemp[key].map((bias, index) => {
-						return html`
-						<div class="lb-modal-entry lb-modal-grid-row" key=${index}>
+		<${ContextModal}
+			isOpen=${modalState.context}
+			closeModal=${() => closeModal("context")}
+			memoryTokens=${memoryTokens}
+			handleMemoryTokensChange=${handleMemoryTokensChange}
+			modifiedPrompt=${modifiedPrompt}
+			defaultPresets=${defaultPresets}
+			cancel=${cancel}/>
 
-							<${InputBox} label="Bias" class="lb-modal-power"
-								type="enumber" max=100 min=-100 step=1
-								id="lb-modal-power-${index}"
-								readOnly=${!!cancel}
-								onValueChange=${(value) => {handleBiasTempChange(key,"power", index, value)} }
-								value=${bias.power}/>
+		<${WorldInfoModal}
+			isOpen=${modalState.wi}
+			closeModal=${() => closeModal("wi")}
+			worldInfo=${worldInfo}
+			setWorldInfo=${setWorldInfo}
+			cancel=${cancel}/>
 
-							<${InputBox} label="Token" type="text"
-								tooltip="Currently, only the first token of multi-token strings will be biased."
-								readOnly=${!!cancel}
-								value=${bias.value}
-								placeholder="String or /ID,.../"
-								onValueChange=${() => {} }
-								onInput=${(e) => handleBiasTempChange(key,"value", index, e.target.value) }
-								/>
-							<div class="lb-modal-tokenized">
-								${endpointAPI == 0 && bias.strings != ""
-									? "["+bias.strings.join("|")+"] "
-									: "["+bias.tokens+"]" } 
-								
-							</div>
-							<button
-								disabled=${!!cancel}
-								class="hbox-button lb-modal-button lb-modal-button-add"
-								onClick=${() => logitBiasAdd(bias.power, bias.value, bias.valueBack)}
-								>
-								+
-							</button>
-							<button
-								disabled=${!!cancel}
-								class="hbox-button lb-modal-button lb-modal-button-remove"
-								onClick=${() => logitBiasAdd("0", bias.valueBack, bias.valueBack)}
-								>
-								-
-							</button>
-							<hr/>
-						</div>
+		<!-- TODO: The amount of parameters in this modal is a bit excessive... -->
+		<${LogitBiasModal}
+			isOpen=${modalState.bias}
+			closeModal=${() => closeModal("bias")}
+			logitBias=${logitBias}
+			setLogitBias=${setLogitBias}
+			logitBiasParam=${logitBiasParam}
+			setLogitBiasParam=${setLogitBiasParam}
+			sessionStorage=${sessionStorage} endpoint=${endpoint} endpointAPI=${endpointAPI} endpointAPIKey=${endpointAPIKey} isMikupadEndpoint=${isMikupadEndpoint}
+			cancel=${cancel}/>
 
-					`})}
-				</div>
-				`})}
-				
-			</div>`}
-
-		</${Modal}>
-
-		<${Modal} isOpen=${modalState.memory} onClose=${() => closeModal("memory")}
-		title="Memory"
-		description="This text will be added at the very top of your context.
-		Prefix and suffix will be attached at the beginning or end of your memory respectively. \\n for newlines in pre/suffix.">
-			<div className="hbox">
-				<${InputBox} label="Prefix" type="text" placeholder="[INST]"
-					readOnly=${!!cancel} value=${memoryTokens.prefix} onValueChange=${(value) => handleMemoryTokensChange("prefix", value)}/>
-				<${InputBox} label="Suffix" type="text" placeholder="[/INST]"
-					readOnly=${!!cancel} value=${memoryTokens.suffix} onValueChange=${(value) => handleMemoryTokensChange("suffix", value)}/>
-			</div>
-			<textarea
-				readOnly=${!!cancel}
-				placeholder="Anything written here will be injected at the head of the prompt. Tokens here DO count towards the Context Limit."
-				defaultValue=${memoryTokens.text}
-				value=${memoryTokens.text}
-				onInput=${(e) => handleMemoryTokensChange("text", e.target.value) }
-				class="expanded-text-area-settings"
-				id="memory-area-settings"/>
-		</${Modal}>
-
-		<${Modal} isOpen=${modalState.an} onClose=${() => closeModal("an")}
-		title="Author's Note"
-		description="This text will be injected N newlines from the bottom of your prompt.
-		Prefix and suffix will be attached at the beginning or end of your author's note respectively. \\n for newlines in pre/suffix.">
-			<div className="hbox">
-				<${InputBox} label="Prefix" type="text" placeholder="[INST]"
-					readOnly=${!!cancel} value=${authorNoteTokens.prefix} onValueChange=${(value) => handleauthorNoteTokensChange("prefix", value)}/>
-				<${InputBox} label="Suffix" type="text" placeholder="[/INST]"
-					readOnly=${!!cancel} value=${authorNoteTokens.suffix} onValueChange=${(value) => handleauthorNoteTokensChange("suffix", value)}/>
-				<${InputBox} label="AN Injection Depth (0-N)" type="number" step="1"
-					readOnly=${!!cancel} value=${authorNoteDepth} onValueChange=${handleAuthorNoteDepthChange}/>
-			</div>
-
-			<textarea
-			readOnly=${!!cancel}
-			placeholder="Anything written here will be injected ${authorNoteDepth} newlines from bottom into context."
-			defaultValue=${authorNoteTokens.text}
-			value=${authorNoteTokens.text}
-			onInput=${(e) => handleauthorNoteTokensChange("text", e.target.value) }
-			class="expanded-text-area-settings"
-			id="expanded-an-settings"/>
-		</${Modal}>
-
-		<${Modal} isOpen=${modalState.context} onClose=${() => closeModal("context")}
-			title="Context"
-			description="This is the prompt being sent to your large language model.">
-		<${CollapsibleGroup} label="Advanced Context Ordering">
-			<div id="context-order-desc">
-				You can use the following placeholders to order the context according to your needs:<br />
-				<div id="advancedContextPlaceholders">
-					<table border="1" frame="void" rules="all">
-						<thead>
-						<tr>
-							<th></th>
-							<th>Prefix</th>
-							<th>Text</th>
-							<th>Suffix</th>
-						</tr>
-						</thead>
-						<tbody>
-						<tr>
-							<th>Memory</th>
-							<td>{memPrefix}</td>
-							<td>{memText}</td>
-							<td>{memSuffix}</td>
-						</tr>
-						<tr>
-							<th>World Info</th>
-							<td>{wiPrefix}</td>
-							<td>{wiText}</td>
-							<td>{wiSuffix}</td>
-						</tr>
-						<tr>
-							<th>Prompt</th>
-							<td></td>
-							<td>{prompt}</td>
-							<td></td>
-						</tr>
-						</tbody>
-					</table>
-				</div>
-				Any text that is not a placeholder will be added into the context as is.
-			</div>
-			<textarea
-				readOnly=${!!cancel}
-				placeholder=${defaultPresets.memoryTokens.contextOrder}
-				defaultValue=${memoryTokens.contextOrder}
-				value=${memoryTokens.contextOrder}
-				onInput=${(e) => handleMemoryTokensChange("contextOrder", e.target.value)}
-				class="expanded-text-area-settings"
-				id="advanced-context-order-settings"/>
-		</${CollapsibleGroup}>
-			<textarea
-			readOnly=${!!cancel}
-			value=${modifiedPrompt}
-			class="expanded-text-area-settings"
-			id="context-area-settings" readOnly/>
-		</${Modal}>
-
-		<${Modal} isOpen=${modalState.wi} onClose=${() => closeModal("wi")}
-			title="World Info"
-			description="Additional information that is added when specific keywords are found in context.
-			World info will be added at the top of your memory, in the order specified here.
-
-			Each entry will begin on a newline. Keys will be interpreted as case-insensitive regular expressions. Search Range specifies how many tokens back into the context will be searched for activation keys. Search range 0 to disable an entry.">
-			<div id="modal-wi-global">
-				<${CollapsibleGroup} label="Prefix/Suffix">
-					The prefix and suffix will be added at the beginning or end of all your active World Info entries respectively.
-					<br />
-					<div className="hbox">
-						<${InputBox} label="Prefix" type="text" placeholder="\\n"
-							readOnly=${!!cancel} value=${worldInfo.prefix} onValueChange=${(value) => handleWorldInfoAffixChange("prefix", value)}/>
-						<${InputBox} label="Suffix" type="text" placeholder="\\n"
-							readOnly=${!!cancel} value=${worldInfo.suffix} onValueChange=${(value) => handleWorldInfoAffixChange("suffix", value)}/>
-					</div>
-				</${CollapsibleGroup}>
-				<button id="button-wi-new" disabled=${!!cancel} onClick=${handleWorldInfoNew}>New Entry</button>
-			</div>
-			<div className="modal-wi-content overflow-container">
-				${ !Array.isArray(worldInfo.entries) ? null : worldInfo.entries.map((entry, index) => html`
-				<div class="wi-entry" key=${index}>
-					<div class="wi-entry-controls">
-						<div class="wi-entry-filler" />
-						<div class="wi-entry-name">
-							<${InputBox}
-							label="Entry #${index+1}"
-							type="text"
-							readOnly=${!!cancel}
-							placeholder="Name of this entry"
-							value=${entry.displayName}
-							onValueChange=${(value) => handleWorldInfoChange("displayName",index,value)}
-							/>
-						</div>
-						<div class="wi-entry-buttons">
-							<div class="wi-entry-buttons-container">
-								<button disabled=${!!cancel} onClick=${() => handleWorldInfoMove(index,-1)}>
-									<svg fill="var(--color-light)" height="12" width="12" viewBox="0 0 330 330"><path d="M325.606,229.393l-150.004-150C172.79,76.58,168.974,75,164.996,75c-3.979,0-7.794,1.581-10.607,4.394 l-149.996,150c-5.858,5.858-5.858,15.355,0,21.213c5.857,5.857,15.355,5.858,21.213,0l139.39-139.393l139.397,139.393 C307.322,253.536,311.161,255,315,255c3.839,0,7.678-1.464,10.607-4.394C331.464,244.748,331.464,235.251,325.606,229.393z"/></svg>
-								</button>
-								<button disabled=${!!cancel} onClick=${() => handleWorldInfoDel(index)}>
-									✕
-								</button>
-								<button disabled=${!!cancel} onClick=${() => handleWorldInfoMove(index,1)}>
-									<svg fill="var(--color-light)" height="12" width="12" viewBox="0 0 330 330"><path d="M325.607,79.393c-5.857-5.857-15.355-5.858-21.213,0.001l-139.39,139.393L25.607,79.393 c-5.857-5.857-15.355-5.858-21.213,0.001c-5.858,5.858-5.858,15.355,0,21.213l150.004,150c2.813,2.813,6.628,4.393,10.606,4.393 s7.794-1.581,10.606-4.394l149.996-150C331.465,94.749,331.465,85.251,325.607,79.393z"/></svg>
-								</button>
-							</div>
-						</div>
-						<div class="wi-entry-text">
-							<div class="hbox">
-								<${InputBox}
-									label="Comma Separated RegEx Keys"
-									type="text"
-									readOnly=${!!cancel}
-									value=${entry.keys.join(',')}
-									placeholder="Required to activate entry"
-									onValueChange=${(value) => handleWorldInfoChange("keys",index,value)}
-									/>
-								<${InputBox}
-									label="Search Range (0 = disabled)"
-									tooltip="Currently not accurate to the token count, it will be used as an estimate."
-
-									type="text"
-									readOnly=${!!cancel}
-									inputmode="numeric"
-									value=${entry.search}
-									placeholder="2048"
-									onValueChange=${(value) => handleWorldInfoChange("search",index,value)}
-									/>
-							</div>
-							<label class="TextArea">
-								Text
-								<textarea
-									readOnly=${!!cancel}
-									placeholder="Information to be inserted into context when key is found"
-									value=${entry.text ? entry.text : ""}
-									defaultValue=${entry.text ? entry.text : ""}
-									onInput=${(e) => handleWorldInfoChange("text",index, e.target.value)}
-									class="wi-textarea" />
-							</label>
-							</div>
-						</div>
-					</div>
-				`)}
-			</div>
-		</${Modal}>
 		${sessionEndpointError && html`
 			<div className="modal-overlay">
 				<div id="error-bar">
