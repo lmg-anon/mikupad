@@ -1653,43 +1653,43 @@ function CollapsibleGroup({ label, expanded, children }) {
 		</div>`;
 }
 
-	function Modal({ isOpen, onClose, title, description, children, ...props }) {
-		if (!isOpen) {
-			return null;
-		}
-		useEffect(() => {
-			const onKeyDown = (event) => {
-				if (event.key === 'Escape') {
-					onClose();
-				}
-			};
-			document.addEventListener('keydown', onKeyDown);
-			return () => {
-				document.removeEventListener('keydown', onKeyDown);
-			};
-		});
-		return html`
-		<div className="modal-overlay" onClick=${onClose}>
-			<div className="modal-container">
-				<div className="modal" onClick=${(e) => e.stopPropagation()} ...${props}>
-					<div class="modal-title">${title}</div>
-					${ description=="" ? false : html`<div style=${{ whiteSpace: 'pre-line' }} class='modal-desc'>${description}</div>` }
-					<hr/>
-					<div className="modal-content">
-						${children}
-					</div>
-					<button
-					class="button-modal-top"
-					onClick=${onClose}>
-						<svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="-1 -1 10 10" xmlns="http://www.w3.org/2000/svg"><path d="M 0 1 L 3 4 L 0 7 L 1 8 L 4 5 L 7 8 L 8 7 L 5 4 L 8 1 L 7 0 L 4 3 L 1 0 L 1 0 Z"></path></svg>
-					</button>
+function Modal({ isOpen, onClose, title, description, children, ...props }) {
+	if (!isOpen) {
+		return null;
+	}
+	useEffect(() => {
+		const onKeyDown = (event) => {
+			if (event.key === 'Escape') {
+				onClose();
+			}
+		};
+		document.addEventListener('keydown', onKeyDown);
+		return () => {
+			document.removeEventListener('keydown', onKeyDown);
+		};
+	});
+	return html`
+	<div className="modal-overlay" onClick=${onClose}>
+		<div className="modal-container">
+			<div className="modal" onClick=${(e) => e.stopPropagation()} ...${props}>
+				<div class="modal-title">${title}</div>
+				${ description=="" ? false : html`<div style=${{ whiteSpace: 'pre-line' }} class='modal-desc'>${description}</div>` }
+				<hr/>
+				<div className="modal-content">
+					${children}
 				</div>
+				<button
+				class="button-modal-top"
+				onClick=${onClose}>
+					<svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="-1 -1 10 10" xmlns="http://www.w3.org/2000/svg"><path d="M 0 1 L 3 4 L 0 7 L 1 8 L 4 5 L 7 8 L 8 7 L 5 4 L 8 1 L 7 0 L 4 3 L 1 0 L 1 0 Z"></path></svg>
+				</button>
 			</div>
 		</div>
-		`;
-	}
+	</div>
+	`;
+}
 
-function Sessions({ sessionStorage, onSessionChange, onSessionError, disabled }) {
+function Sessions({ sessionStorage, disabled }) {
 	const [version, setVersion] = useState(0);
 	const [newSessionName, setNewSessionName] = useState('');
 	const [renameSessionName, setRenameSessionName] = useState('');
@@ -1697,14 +1697,9 @@ function Sessions({ sessionStorage, onSessionChange, onSessionError, disabled })
 	const [isCreating, setIsCreating] = useState(false);
 
 	useEffect(() => {
-		sessionStorage.onchange = () => setVersion(v => v + 1);
-		sessionStorage.onsessionchange = onSessionChange;
-		sessionStorage.onerror = onSessionError;
-		return () => {
-			sessionStorage.onchange = null;
-			sessionStorage.onsessionchange = null;
-			sessionStorage.onerror = null;
-		};
+		const incrementVersion = () => setVersion(v => v + 1);
+		sessionStorage.addEventListener('change', incrementVersion);
+		return () => sessionStorage.removeEventListener('change', incrementVersion);
 	}, []);
 
 	const switchSession = async (sessionId) => {
@@ -1872,20 +1867,28 @@ function Sessions({ sessionStorage, onSessionChange, onSessionError, disabled })
 		</div>`;
 }
 
-class SessionStorage {
-	constructor(defaultPresets) {
+class SessionStorage extends EventTarget {
+	constructor() {
+		super();
 		this.dbName = 'MikuPad';
 		this.storeName = 'Sessions';
 		this.nextId = undefined;
-		this.dependents = {};
 		this.saveQueue = [];
 		this.saveTimer = undefined;
 		this.sessions = {};
 		this.selectedSession = undefined;
-		this.sessionTemplate = { ...defaultPresets };
-		this.onchange = null;
-		this.onsessionchange = null;
-		this.onerror = null;
+	}
+
+	dispatchChangeEvent() {
+		this.dispatchEvent(new CustomEvent('change'));
+	}
+
+	dispatchSessionChangeEvent() {
+		this.dispatchEvent(new CustomEvent('sessionchange'));
+	}
+
+	dispatchErrorEvent(detail) {
+		this.dispatchEvent(new CustomEvent('error', { detail }));
 	}
 
 	async init() {
@@ -1901,7 +1904,7 @@ class SessionStorage {
 			const openRequest = indexedDB.open(this.dbName);
 
 			openRequest.onerror = () => {
-				this.onerror?.(openRequest.error);
+				this.dispatchErrorEvent(openRequest.error);
 				reject(openRequest.error);
 			};
 			openRequest.onsuccess = () => resolve(openRequest.result);
@@ -1917,19 +1920,6 @@ class SessionStorage {
 		this.nextId += 1;
 		await this.saveToDatabase('nextSessionId', this.nextId);
 		return this.nextId - 1;
-	}
-
-	addDependent(name, callback) {
-		this.dependents[name] = this.dependents[name] || new Set();
-		this.dependents[name].add(callback);
-	}
-
-	updateDependents(name, newValue) {
-		if (!this.dependents[name])
-			return;
-		for (const callback of this.dependents[name]) {
-			callback(newValue);
-		}
 	}
 
 	async saveTimerHandler() {
@@ -2044,20 +2034,15 @@ class SessionStorage {
 		this.selectedSession = +sessionId;
 		await this.saveToDatabase('selectedSessionId', this.selectedSession);
 
-		this.onchange?.();
-		this.onsessionchange?.();
-
-		const deepCopy = (value) => JSON.parse(JSON.stringify(value));
-		for (const propertyName of Object.keys(this.sessionTemplate)) {
-			this.updateDependents(propertyName, this.getProperty(propertyName) ?? deepCopy(this.sessionTemplate[propertyName]));
-		}
+		this.dispatchChangeEvent();
+		this.dispatchSessionChangeEvent();
 	}
 
 	async renameSession(sessionId, renameSessionName) {
 		this.sessions[sessionId]['name'] = renameSessionName;
 		await this.saveToDatabase(sessionId, this.sessions[sessionId]);
 
-		this.onchange?.();
+		this.dispatchChangeEvent();
 	}
 
 	async deleteSession(sessionId) {
@@ -2081,7 +2066,7 @@ class SessionStorage {
 				}
 
 				delete this.sessions[sessionId];
-				this.onchange?.();
+				this.dispatchChangeEvent();
 				resolve();
 			};
 			request.onerror = () => reject(request.error);
@@ -2122,8 +2107,8 @@ class SessionStorage {
 }
 
 class WebSessionStorage extends SessionStorage {
-	constructor(defaultPresets, sessionEndpoint) {
-		super(defaultPresets);
+	constructor(sessionEndpoint) {
+		super();
 		this.sessionEndpoint = sessionEndpoint;
 		this.proxyEndpoint = `${sessionEndpoint}/proxy`;
 	}
@@ -2139,7 +2124,7 @@ class WebSessionStorage extends SessionStorage {
 					body: JSON.stringify(options),
 				});
 			} catch (e) {
-				this.onerror?.(e);
+				this.dispatchErrorEvent(e);
 				reportError(e);
 				return { ok: false, status: e.toString() };
 			}
@@ -2224,7 +2209,7 @@ class WebSessionStorage extends SessionStorage {
 			}
 
 			delete this.sessions[sessionId];
-			this.onchange?.();
+			this.dispatchChangeEvent();
 			resolve();
 		});
 	}
@@ -2309,7 +2294,18 @@ function useSessionState(sessionStorage, name, initialState) {
 	}, []);
 
 	const [value, setValue] = useState(savedState ?? initialState);
-	sessionStorage.addDependent(name, setValue);
+
+	useEffect(() => {
+		function deepCopy(value) {
+			return JSON.parse(JSON.stringify(value));
+		}
+		function onSessionChange() {
+			setValue(sessionStorage.getProperty(name) ?? deepCopy(initialState));
+		}
+
+		sessionStorage.addEventListener('sessionchange', onSessionChange);
+		return () => sessionStorage.removeEventListener('sessionchange', onSessionChange);
+	}, []);
 
 	const updateState = (newValue) => {
 		setValue((prevValue) => {
@@ -3487,31 +3483,38 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 		return isHttps && (url.protocol !== 'https:' && url.protocol !== 'wss:');
 	}
 
-	function onSessionChange() {
-		// TODO: Store the undo/redo in the session.
-		redoStack.current = [];
-		undoStack.current = [];
-		setUndoHovered(false);
-		setTitleToSession();
-	}
-
-	function onSessionError(e) {
-		if (!sessionReconnectTimer.current) {
-			sessionReconnectTimer.current = setInterval(async () => {
-				try {
-					await sessionStorage.saveToDatabase('selectedSessionId', sessionStorage.selectedSession);
-					setSessionEndpointError(undefined);
-					clearTimeout(sessionReconnectTimer.current);
-					sessionReconnectTimer.current = undefined;
-				} catch (e) {
-					reportError(e);
-				}
-			}, 1000);
+	useEffect(() => {
+		function onSessionChange() {
+			redoStack.current = [];
+			undoStack.current = [];
+			setUndoHovered(false);
+			setTitleToSession();
 		}
-		setSessionEndpointError("Mikupad server is unreachable!");
-		setCurrentPromptChunk(undefined);
-		setUndoHovered(false);
-	}
+		function onSessionError() {
+			if (!sessionReconnectTimer.current) {
+				sessionReconnectTimer.current = setInterval(async () => {
+					try {
+						await sessionStorage.saveToDatabase('selectedSessionId', sessionStorage.selectedSession);
+						setSessionEndpointError(undefined);
+						clearTimeout(sessionReconnectTimer.current);
+						sessionReconnectTimer.current = undefined;
+					} catch (e) {
+						reportError(e);
+					}
+				}, 1000);
+			}
+			setSessionEndpointError("Mikupad server is unreachable!");
+			setCurrentPromptChunk(undefined);
+			setUndoHovered(false);
+		}
+
+		sessionStorage.addEventListener('sessionchange', onSessionChange);
+		sessionStorage.addEventListener('error', onSessionError);
+		return () => {
+			sessionStorage.removeEventListener('sessionchange', onSessionChange);
+			sessionStorage.removeEventListener('error', onSessionError);
+		};
+	}, []);
 
 	const probs = useMemo(() =>
 		showProbs && promptChunks[currentPromptChunk?.index]?.completion_probabilities?.[0]?.probs,
@@ -3572,10 +3575,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 				]}/>
 			<div class="horz-separator"/>
 			<${CollapsibleGroup} label="Sessions">
-				<${Sessions} sessionStorage=${sessionStorage}
-					disabled=${!!cancel}
-					onSessionChange=${onSessionChange}
-					onSessionError=${onSessionError}/>
+				<${Sessions} sessionStorage=${sessionStorage} disabled=${!!cancel}/>
 			</${CollapsibleGroup}>
 			<${CollapsibleGroup} label="Parameters" expanded>
 				<${InputBox} label="Server"
@@ -4115,7 +4115,7 @@ async function main() {
 	let isMikupadEndpoint = false;
 
 	if (window.location.protocol != 'file:' && window.location.pathname == '/') {
-		sessionStorage = new WebSessionStorage(defaultPresets, window.location.protocol + '//' + window.location.host);
+		sessionStorage = new WebSessionStorage(window.location.protocol + '//' + window.location.host);
 		try {
 			await sessionStorage.init();
 			isMikupadEndpoint = true;
@@ -4126,7 +4126,7 @@ async function main() {
 	}
 	
 	if (sessionStorage == null) {
-		sessionStorage = new SessionStorage(defaultPresets);
+		sessionStorage = new SessionStorage();
 		await sessionStorage.init();
 	}
 
