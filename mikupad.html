@@ -2460,15 +2460,25 @@ function LogitBiasModal({ isOpen, closeModal, logitBias, setLogitBias, logitBias
 			</${Modal}>`;
 }
 
+class TemplateStorage {
+	constructor() {
+		this.templates = new Map();
+		this.nextId = 1;
+		this.selectedTemplate = 1;
+		this.initial = 1;
+	}
+}
+
 class SessionStorage extends EventTarget {
 	constructor() {
 		super();
 		this.dbName = 'MikuPad';
-		this.storeName = 'Sessions';
+		this.storeNames = ['Sessions','Templates'];
 		this.nextId = undefined;
 		this.saveQueue = [];
 		this.saveTimer = undefined;
 		this.sessions = {};
+		this.templates = {};
 		this.selectedSession = undefined;
 	}
 
@@ -2480,6 +2490,14 @@ class SessionStorage extends EventTarget {
 		this.dispatchEvent(new CustomEvent('sessionchange'));
 	}
 
+	dispatchTemplateChangeEvent() {
+		this.dispatchEvent(new CustomEvent('templatechange'));
+	}
+
+	dispatchTemplateRenameEvent() {
+		this.dispatchEvent(new CustomEvent('templaterename'));
+	}
+
 	dispatchErrorEvent(detail) {
 		this.dispatchEvent(new CustomEvent('error', { detail }));
 	}
@@ -2489,6 +2507,7 @@ class SessionStorage extends EventTarget {
 		this.nextId = (await this.loadFromDatabase(db, 'nextSessionId')) || 0;
 		this.selectedSession = (await this.loadFromDatabase(db, 'selectedSessionId')) || 0;
 		await this.loadSessions(db);
+		await this.loadTemplates(db);
 		this.saveTimer = setInterval(async () => await this.saveTimerHandler(), 500);
 	}
 
@@ -2503,7 +2522,11 @@ class SessionStorage extends EventTarget {
 			openRequest.onsuccess = () => resolve(openRequest.result);
 			openRequest.onupgradeneeded = (event) => {
 				const db = event.target.result;
-				db.createObjectStore(this.storeName);
+				this.storeNames.forEach(storeName => {
+					if (!db.objectStoreNames.contains(storeName)) {
+						db.createObjectStore(storeName);
+					}
+				});
 			};
 			openRequest.onblocked = () => console.warn('Request was blocked');
 		});
@@ -2528,10 +2551,11 @@ class SessionStorage extends EventTarget {
 		}
 	}
 
-	async loadFromDatabase(db, key) {
+	async loadFromDatabase(db, key, storeName = this.storeNames[0]) {
+		console.log("load")
 		return new Promise((resolve, reject) => {
-			const tx = db.transaction(this.storeName, 'readonly');
-			const store = tx.objectStore(this.storeName);
+			const tx = db.transaction(storeName, 'readonly');
+			const store = tx.objectStore(storeName);
 			const request = store.get(key);
 
 			request.onsuccess = () => resolve(request.result);
@@ -2539,15 +2563,34 @@ class SessionStorage extends EventTarget {
 		});
 	}
 
-	async saveToDatabase(key, data) {
+	async saveToDatabase(key, data, storeName = this.storeNames[0]) {
+		console.log("save")
 		const db = await this.openDatabase();
 		return new Promise((resolve, reject) => {
-			const tx = db.transaction(this.storeName, 'readwrite');
-			const store = tx.objectStore(this.storeName);
+			const tx = db.transaction(storeName, 'readwrite');
+			const store = tx.objectStore(storeName);
 			const request = store.put(data, key);
 
 			request.onsuccess = () => resolve();
 			request.onerror = () => reject(request.error);
+		});
+	}
+	async saveTemplates(newTemplates) {
+		console.log("save templates")
+		const db = await this.openDatabase();
+		return new Promise((resolve, reject) => {
+			const tx = db.transaction('Templates', 'readwrite');
+			const store = tx.objectStore('Templates');
+			for (const [key, value] of Object.entries(newTemplates)) {
+				// if (this.templates[key] === value)
+				// 	continue
+				console.log("storing",key,value)
+				let request = store.put(value, key);
+				request.onsuccess = () => resolve();
+				request.onerror = () => reject(request.error);
+			}
+
+
 		});
 	}
 
@@ -2584,8 +2627,8 @@ class SessionStorage extends EventTarget {
 
 	async loadSessions(db) {
 		return new Promise((resolve, reject) => {
-			const tx = db.transaction(this.storeName, 'readonly');
-			const store = tx.objectStore(this.storeName);
+			const tx = db.transaction(this.storeNames[0], 'readonly');
+			const store = tx.objectStore(this.storeNames[0]);
 			const request = store.openCursor();
 
 			request.onsuccess = async (event) => {
@@ -2602,6 +2645,34 @@ class SessionStorage extends EventTarget {
 						}
 					}
 					await this.switchSession(this.selectedSession);
+					resolve();
+				}
+			};
+			request.onerror = () => reject(request.error);
+		});
+	}
+	async loadTemplates(db) {
+		return new Promise((resolve, reject) => {
+			const tx = db.transaction(this.storeNames[1], 'readonly');
+			const store = tx.objectStore(this.storeNames[1]);
+			const request = store.openCursor();
+
+			request.onsuccess = async (event) => {
+				const cursor = event.target.result;
+				// console.log("get all",cursor)
+				// this.templates = { ...cursor }
+				// console.log(this.templates)
+				if (cursor) {
+					console.log("cursor",cursor)
+					this.templates[cursor.key] = cursor.value;
+					cursor.continue();
+				} else {
+					if (Object.keys(this.templates).length === 0) {
+						// if (!await this.migrateSessions()) {
+						// 	await this.createSession('MikuPad #1');
+						// }
+					}
+					// await this.switchSession(this.selectedSession);
 					resolve();
 				}
 			};
@@ -2645,8 +2716,8 @@ class SessionStorage extends EventTarget {
 			return;
 		const db = await this.openDatabase();
 		return new Promise((resolve, reject) => {
-			const tx = db.transaction(this.storeName, 'readwrite');
-			const store = tx.objectStore(this.storeName);
+			const tx = db.transaction(this.storeNames[0], 'readwrite');
+			const store = tx.objectStore(this.storeNames[0]);
 			const request = store.delete(sessionId);
 
 			request.onsuccess = async () => {
@@ -2779,6 +2850,30 @@ class WebSessionStorage extends SessionStorage {
 			resolve();
 		});
 	}
+	async loadTemplates(db) {
+		return new Promise(async (resolve, reject) => {
+			const res = await db("/templates");
+			if (!res.ok) {
+				reject(res.status);
+				return;
+			}
+			const { result } = await res.json();
+			const sessions = result;
+
+			for (const [key, value] of Object.entries(templates)) {
+				this.templates[key] = value;
+			}
+
+			if (Object.keys(this.templates).length === 0) {
+				// if (!await this.migrateSessions()) {
+				// 	await this.createSession('MikuPad #1');
+				// }
+			}
+
+			// await this.switchSession(this.selectedSession);
+			resolve();
+		});
+	}
 
 	async deleteSession(sessionId) {
 		if (Object.keys(this.sessions).length === 1)
@@ -2877,6 +2972,8 @@ function replaceUnprintableBytes(inputString) {
 }
 
 function useSessionState(sessionStorage, name, initialState) {
+	//console.log(arguments)
+	//console.log("ss in useSessionState",sessionStorage)
 	const savedState = useMemo(() => {
 		try {
 			return sessionStorage.getProperty(name);
@@ -2885,6 +2982,8 @@ function useSessionState(sessionStorage, name, initialState) {
 			return null;
 		}
 	}, []);
+	//console.log(sessionStorage)
+	//console.log("name",name,savedState)
 
 	const [value, setValue] = useState(savedState ?? initialState);
 
@@ -2904,6 +3003,48 @@ function useSessionState(sessionStorage, name, initialState) {
 		setValue((prevValue) => {
 			const updatedValue = typeof newValue === 'function' ? newValue(prevValue) : newValue;
 			sessionStorage.setProperty(name, updatedValue);
+			return updatedValue;
+		});
+	};
+
+	return [value, updateState];
+}
+
+function useDBTemplates(sessionStorage,initialState) {
+	console.log("ss in function",sessionStorage)
+	const savedState = useMemo(() => {
+		try {
+			return sessionStorage.templates;
+		} catch (e) {
+			reportError(e);
+			return null;
+		}
+	}, []);
+	
+
+	const [value, setValue] = useState(Object.keys(savedState).length === 0 ? initialState : savedState);
+	console.log(savedState,initialState,value)
+	console.log()
+
+	// useEffect(() => {
+	// 	function deepCopy(value) {
+	// 		return JSON.parse(JSON.stringify(value));
+	// 	}
+	// 	function onSessionChange() {
+	// 		setValue(sessionStorage.templates ?? deepCopy(initialState));
+	// 	}
+
+	// 	sessionStorage.addEventListener('templatechange', onSessionChange);
+	// 	return () => sessionStorage.removeEventListener('templatechange', onSessionChange);
+	// }, []);
+
+	const updateState = (newValue) => {
+		setValue((prevValue) => {
+			const updatedValue = typeof newValue === 'function' ? newValue(prevValue) : newValue;
+			sessionStorage.templates = updatedValue;
+			// replace with put?
+			//sessionStorage.saveToDatabase(key,newValue,'Templates')
+			sessionStorage.saveTemplates(updatedValue)
 			return updatedValue;
 		});
 	};
@@ -2934,7 +3075,8 @@ function usePersistentState(name, initialState) {
 	return [value, updateState];
 }
 
-export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
+export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupadEndpoint }) {
+	console.log("app",arguments)
 	const promptArea = useRef();
 	const promptOverlay = useRef();
 	const undoStack = useRef([]);
@@ -2943,6 +3085,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 	const keyState = useRef({});
 	const sessionReconnectTimer = useRef();
 	const useScrollSmoothing = useRef(true);
+	const [templates, setTemplates] = useDBTemplates({"stuff":"here"});
 	const [currentPromptChunk, setCurrentPromptChunk] = useState(undefined);
 	const [undoHovered, setUndoHovered] = useState(false);
 	const [showProbs, setShowProbs] = useState(true);
@@ -2998,6 +3141,9 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 	const [authorNoteDepth, setAuthorNoteDepth] = useSessionState('authorNoteDepth', defaultPresets.authorNoteDepth);
 	const [worldInfo, setWorldInfo] = useSessionState('worldInfo', defaultPresets.worldInfo);
 
+
+
+	console.log("read templates in app",templates)
 	// AN and Memory
 	function handleauthorNoteTokensChange(key,value) {
 		setAuthorNoteTokens((prevauthorNoteTokens) => ({ ...prevauthorNoteTokens, [key]: value }));
@@ -3018,6 +3164,26 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 			[modalKey]: false,
 		}));
 	};
+
+	function writess() {
+		sessionStorage.saveToDatabase("A key",{"A":"value"},'Templates')
+	}
+
+	const writessapp = () => {
+		setTemplates((prevState) => ({
+			...prevState,
+			"new":"value"
+		}))
+	}
+
+	function logss() {
+		console.log("full",sessionStorage)
+		console.log(JSON.stringify(sessionStorage))
+		console.log("load",sessionStorage.templates)
+	}
+
+	
+
 
 	const promptText = useMemo(() => joinPrompt(promptChunks), [promptChunks]);
 
@@ -4081,6 +4247,29 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 			</div>
 			${!!lastError && html`
 				<span className="error-text">${lastError}</span>`}
+		
+
+			<button
+				title=""
+				className=${cancel}
+				disabled=${!!cancel || stoppingStringsError}
+				onClick=${() => writess()}>
+				write session storage
+			</button>
+			<button
+				title=""
+				className=${cancel}
+				disabled=${!!cancel || stoppingStringsError}
+				onClick=${() => logss()}>
+				log session storage
+			</button>
+			<button
+				title=""
+				className=${cancel}
+				disabled=${!!cancel || stoppingStringsError}
+				onClick=${() => writessapp()}>
+				write session storage app
+			</button>
 		</div>
 
 		<${EditorPreferencesModal}
@@ -4188,6 +4377,7 @@ async function main() {
 		<${App}
 			sessionStorage=${sessionStorage}
 			useSessionState=${(name, initialState) => useSessionState(sessionStorage, name, initialState)}
+			useDBTemplates=${(initialState => useDBTemplates(sessionStorage,initialState))}
 			isMikupadEndpoint=${isMikupadEndpoint}/>`);
 }
 
