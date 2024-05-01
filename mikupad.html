@@ -2489,7 +2489,7 @@ function LogitBiasModal({ isOpen, closeModal, logitBias, setLogitBias, logitBias
 			</${Modal}>`;
 }
 
-function InstructModal({ isOpen, closeModal, sessionStorage, selectedTemplate, setSelectedTemplate, templateList, setTemplateList, templates, setTemplates, addDeleteTemplate, setAddDeleteTemplate, updateTemplateDB, cancel }) {
+function InstructModal({ isOpen, closeModal, sessionStorage, updateTemplateDB, selectedTemplate, setSelectedTemplate, templateList, setTemplateList, templates, setTemplates, setAddDeleteTemplate, cancel }) {
 	
 	function getArrObjByName(array,name,getIndex=false) {
 		const index = array.findIndex(obj => obj.name === name)
@@ -2498,44 +2498,10 @@ function InstructModal({ isOpen, closeModal, sessionStorage, selectedTemplate, s
 		return array[index == -1 ? 0 : index];
 	}
 
-	const templateReselect = useMemo(() => {
-		if (!addDeleteTemplate)
-			return
-		setSelectedTemplate("")
-		setAddDeleteTemplate(false)
-	}, [addDeleteTemplate]);
-
-	const updateTemplateList = useMemo(() => {
-		const index = templateList.findIndex(obj => obj.name === selectedTemplate)
-		const reselectTemplate = templateList[index == -1 ? 0 : index]?.nameNew
-		const list = []
-		let i = 0;
-		for (const key in templates) {
-			list.push({
-				name: key,
-				nameNew:key,
-				value: key,
-				nameBack: key,
-				affixes: templates[key]
-			})
-		}
-		list.sort((a, b) => {
-			var nameA = a.name.toLowerCase();
-			var nameB = b.name.toLowerCase();
-			return (nameA < nameB) ? -1 : (nameA > nameB) ? 1 : 0;
-		});
-		setTemplateList(list)
-		if (reselectTemplate)
-			setSelectedTemplate(reselectTemplate)
-	}, [templates,selectedTemplate]);
-
 	function handleInstructTemplateChange(templateName,key,value,back="") {
-		
 		const templateListMod = templateList
 		const tempIndex = templateListMod.findIndex(obj => obj.name === templateName);
 		const index = tempIndex < 0 ? 0 : tempIndex;
-
-		console.log("change object",index,templateListMod[index])
 
 		if (key == "name") { 
 			templateListMod[index].nameNew = value
@@ -2566,7 +2532,6 @@ function InstructModal({ isOpen, closeModal, sessionStorage, selectedTemplate, s
 	}
 
 	async function handleInstructTemplateDelete(name) {
-		console.log(Object.keys(templates).length)
 		if (Object.keys(templates).length < 2)
 			return
 		if (!window.confirm("Are you sure you want to delete this template? This action can't be undone."))
@@ -2772,13 +2737,14 @@ class SessionStorage extends EventTarget {
 
 	async openDatabase() {
 		return new Promise((resolve, reject) => {
-			const openRequest = indexedDB.open(this.dbName);
+			const openRequest = indexedDB.open(this.dbName, 2);
 
 			openRequest.onerror = () => {
 				this.dispatchErrorEvent(openRequest.error);
 				reject(openRequest.error);
 			};
 			openRequest.onsuccess = () => resolve(openRequest.result);
+			
 			openRequest.onupgradeneeded = (event) => {
 				const db = event.target.result;
 				this.storeNames.forEach(storeName => {
@@ -2843,7 +2809,6 @@ class SessionStorage extends EventTarget {
 			const DBkeys = event.target.result;
 
 			// Check if the keys exists in input, if not, delete
-			console.log(DBkeys,Object.keys(newTemplates))
 			DBkeys.forEach(key => {
 				if ( !(Object.keys(newTemplates).includes(key)) ) {
 					if (writeOnly)
@@ -2851,7 +2816,7 @@ class SessionStorage extends EventTarget {
 					// If the key not in input, delete it
 					const deleteRequest = store.delete(key);
 					deleteRequest.onsuccess = function(event) {
-						console.log('Deleted key:', key);
+						console.warn('Deleted key:', key);
 					}
 					deleteRequest.onerror = function(event) {
 						console.error('Error deleting key:', key);
@@ -2861,8 +2826,6 @@ class SessionStorage extends EventTarget {
 
 			// put input keys
 			for (const [key, value] of Object.entries(newTemplates)) {
-				// if (this.templates[key] === value)
-				// 	continue
 				const request = store.put(value, key);
 				request.onsuccess = () => resolve();
 				request.onerror = () => reject(request.error);
@@ -3131,14 +3094,7 @@ class WebSessionStorage extends SessionStorage {
 			for (const [key, value] of Object.entries(templates)) {
 				this.templates[key] = value;
 			}
-
-			if (Object.keys(this.templates).length === 0) {
-				// if (!await this.migrateSessions()) {
-				// 	await this.createSession('MikuPad #1');
-				// }
-			}
-
-			// await this.switchSession(this.selectedSession);
+			
 			resolve();
 		});
 	}
@@ -3266,8 +3222,6 @@ function replaceUnprintableBytes(inputString) {
 }
 
 function useSessionState(sessionStorage, name, initialState) {
-	//console.log(arguments)
-	//console.log("ss in useSessionState",sessionStorage)
 	const savedState = useMemo(() => {
 		try {
 			return sessionStorage.getProperty(name);
@@ -3276,8 +3230,6 @@ function useSessionState(sessionStorage, name, initialState) {
 			return null;
 		}
 	}, []);
-	//console.log(sessionStorage)
-	//console.log("name",name,savedState)
 
 	const [value, setValue] = useState(savedState ?? initialState);
 
@@ -3421,10 +3373,6 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 	const [authorNoteDepth, setAuthorNoteDepth] = useSessionState('authorNoteDepth', defaultPresets.authorNoteDepth);
 	const [worldInfo, setWorldInfo] = useSessionState('worldInfo', defaultPresets.worldInfo);
 
-
-
-	
-
 	// AN and Memory
 	function handleauthorNoteTokensChange(key,value) {
 		setAuthorNoteTokens((prevauthorNoteTokens) => ({ ...prevauthorNoteTokens, [key]: value }));
@@ -3433,10 +3381,40 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 		setMemoryTokens((prevMemoryTokens) => ({ ...prevMemoryTokens, [key]: value }));
 	}
 
+	// re-selecting doesn't work properly when I move this inside the InstructModal
+	const updateTemplateList = useMemo(() => {
+		const index = templateList.findIndex(obj => obj.name === selectedTemplate)
+		const reselectTemplate = templateList[index == -1 ? 0 : index]?.nameNew
+		const list = []
+		let i = 0;
+		for (const key in templates) {
+			list.push({
+				name: key,
+				nameNew:key,
+				value: key,
+				nameBack: key,
+				affixes: templates[key]
+			})
+		}
+		list.sort((a, b) => {
+			var nameA = a.name.toLowerCase();
+			var nameB = b.name.toLowerCase();
+			return (nameA < nameB) ? -1 : (nameA > nameB) ? 1 : 0;
+		});
+		setTemplateList(list)
+		if (reselectTemplate)
+			setSelectedTemplate(reselectTemplate)
+	}, [templates,selectedTemplate,templatesImport]);
+	const templateReselect = useMemo(() => {
+		if (!addDeleteTemplate)
+			return
+		setSelectedTemplate("")
+		setAddDeleteTemplate(false)
 
+	}, [addDeleteTemplate]);
+	
 
 	const updateTemplateDB = async () => {
-		console.log("update",templateList)
 		setTemplates((prevState) => {
 			var newState = {
 				...prevState
@@ -3448,7 +3426,6 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 
 				if (name === undefined || nameBack === undefined)
 					continue
-
 				// if template has been renamed, delete old entry, make sure to reselect 
 				// current entry after
 				if (name != nameBack) {
@@ -3467,13 +3444,12 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 					"instSuf": template.affixes.instSuf,
 				}
 			}
-			// console.log("newstate",newState)
 			return { ...newState }
 		})
 	}
 	const updateTemplateDBCaller = useMemo(() => {
 		updateTemplateDB()
-	}, [modalState["instruct"],triggerTemplateDBUpdate]);
+	}, [modalState["instruct"],triggerTemplateDBUpdate,selectedTemplate]);
 	
 
 	const toggleModal = (modalKey) => {
@@ -3626,8 +3602,9 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 			: defaultPresets.memoryTokens.contextOrder;
 
 		// assemble context in order:
-		// the context is (1) split by line, (2) all placeholders get replaced,
-		// (3) non-empty lines are joined back together.
+		// the context is (1) split by line, (2) persistent context placeholders are 
+		// replaced, (3) instruct template placeholders are replaced (4) non-empty
+		// lines are joined back together.
 		const permContextPrompt = workingContextOrder.split("\n").map(function (line) {
 			return line.replace(/\{[^}]+\}/g, function (placeholder) {
 				return contextReplacements.hasOwnProperty(placeholder)
@@ -4703,14 +4680,14 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 		<${InstructModal}
 			isOpen=${modalState.instruct}
 			closeModal=${() => closeModal("instruct")}
-			updateTemplateDB=${updateTemplateDB}
 			templateList=${templateList}
 			setTemplateList=${setTemplateList}
 			selectedTemplate=${selectedTemplate}
 			setSelectedTemplate=${setSelectedTemplate}
+			setTemplatesImport=${setTemplatesImport}
 			templates=${templates}
 			setTemplates=${setTemplates}
-			addDeleteTemplate=${addDeleteTemplate}
+			updateTemplateDB=${updateTemplateDB}
 			setAddDeleteTemplate=${setAddDeleteTemplate}
 			sessionStorage=${sessionStorage} endpoint=${endpoint} endpointAPI=${endpointAPI} endpointAPIKey=${endpointAPIKey} isMikupadEndpoint=${isMikupadEndpoint}
 			cancel=${cancel}/>
