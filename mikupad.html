@@ -3094,7 +3094,7 @@ class WebSessionStorage extends SessionStorage {
 			for (const [key, value] of Object.entries(templates)) {
 				this.templates[key] = value;
 			}
-			
+
 			resolve();
 		});
 	}
@@ -3464,25 +3464,6 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 			[modalKey]: false,
 		}));
 	};
-
-	function writess() {
-		sessionStorage.saveToDatabase("A key",{"A":"value"},'Templates')
-	}
-
-	const writessapp = () => {
-		setTemplates((prevState) => ({
-			...prevState,
-			"new":"value"
-		}))
-	}
-
-	function logss() {
-		console.log("full",sessionStorage)
-		console.log(JSON.stringify(sessionStorage))
-		console.log("load",sessionStorage.templates)
-	}
-
-	
 
 
 	const promptText = useMemo(() => joinPrompt(promptChunks), [promptChunks]);
@@ -4390,7 +4371,7 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 							disabled=${!!cancel}
 							class="hbox-button"
 							onClick=${() => toggleModal("instruct")}>
-							edit
+							Edit
 						</button>
 				</div>
 				<${InputBox} label="Seed (-1 = random)" type="text" inputmode="numeric"
@@ -4581,29 +4562,6 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 			</div>
 			${!!lastError && html`
 				<span className="error-text">${lastError}</span>`}
-		
-
-			<button
-				title=""
-				className=${cancel}
-				disabled=${!!cancel || stoppingStringsError}
-				onClick=${() => writess()}>
-				write session storage
-			</button>
-			<button
-				title=""
-				className="${cancel}"
-				disabled=${!!cancel || stoppingStringsError}
-				onClick=${() => logss()}>
-				log session storage
-			</button>
-			<button
-				title=""
-				className=${cancel}
-				disabled=${!!cancel || stoppingStringsError}
-				onClick=${() => writessapp()}>
-				write session storage app
-			</button>
 		</div>
 
 		<${EditorPreferencesModal}
