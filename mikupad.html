@@ -819,6 +819,13 @@ button.completing {
 	height: 100%;
 }
 
+.instructTemplateSidebar > .SelectBox {
+	width: 100%;
+}
+.instructTemplateSidebar > .hbox-button {
+	width: min-content;
+}
+
 .collapsible-group {
 	border: none;
 	outline: none;
@@ -1611,9 +1618,23 @@ function SelectBox({ label, value, onValueChange, options, ...props }) {
 				value=${value}
 				onChange=${({ target }) => onValueChange(JSON.parse(target.value))}
 				...${props}>
-				${options.map(o => html`<option
+				${(options = typeof options === 'function' ? options() : options).map(o => html`<option
 					key=${JSON.stringify(o.value)}
 					value=${JSON.stringify(o.value)}>${o.name}</option>`)}
+			</select>
+		</label>`;
+}
+function SelectBoxTemplate({ label, value, onValueChange, options, ...props }) {
+	return html`
+		<label className="SelectBox">
+			${label}
+			<select
+				value=${value}
+				onChange=${({ target }) => onValueChange(JSON.parse(JSON.stringify(target.value)))}
+				...${props}>
+				${(options = typeof options === 'function' ? options() : options).map(o => html`<option
+					key=${JSON.stringify(o.value)}
+					value=${o.value}>${o.name}</option>`)}
 			</select>
 		</label>`;
 }
@@ -2460,13 +2481,90 @@ function LogitBiasModal({ isOpen, closeModal, logitBias, setLogitBias, logitBias
 			</${Modal}>`;
 }
 
-class TemplateStorage {
-	constructor() {
-		this.templates = new Map();
-		this.nextId = 1;
-		this.selectedTemplate = 1;
-		this.initial = 1;
-	}
+function InstructModal({ isOpen, closeModal, sessionStorage, selectedTemplate, setSelectedTemplate, handleInstructTemplateChange, handleInstructTemplateDelete, getArrObjByName, templateList, cancel }) {
+	// if (typeof templateList[selectedTemplate] === 'undefined') {
+	// 	console.log("instruct modal now")
+	// 	setSelectedTemplate(0)
+	// }
+	return getArrObjByName(templateList,selectedTemplate) && html`
+		<${Modal} isOpen=${isOpen} onClose=${closeModal}
+			title="Instruct Templates"
+			description="Use placeholders to replace with the selected instruct template format when sending your prompt to the llm.
+			Changes are saved on exiting the modal.">
+			<div className="buttons instructTemplateSidebar">
+				<${SelectBoxTemplate}
+					id="instructModalSelect"
+					label="Instruct Template"
+					value=${selectedTemplate}
+					onValueChange=${setSelectedTemplate}
+					options=${templateList}/>
+					<button
+						title="Add Instruct Template"
+						disabled=${!!cancel}
+						class="hbox-button"
+						onClick=${() => toggleModal("instruct")}>
+						New
+					</button>
+					<button
+						title="Delete Selected Instruct Template"
+						disabled=${!!cancel}
+						class="hbox-button"
+						onClick=${() => handleInstructTemplateDelete(selectedTemplate)}>
+						Delete
+					</button>
+			</div>
+			<hr/>
+			<${InputBox} label="Name"
+					placeholder="Name of This Template"
+					className=""
+					tooltip=""
+					readOnly=${!!cancel}
+					value=${getArrObjByName(templateList,selectedTemplate).nameNew}
+					onInput=${e => handleInstructTemplateChange(selectedTemplate,"name",e.target.value,getArrObjByName(templateList,selectedTemplate).nameBack)}
+					onValueChange=${() => {}}/>
+			
+			<div className="hbox">
+				<${InputBox} label="Instruct Prefix"
+					placeholder="[INST]"
+					className=""
+					tooltip=""
+					readOnly=${!!cancel}
+					value=${getArrObjByName(templateList,selectedTemplate).affixes.instPre}
+					onInput=${e => handleInstructTemplateChange(selectedTemplate,"instPre",e.target.value)}
+					onValueChange=${() => {}}/>
+
+					<${InputBox} label="Instruct Suffix"
+					placeholder="[/INST]"
+					className=""
+					tooltip=""
+					readOnly=${!!cancel}
+					value=${getArrObjByName(templateList,selectedTemplate).affixes.instSuf}
+					onInput=${e => handleInstructTemplateChange(selectedTemplate,"instSuf",e.target.value)}
+					onValueChange=${() => {}}/>
+			</div>
+
+			<div className="hbox">
+				<${InputBox} label="System Prompt Prefix"
+					placeholder="<<SYS>>"
+					className=""
+					tooltip=""
+					readOnly=${!!cancel}
+					value=${getArrObjByName(templateList,selectedTemplate).affixes.sysPre}
+					onInput=${e => handleInstructTemplateChange(selectedTemplate,"sysPre",e.target.value)}
+					onValueChange=${() => {}}/>
+
+					<${InputBox} label="System Prompt Suffix"
+					placeholder="<</SYS>>"
+					className=""
+					tooltip=""
+					readOnly=${!!cancel}
+					value=${getArrObjByName(templateList,selectedTemplate).affixes.sysSuf}
+					onInput=${e => handleInstructTemplateChange(selectedTemplate,"sysSuf",e.target.value)}
+					onValueChange=${() => {}}/>
+			</div>
+
+
+		</${Modal}>`;
 }
 
 class SessionStorage extends EventTarget {
@@ -2552,7 +2650,6 @@ class SessionStorage extends EventTarget {
 	}
 
 	async loadFromDatabase(db, key, storeName = this.storeNames[0]) {
-		console.log("load")
 		return new Promise((resolve, reject) => {
 			const tx = db.transaction(storeName, 'readonly');
 			const store = tx.objectStore(storeName);
@@ -2564,7 +2661,6 @@ class SessionStorage extends EventTarget {
 	}
 
 	async saveToDatabase(key, data, storeName = this.storeNames[0]) {
-		console.log("save")
 		const db = await this.openDatabase();
 		return new Promise((resolve, reject) => {
 			const tx = db.transaction(storeName, 'readwrite');
@@ -2576,21 +2672,41 @@ class SessionStorage extends EventTarget {
 		});
 	}
 	async saveTemplates(newTemplates) {
-		console.log("save templates")
 		const db = await this.openDatabase();
 		return new Promise((resolve, reject) => {
 			const tx = db.transaction('Templates', 'readwrite');
 			const store = tx.objectStore('Templates');
+
+			const request = store.getAllKeys();
+			request.onsuccess = function(event) {
+			const DBkeys = event.target.result;
+
+			// Check if the keys exists in input, if not, delete
+			//console.log(DBkeys,Object.keys(newTemplates))
+			DBkeys.forEach(key => {
+				if ( !(Object.keys(newTemplates).includes(key)) ) {
+					console.log(key,"NOT input")
+					// If the key not in input, delete it
+					const deleteRequest = store.delete(key);
+					deleteRequest.onsuccess = function(event) {
+						console.log('Deleted key:', key);
+					}
+					deleteRequest.onerror = function(event) {
+						console.error('Error deleting key:', key);
+					}
+				}
+			});
+
+			// put input keys
 			for (const [key, value] of Object.entries(newTemplates)) {
 				// if (this.templates[key] === value)
 				// 	continue
-				console.log("storing",key,value)
-				let request = store.put(value, key);
+				const request = store.put(value, key);
 				request.onsuccess = () => resolve();
 				request.onerror = () => reject(request.error);
 			}
 
-
+		}
 		});
 	}
 
@@ -2663,7 +2779,6 @@ class SessionStorage extends EventTarget {
 				// this.templates = { ...cursor }
 				// console.log(this.templates)
 				if (cursor) {
-					console.log("cursor",cursor)
 					this.templates[cursor.key] = cursor.value;
 					cursor.continue();
 				} else {
@@ -2951,6 +3066,21 @@ const defaultPresets = {
 		"suffix": ""
 	}),
 	logitBias:{ bias:{},model:"none" },
+	instructTemplates:{
+		'Mistral': {
+			'sysPre': '<<SYS>>',
+			'sysSuf': '<</SYS>>\n\n',
+			'instPre': '[INST]',
+			'instSuf': '[/INST]',
+		},
+		'LLama 3': {
+			'sysPre': '<<llama>>',
+			'sysSuf': '<</llama>>',
+			'instPre': '[llama]',
+			'instSuf': '[/llama]',
+		},
+
+	},
 	scrollTop: 0
 };
 
@@ -3011,7 +3141,6 @@ function useSessionState(sessionStorage, name, initialState) {
 }
 
 function useDBTemplates(sessionStorage,initialState) {
-	console.log("ss in function",sessionStorage)
 	const savedState = useMemo(() => {
 		try {
 			return sessionStorage.templates;
@@ -3023,8 +3152,6 @@ function useDBTemplates(sessionStorage,initialState) {
 	
 
 	const [value, setValue] = useState(Object.keys(savedState).length === 0 ? initialState : savedState);
-	console.log(savedState,initialState,value)
-	console.log()
 
 	// useEffect(() => {
 	// 	function deepCopy(value) {
@@ -3076,7 +3203,6 @@ function usePersistentState(name, initialState) {
 }
 
 export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupadEndpoint }) {
-	console.log("app",arguments)
 	const promptArea = useRef();
 	const promptOverlay = useRef();
 	const undoStack = useRef([]);
@@ -3085,7 +3211,10 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 	const keyState = useRef({});
 	const sessionReconnectTimer = useRef();
 	const useScrollSmoothing = useRef(true);
-	const [templates, setTemplates] = useDBTemplates({"stuff":"here"});
+	const [templates, setTemplates] = useDBTemplates(defaultPresets.instructTemplates);
+	const [selectedTemplate, setSelectedTemplate] = usePersistentState('template', "LLama 3");
+	const [triggerTemplateDBUpdate, setTriggerTemplateDBUpdate] = useState(false);
+	const [templateList, setTemplateList] = useState([]);
 	const [currentPromptChunk, setCurrentPromptChunk] = useState(undefined);
 	const [undoHovered, setUndoHovered] = useState(false);
 	const [showProbs, setShowProbs] = useState(true);
@@ -3143,7 +3272,13 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 
 
 
-	console.log("read templates in app",templates)
+	function getArrObjByName(array,name,getIndex=false) {
+		const index = array.findIndex(obj => obj.name === name)
+		if (getIndex)
+			return index
+		return array[index == -1 ? 0 : index];
+	}
+	//console.log("read templates in app",templates)
 	// AN and Memory
 	function handleauthorNoteTokensChange(key,value) {
 		setAuthorNoteTokens((prevauthorNoteTokens) => ({ ...prevauthorNoteTokens, [key]: value }));
@@ -3151,6 +3286,130 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 	function handleMemoryTokensChange(key,value) {
 		setMemoryTokens((prevMemoryTokens) => ({ ...prevMemoryTokens, [key]: value }));
 	}
+
+	// re-select the correct index in case renaming changes order of array
+	// const reselectInstructTemplate = async (target) => {
+	// 	setSelectedTemplate(targetIndex)
+	// };
+	const updateTemplateList = useMemo(() => {
+		//var selectedTemplateName = templateList[selectedTemplate]?.name
+		
+		// console.log("selectedTemplateName",selectedTemplate,selectedTemplate)
+
+
+		const index = templateList.findIndex(obj => obj.name === selectedTemplate)
+		console.log(index)
+		const reselectTemplate = templateList[index == -1 ? 0 : index]?.nameNew
+
+
+		console.log("old",selectedTemplate,"new",reselectTemplate)
+
+		const list = []
+		let i = 0;
+		
+		// there has to be a more elegant way to do this
+		for (const key in templates) {
+			list.push({
+				name: key,
+				nameNew:key,
+				value: key,
+				nameBack: key,
+				affixes: templates[key]
+			})
+		}
+		list.sort((a, b) => {
+			var nameA = a.name.toLowerCase();
+			var nameB = b.name.toLowerCase();
+			return (nameA < nameB) ? -1 : (nameA > nameB) ? 1 : 0;
+		});
+
+		//console.log("templateList",list,selectedTemplate)
+		setTemplateList(list)
+		//console.log("selectedTemplateName",selectedTemplate)
+		// using templateList, get the newName before updating, then feed it here?
+		if (reselectTemplate)
+			setSelectedTemplate(reselectTemplate)
+	}, [templates,selectedTemplate]);
+
+	const debugAlt = useMemo(() => {
+		console.log(selectedTemplate)
+	}, [templates,selectedTemplate]);
+
+	function handleInstructTemplateChange(templateName,key,value,back="") {
+		
+		const templateListMod = templateList
+		const tempIndex = templateListMod.findIndex(obj => obj.name === templateName);
+		const index = tempIndex < 0 ? 0 : tempIndex;
+
+		console.log("change object",index,templateListMod[index])
+
+		if (key == "name") { //&& value != templateList[index].nameBack) {
+			// console.log("rename",templateList[index].nameBack,"to",value)
+			// console.log({[value]: templates[templateList[index].nameBack]})
+			// console.log("old",templateList[index].name)
+			templateListMod[index].nameNew = value
+		} else {
+			templateListMod[index].affixes[key] = value
+		}
+		setTemplateList((prevState) => ([
+			...templateListMod
+		]))
+	}
+	
+	function handleInstructTemplateDelete(entry) {
+		if (!window.confirm("Are you sure you want to delete this template? This action can't be undone."))
+			return;
+		const templateListMod = templateList
+		templateListMod.splice(templateListMod.findIndex(obj => obj.name === entry),1)
+
+		setTemplateList((prevState) => ([
+			...templateListMod
+		]))
+		setTriggerTemplateDBUpdate((prevState) => (!prevState))
+
+		setSelectedTemplate(templateListMod[0].name)
+	}
+
+	const updateTemplateDB = useMemo(() => {
+		console.warn("instruct modal",modalState["instruct"])
+
+		setTemplates((prevState) => {
+			var newState = {
+				...prevState
+			}
+			for (let i=0;i<templateList.length;i++) {
+				const template = templateList[i]
+				const name = template.nameNew
+				const nameBack = template.nameBack
+
+				if (name === undefined || nameBack === undefined)
+					continue
+
+				// if template has been renamed, delete old entry, make sure to reselect 
+				// current entry after
+				if (name != nameBack) {
+					console.log("RENAME SHIT")
+					newState[name] = prevState[nameBack]
+					console.log("delete",newState[nameBack])
+					delete newState[nameBack]
+					console.log("newstate",newState)
+				}
+
+				// if no changes, skip
+				if (newState[name] == prevState[name])
+					continue
+
+				newState[name] = {
+					"sysPre": template.affixes.sysPre,
+					"sysSuf": template.affixes.sysSuf,
+					"instPre": template.affixes.instPre,
+					"instSuf": template.affixes.instSuf,
+				}
+			}
+			// console.log("newstate",newState)
+			return { ...newState }
+		})
+	}, [modalState["instruct"],triggerTemplateDBUpdate]);
 	
 	const toggleModal = (modalKey) => {
 		setModalState((prevState) => ({
@@ -4059,6 +4318,20 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 						readOnly=${!!cancel}
 						value=${endpointModel}
 						onValueChange=${setEndpointModel}/>`}
+				<div className="buttons instructTemplateSidebar">
+					<${SelectBoxTemplate}
+						label="Instruct Template"
+						value=${selectedTemplate}
+						onValueChange=${setSelectedTemplate}
+						options=${templateList}/>
+						<button
+							title="Edit Instruct Templates"
+							disabled=${!!cancel}
+							class="hbox-button"
+							onClick=${() => toggleModal("instruct")}>
+							edit
+						</button>
+				</div>
 				<${InputBox} label="Seed (-1 = random)" type="text" inputmode="numeric"
 					readOnly=${!!cancel} value=${seed} onValueChange=${setSeed}/>
 				<${InputBox} tooltip="Currently not accurate to the token count, it will be used as an estimate." label="Max Context Length" type="text" inputmode="numeric"
@@ -4258,7 +4531,7 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 			</button>
 			<button
 				title=""
-				className=${cancel}
+				className="${cancel}"
 				disabled=${!!cancel || stoppingStringsError}
 				onClick=${() => logss()}>
 				log session storage
@@ -4339,6 +4612,19 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 			setLogitBias=${setLogitBias}
 			logitBiasParam=${logitBiasParam}
 			setLogitBiasParam=${setLogitBiasParam}
+			sessionStorage=${sessionStorage} endpoint=${endpoint} endpointAPI=${endpointAPI} endpointAPIKey=${endpointAPIKey} isMikupadEndpoint=${isMikupadEndpoint}
+			cancel=${cancel}/>
+		
+		<!-- You haven't seen shit yet -->
+		<${InstructModal}
+			isOpen=${modalState.instruct}
+			closeModal=${() => closeModal("instruct")}
+			templateList=${templateList}
+			selectedTemplate=${selectedTemplate}
+			setSelectedTemplate=${setSelectedTemplate}
+			handleInstructTemplateChange=${handleInstructTemplateChange}
+			handleInstructTemplateDelete=${handleInstructTemplateDelete}
+			getArrObjByName=${getArrObjByName}
 			sessionStorage=${sessionStorage} endpoint=${endpoint} endpointAPI=${endpointAPI} endpointAPIKey=${endpointAPIKey} isMikupadEndpoint=${isMikupadEndpoint}
 			cancel=${cancel}/>
 
