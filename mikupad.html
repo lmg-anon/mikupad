@@ -3387,6 +3387,52 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 		setMemoryTokens((prevMemoryTokens) => ({ ...prevMemoryTokens, [key]: value }));
 	}
 
+
+
+	const insertTemplate = (sysInst) => {
+		// most of this function is shamelessly stolen from culturedniichan's deleted pull
+		// request for a similar implementation of instruct templates:
+		// https://github.com/lmg-anon/mikupad/pull/31
+
+		const [prefix,suffix] = sysInst == "sys"
+		? [templates[selectedTemplate]?.sysPre  || "", templates[selectedTemplate]?.sysSuf  || ""]
+		: [templates[selectedTemplate]?.instPre || "", templates[selectedTemplate]?.instSuf || ""];
+		if (!(prefix || suffix))
+			return;
+
+		console.log([prefix,suffix])
+
+		const elem = promptArea.current;
+		if (!elem)
+			return;
+
+		const startPos = elem.selectionStart;
+		const endPos = elem.selectionEnd;
+		const textBefore = elem.value.substring(0, startPos) || "";
+		const textAfter = elem.value.substring(endPos);
+		const selectedText = elem.value.substring(startPos, endPos);
+
+		const finalText = textBefore 
+						+ prefix.replace(/\\n/g,'\n')
+						+ selectedText 
+						+ suffix.replace(/\\n/g,'\n')
+						+ textAfter;
+
+		elem.value = finalText;
+
+		let newCursorPos;
+		if (selectedText.length === 0) {
+			newCursorPos = startPos + prefix.length;
+		} else {
+			newCursorPos = startPos 
+				+ prefix.length
+				+ selectedText.length 
+				+ suffix.length;
+		}
+		elem.setSelectionRange(0, 2);
+		onInput({ target: elem });
+	}
+
 	// re-selecting doesn't work properly when I move this inside the InstructModal
 	const updateTemplateList = useMemo(() => {
 		const index = templateList.findIndex(obj => obj.name === selectedTemplate)
@@ -4372,13 +4418,31 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 						value=${selectedTemplate}
 						onValueChange=${setSelectedTemplate}
 						options=${templateList}/>
-						<button
-							title="Edit Instruct Templates"
-							disabled=${!!cancel}
-							class="hbox-button"
-							onClick=${() => toggleModal("instruct")}>
-							Edit
-						</button>
+					<button
+						title="Edit Instruct Templates"
+						disabled=${!!cancel}
+						class="hbox-button"
+						onClick=${() => toggleModal("instruct")}>
+						Edit
+					</button>
+				</div>
+				<div class="hbox">
+					<button
+						style=${{ 'width':'unset' }}
+						title="Insert Instruct Template"
+						disabled=${!!cancel}
+						class="hbox-button"
+						onClick=${() => insertTemplate("inst")}>
+						Insert Instruct
+					</button>
+					<button
+						style=${{ 'width':'unset' }}
+						title="Insert System Prompt Template"
+						disabled=${!!cancel}
+						class="hbox-button"
+						onClick=${() => insertTemplate("sys")}>
+						Insert System
+					</button>
 				</div>
 				<${InputBox} label="Seed (-1 = random)" type="text" inputmode="numeric"
 					readOnly=${!!cancel} value=${seed} onValueChange=${setSeed}/>
