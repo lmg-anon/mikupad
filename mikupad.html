@@ -2610,6 +2610,7 @@ function InstructModal({ isOpen, closeModal, sessionStorage, updateTemplateDB, s
 				<${SelectBoxTemplate}
 					id="instructModalSelect"
 					label="Instruct Template"
+					disabled=${!!cancel}
 					value=${selectedTemplate}
 					onValueChange=${setSelectedTemplate}
 					options=${templateList}/>
@@ -4419,6 +4420,7 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 				<div className="buttons instructTemplateSidebar">
 					<${SelectBoxTemplate}
 						label="Instruct Template"
+						disabled=${!!cancel}
 						value=${selectedTemplate}
 						onValueChange=${setSelectedTemplate}
 						options=${templateList}/>
