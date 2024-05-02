@@ -3400,8 +3400,6 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 		if (!(prefix || suffix))
 			return;
 
-		console.log([prefix,suffix])
-
 		const elem = promptArea.current;
 		if (!elem)
 			return;
@@ -3563,7 +3561,7 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 		return assembledWorldInfo
 	}, [worldInfo]);
 
-	const modifiedPrompt = useMemo(() => {
+	const additionalContextPrompt = useMemo(() => {
 		// add world info to memory for easier assembly
 		memoryTokens["worldInfo"] = assembledWorldInfo;
 
@@ -3588,20 +3586,6 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 			"{memText}": memoryTokens.text,
 			"{memSuffix}": memoryTokens.text && memoryTokens.text !== "" || memoryTokens.worldInfo !== ""
 				? memoryTokens.suffix
-				: "",
-		}
-		const templateReplacements = {
-			"{inst}": templates[selectedTemplate]?.instPre && templates[selectedTemplate]?.instPre !== ""
-				? templates[selectedTemplate]?.instPre
-				: "",
-			"{/inst}": templates[selectedTemplate]?.instSuf && templates[selectedTemplate]?.instSuf !== ""
-				? templates[selectedTemplate]?.instSuf
-				: "",
-			"{sys}": templates[selectedTemplate]?.sysPre && templates[selectedTemplate]?.sysPre !== ""
-				? templates[selectedTemplate]?.sysPre
-				: "",
-			"{/sys}": templates[selectedTemplate]?.sysSuf && templates[selectedTemplate]?.sysSuf !== ""
-				? templates[selectedTemplate]?.sysSuf
 				: "",
 		}
 
@@ -3646,15 +3630,35 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 			});
 		}).filter(function (line) {
 			return line.trim() !== "";
-		}).join("\n")
+		}).join("\n").replace(/\\n/g, '\n');
+
+		return permContextPrompt;
+	}, [contextLength, promptText, memoryTokens, authorNoteTokens, authorNoteDepth, assembledWorldInfo, worldInfo.prefix, worldInfo.suffix]);
+
+	const modifiedPrompt = useMemo(() => {
+		const templateReplacements = {
+			"{inst}": templates[selectedTemplate]?.instPre && templates[selectedTemplate]?.instPre !== ""
+				? templates[selectedTemplate]?.instPre
+				: "",
+			"{/inst}": templates[selectedTemplate]?.instSuf && templates[selectedTemplate]?.instSuf !== ""
+				? templates[selectedTemplate]?.instSuf
+				: "",
+			"{sys}": templates[selectedTemplate]?.sysPre && templates[selectedTemplate]?.sysPre !== ""
+				? templates[selectedTemplate]?.sysPre
+				: "",
+			"{/sys}": templates[selectedTemplate]?.sysSuf && templates[selectedTemplate]?.sysSuf !== ""
+				? templates[selectedTemplate]?.sysSuf
+				: "",
+		}
+		const finalPrompt = additionalContextPrompt
 			.replace(/\{[^}]+\}/g, function (placeholder) {
 				return templateReplacements.hasOwnProperty(placeholder)
 					? templateReplacements[placeholder]
 					: placeholder;
 			}).replace(/\\n/g, '\n');
 
-		return permContextPrompt;
-	}, [contextLength, promptText, memoryTokens, authorNoteTokens, authorNoteDepth, assembledWorldInfo, worldInfo.prefix, worldInfo.suffix, templates, selectedTemplate]);
+		return finalPrompt;
+	}, [additionalContextPrompt, templates, selectedTemplate]);
 
 	async function predict(prompt = modifiedPrompt, chunkCount = promptChunks.length) {
 		if (cancel) {
