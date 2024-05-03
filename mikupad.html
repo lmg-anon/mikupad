@@ -2435,7 +2435,9 @@ function LogitBiasModal({ isOpen, closeModal, logitBias, setLogitBias, logitBias
 							onValueChange=${() => {} }
 							onInput=${(e) => {handleLogitBiasInput("string",e.target.value)} }
 							/>
-						<button disabled=${!!cancel} class="hbox-button" onClick=${() => logitBiasAdd(logitBiasInput.power,logitBiasInput.string)}>+</button>
+						<button disabled=${!!cancel} class="hbox-button" onClick=${() => logitBiasAdd(logitBiasInput.power,logitBiasInput.string)}>
+							+
+						</button>
 					</div>
 					${!!lastBiasError && html`
 						<div style=${{"margin":"8px auto"}} className="error-text">${lastBiasError}</div>`}
@@ -2471,8 +2473,7 @@ function LogitBiasModal({ isOpen, closeModal, logitBias, setLogitBias, logitBias
 											<button
 												disabled=${!!cancel}
 												class="hbox-button lb-modal-button lb-modal-button-add"
-												onClick=${() => logitBiasAdd(bias.power, bias.value, bias.valueBack)}
-												>
+												onClick=${() => logitBiasAdd(bias.power, bias.value, bias.valueBack)}>
 												+
 											</button>
 											<button
@@ -3206,6 +3207,12 @@ const defaultPresets = {
 			'sysSuf' : '',
 			'instPre': 'Instruct: ',
 			'instSuf': '\\nOutput: ',
+		},
+		'Command-R': {
+			'sysPre' : '<BOS_TOKEN><|START_OF_TURN_TOKEN|><|SYSTEM_TOKEN|>',
+			'sysSuf' : '<|END_OF_TURN_TOKEN|>',
+			'instPre': '<|START_OF_TURN_TOKEN|><|USER_TOKEN|>',
+			'instSuf': '<|END_OF_TURN_TOKEN|><|START_OF_TURN_TOKEN|><|CHATBOT_TOKEN|>',
 		},
 	},
 	scrollTop: 0
