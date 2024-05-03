@@ -3197,7 +3197,7 @@ const defaultPresets = {
 			'instSuf': '<|im_end|>\\n<|im_start|>assistant\\n',
 		},
 		'Llama 3': {
-			'sysPre' : '<|begin_of_text|><|start_header_id|>system<|end_header_id|>\\n\\n',
+			'sysPre' : '<|start_header_id|>system<|end_header_id|>\\n\\n',
 			'sysSuf' : '<|eot_id|>',
 			'instPre': '<|start_header_id|>user<|end_header_id|>\\n\\n',
 			'instSuf': '<|eot_id|><|start_header_id|>assistant<|end_header_id|>\\n\\n',
@@ -3209,7 +3209,7 @@ const defaultPresets = {
 			'instSuf': '\\nOutput: ',
 		},
 		'Command-R': {
-			'sysPre' : '<BOS_TOKEN><|START_OF_TURN_TOKEN|><|SYSTEM_TOKEN|>',
+			'sysPre' : '<|START_OF_TURN_TOKEN|><|SYSTEM_TOKEN|>',
 			'sysSuf' : '<|END_OF_TURN_TOKEN|>',
 			'instPre': '<|START_OF_TURN_TOKEN|><|USER_TOKEN|>',
 			'instSuf': '<|END_OF_TURN_TOKEN|><|START_OF_TURN_TOKEN|><|CHATBOT_TOKEN|>',
