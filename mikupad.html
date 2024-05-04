@@ -3214,6 +3214,24 @@ const defaultPresets = {
 			'instPre': '<|START_OF_TURN_TOKEN|><|USER_TOKEN|>',
 			'instSuf': '<|END_OF_TURN_TOKEN|><|START_OF_TURN_TOKEN|><|CHATBOT_TOKEN|>',
 		},
+		'Metharme': {
+			'sysPre' : '<|system|>',
+			'sysSuf' : '',
+			'instPre': '<|user|>',
+			'instSuf': '<|model|>',
+		},
+		'Vicuna': {
+			'sysPre' : '',
+			'sysSuf' : '\n\n',
+			'instPre': 'USER: ',
+			'instSuf': '\nASSISTANT: ',
+		},
+		'Gemma': {
+			'sysPre' : '',
+			'sysSuf' : '',
+			'instPre': '<start_of_turn>user\n',
+			'instSuf': '\n<end_of_turn><start_of_turn>model\n',
+		},
 	},
 	scrollTop: 0
 };
