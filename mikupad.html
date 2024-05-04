@@ -1024,7 +1024,9 @@ function normalizeEndpoint(endpoint) {
 	
 	let urlString = url.toString();
 	urlString = urlString.replace(/\/v1\/?$/, ""); // remove "/v1" from the end of the string
-	urlString = urlString.replace(/\/api\/?$/, ""); // remove "/api" from the end of the string
+	if (!urlString.match(/^https:\/\/openrouter.ai/)) {
+		urlString = urlString.replace(/\/api\/?$/, ""); // remove "/api" from the end of the string
+	}
 	urlString = urlString.replace(/\/$/, ""); // remove "/" from the end of the string
 	
 	return urlString;
