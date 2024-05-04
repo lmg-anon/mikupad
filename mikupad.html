@@ -831,7 +831,7 @@ button.completing {
 	width: 100%;
 }
 .instructTemplateSidebar > .hbox-button {
-	width: min-content;
+	min-width: max-content;
 }
 
 .collapsible-group {
@@ -2553,7 +2553,15 @@ function InstructModal({ isOpen, closeModal, sessionStorage, updateTemplateDB, s
 	const exportTemplates = () => {
 		exportText(`instruct_templates.json`, JSON.stringify(templates));
 	};
-	const importTemplates = async () => {
+	const importTemplates = async (importDefaults=false) => {
+		if (importDefaults) {
+			if (!window.confirm("This will add all default templates, and overwrite any changes you made to the default templates. This action cannot be undone. Do you wish to continue?"))
+				return;
+			await sessionStorage.saveTemplates(defaultPresets.instructTemplates,true)
+			window.location.reload()
+			// a little dirty, but updateTemplateList isn't cooperating
+			return
+		}
 		const fileInput = document.createElement("input");
 		fileInput.type = 'file';
 		fileInput.style.display = 'none';
@@ -2642,6 +2650,13 @@ function InstructModal({ isOpen, closeModal, sessionStorage, updateTemplateDB, s
 						class="hbox-button"
 						onClick=${() => exportTemplates()}>
 						Export
+					</button>
+					<button
+						title="Re-add defaults"
+						disabled=${!!cancel}
+						class="hbox-button"
+						onClick=${() => importTemplates(true)}>
+						Add Defaults
 					</button>
 			</div>
 			<hr/>
@@ -3222,15 +3237,15 @@ const defaultPresets = {
 		},
 		'Vicuna': {
 			'sysPre' : '',
-			'sysSuf' : '\n\n',
+			'sysSuf' : '\\n\\n',
 			'instPre': 'USER: ',
-			'instSuf': '\nASSISTANT: ',
+			'instSuf': '\\nASSISTANT: ',
 		},
 		'Gemma': {
 			'sysPre' : '',
 			'sysSuf' : '',
-			'instPre': '<start_of_turn>user\n',
-			'instSuf': '\n<end_of_turn><start_of_turn>model\n',
+			'instPre': '<start_of_turn>user\\n',
+			'instSuf': '\\n<end_of_turn><start_of_turn>model\\n',
 		},
 	},
 	scrollTop: 0
