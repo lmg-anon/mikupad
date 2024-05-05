@@ -483,11 +483,16 @@ html.nockoffAI .wi-entry-name input {
 }
 
 .symbol-button {
+	position: relative;
 	margin-top: auto;
-	display: flex;
-	justify-content: center;
-	width: 1.625rem;
+	width: 2.182rem;
 	height: 1.625rem;
+}
+.symbol-button > svg {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
 } 
 
 /* logit bias */
@@ -4477,21 +4482,21 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 						disabled=${!!cancel}
 						class="symbol-button"
 						onClick=${() => toggleModal("instruct")}>
-						<svg xmlns="http://www.w3.org/2000/svg" width="12" height="-12" viewBox="-1 -5 8 7"><path d="M0 0 3-3C3-4 3-5 5-5L4-4 5-3 6-4C6-2 5-2 4-2L1 1C0 2-1 1 0 0" fill="var(--color-light)"/></svg>
+						<svg style=${{ 'width':'1em' }} xmlns="http://www.w3.org/2000/svg"  viewBox="-1 -5 8 7"><path d="M0 0 3-3C3-4 3-5 5-5L4-4 5-3 6-4C6-2 5-2 4-2L1 1C0 2-1 1 0 0" fill="var(--color-light)"/></svg>
 					</button>
 					<button
 						title="Insert System Prompt Template"
 						disabled=${!!cancel}
 						class="symbol-button"
 						onClick=${() => insertTemplate("sys")}>
-						<svg xmlns="http://www.w3.org/2000/svg" width="12" height="-12" viewBox="0 -10 10 10"><path d="M 0 -2 L 1 -1 L 5 -5 L 1 -9 L 0 -8 L 3 -5 L 0 -2 M 4 -1 L 10 -1 L 10 -2.4 L 4 -2.4" fill="var(--color-light)"/></svg>
+						<svg style=${{ 'width':'1em' }} xmlns="http://www.w3.org/2000/svg"  viewBox="0 -10 10 10"><path d="M 0 -2 L 1 -1 L 5 -5 L 1 -9 L 0 -8 L 3 -5 L 0 -2 M 4 -1 L 10 -1 L 10 -2.4 L 4 -2.4" fill="var(--color-light)"/></svg>
 					</button>
 					<button
 						title="Insert Instruct Template"
 						disabled=${!!cancel}
 						class="symbol-button"
 						onClick=${() => insertTemplate("inst")}>
-						<svg xmlns="http://www.w3.org/2000/svg" width="10" height="15" viewBox="0 -10 5 10"><path d="M 2.5 -6 A 0.75 0.75 90 0 0 3.25 -6.75 A 0.75 0.75 90 0 0 2.5 -7.5 A 0.75 0.75 90 0 0 1.75 -6.75 A 0.75 0.75 90 0 0 2.5 -6 M 1 0 L 4 0 L 4 -1 L 3 -1 L 3 -5 L 1 -5 L 1 -4 L 2 -4 L 2 -1 L 1 -1 Z" fill="var(--color-light)"/></svg>
+						<svg style=${{ 'height':'1.2em','transform':'translate(-50%, -60%)' }} xmlns="http://www.w3.org/2000/svg"  viewBox="0 -10 5 10"><path d="M 2.5 -6 A 0.75 0.75 90 0 0 3.25 -6.75 A 0.75 0.75 90 0 0 2.5 -7.5 A 0.75 0.75 90 0 0 1.75 -6.75 A 0.75 0.75 90 0 0 2.5 -6 M 1 0 L 4 0 L 4 -1 L 3 -1 L 3 -5 L 1 -5 L 1 -4 L 2 -4 L 2 -1 L 1 -1 Z" fill="var(--color-light)"/></svg>
 					</button>
 				</div>
 				<${InputBox} label="Seed (-1 = random)" type="text" inputmode="numeric"
