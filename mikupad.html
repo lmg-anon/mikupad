@@ -3212,7 +3212,7 @@ const defaultPresets = {
 			'instPre': '### Instruction:\\n',
 			'instSuf': '\\n\\n### Response:',
 		},
-		'Mixtral': {
+		'Mistral': {
 			'sysPre' : '<<SYS>>\\n',
 			'sysSuf' : '<</SYS>>\\n\\n',
 			'instPre': '[INST]',
@@ -3230,11 +3230,17 @@ const defaultPresets = {
 			'instPre': '<|start_header_id|>user<|end_header_id|>\\n\\n',
 			'instSuf': '<|eot_id|><|start_header_id|>assistant<|end_header_id|>\\n\\n',
 		},
-		'Phi': {
+		'Phi 2': {
 			'sysPre' : '',
 			'sysSuf' : '',
 			'instPre': 'Instruct: ',
 			'instSuf': '\\nOutput: ',
+		},
+		'Phi 3': {
+			'sysPre' : '<|system|>\\n',
+			'sysSuf' : '<|end|>\\n',
+			'instPre': '<|user|>\\n',
+			'instSuf': '<|end|>\\n<|assistant|>\\n',
 		},
 		'Command-R': {
 			'sysPre' : '<|START_OF_TURN_TOKEN|><|SYSTEM_TOKEN|>',
