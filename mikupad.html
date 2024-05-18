@@ -504,7 +504,7 @@ html.nockoffAI .wi-entry-name input {
 }
 .logitBiasPower-sidebar {
 	width:10ch !important;
-} 
+}
 
 
 .overflow-container {
@@ -527,27 +527,27 @@ html.nockoffAI .wi-entry-name input {
 	grid-template-columns: 4em 1fr min-content;
 	grid-template-rows: min-content min-content min-content;
 	gap: 1px 8px;
-	grid-template-areas: 
+	grid-template-areas:
 		"power input add"
 		". tokens remove"
-		"hr hr hr"; 
+		"hr hr hr";
 	padding: 1px;
 }
 .lb-modal-power {
 	grid-area: power;
 	text-align: center;
 }
-.lb-modal-input { 
+.lb-modal-input {
 	grid-area: input;
 	text-align: left;
 }
-.lb-modal-button.lb-modal-button-add { 
+.lb-modal-button.lb-modal-button-add {
 	grid-area: add;
 }
-.lb-modal-button.lb-modal-button-remove { 
+.lb-modal-button.lb-modal-button-remove {
 	grid-area: remove;
 }
-.lb-modal-tokenized { 
+.lb-modal-tokenized {
 	grid-area: tokens;
 	font-family: monospace;
 	font-size:0.7rem;
@@ -1021,12 +1021,12 @@ function exportText(filename, text) {
 function normalizeEndpoint(endpoint) {
 	const url = new URL(endpoint.trim());
 	url.pathname = url.pathname.replace(/\/+/g, "/"); // normalize consecutive slashes
-	
+
 	let urlString = url.toString();
 	urlString = urlString.replace(/\/v1\/?$/, ""); // remove "/v1" from the end of the string
 	urlString = urlString.replace(/\/api\/?$/, ""); // remove "/api" from the end of the string
 	urlString = urlString.replace(/\/$/, ""); // remove "/" from the end of the string
-	
+
 	return urlString;
 }
 
@@ -1277,7 +1277,7 @@ async function koboldCppTokenize({ endpoint, proxyEndpoint, signal, ...options }
 	const { ids } = await res.json();
 	ids.shift() // kobold automatically adds a token, so we need to remove it
 	return {ids:ids,str:""};
-	
+
 }
 
 function koboldCppConvertOptions(options) {
@@ -1433,7 +1433,7 @@ async function openaiTokenize({ endpoint, endpointAPIKey, proxyEndpoint, signal,
 			strings.push(string);
 		};
 		return {ids:tokens,str:strings};
-		
+
 	} catch (e) {
 		reportError(e);
 		return -1;
@@ -2151,7 +2151,7 @@ function LogitBiasModal({ isOpen, closeModal, logitBias, setLogitBias, logitBias
 	const [logitBiasTemp, setLogitBiasTemp] = useState([]);
 	const [logitBiasSorted, setLogitBiasSorted] = useState([]);
 	const [logitBiasInput, setLogitBiasInput] = useState({power:"0",string:""});
-	
+
 	const handleLogitBiasInput = (key,value) => {
 		setLogitBiasInput((prevLogitBiasInput) => {
 			return {
@@ -2167,16 +2167,16 @@ function LogitBiasModal({ isOpen, closeModal, logitBias, setLogitBias, logitBias
 		if(!biasString) {
 			return;
 		}
-		if (isNaN(+biasPower) || biasPower == "") { 
+		if (isNaN(+biasPower) || biasPower == "") {
 			setLastBiasError("Error: Bias must be a number");
 			return;
 		}
 		biasPower = Number(biasPower);
 
 		const modBias = logitBias.bias;
-		
+
 		// delete entry if power 0 or empty
-		if (biasPower == 0) {	
+		if (biasPower == 0) {
 			if (!logitBias.bias[biasString]) {
 				setLastBiasError("Error: Bias 0 = no Bias");
 				return;
@@ -2184,7 +2184,7 @@ function LogitBiasModal({ isOpen, closeModal, logitBias, setLogitBias, logitBias
 			console.log("delete",biasString);
 			setLogitBias((prevLogitBias) => {
 				delete modBias[biasString];
-				return { 
+				return {
 					...prevLogitBias,
 					bias: {
 						...modBias
@@ -2212,16 +2212,16 @@ function LogitBiasModal({ isOpen, closeModal, logitBias, setLogitBias, logitBias
 			}
 			// else process like normal
 			else {
-				// KNOWN ISSUE: some models automatically prepend a space to any tokenization 
-				// input. to work around this, I'm prepending the input with a "!==", then 
+				// KNOWN ISSUE: some models automatically prepend a space to any tokenization
+				// input. to work around this, I'm prepending the input with a "!==", then
 				// slicing the output array by the number of tokens of "!==".
 				// This could cause issues when trying to bias a token starting with ? where
-				// ? is any character that forms a single token together with " !==", like 
+				// ? is any character that forms a single token together with " !==", like
 				// this: " !==?" I've chosen "!==" because it seems to be a very conserved
 				// token between models.
 				//
-				// Now granted, I have not found any strings where this is actually an issue in 
-				// the tokenizers of the models I use, but this is still a huge hackjob of a 
+				// Now granted, I have not found any strings where this is actually an issue in
+				// the tokenizers of the models I use, but this is still a huge hackjob of a
 				// workaround. If anyone can think of a better solution, please let me know.
 				tokens = await getTokens({
 					endpoint,
@@ -2348,7 +2348,7 @@ function LogitBiasModal({ isOpen, closeModal, logitBias, setLogitBias, logitBias
 		setLogitBiasTemp((prevLogitBiasTemp) => {
 			const rest = { ...prevLogitBiasTemp };
 			const updatedTemp = [ ...prevLogitBiasTemp[posneg] ];
-			 
+
 			updatedTemp[index] = {
 				...updatedTemp[index],
 				[key]: value,
@@ -2387,7 +2387,7 @@ function LogitBiasModal({ isOpen, closeModal, logitBias, setLogitBias, logitBias
 			You can bias IDs directly in a comma separated list, wrapped in '/'. Example: /382,1449,1802/
 
 			Different models might tokenize words differently. Always Re-Tokenize your biases when switching models by pressing the '+' button again for every entry.">
-			${isOpen 
+			${isOpen
 				&& html`
 					<div className="hbox-flex logitBiasContainer">
 						<div class="small-inputBox">
@@ -2395,7 +2395,7 @@ function LogitBiasModal({ isOpen, closeModal, logitBias, setLogitBias, logitBias
 								type="enumber"  max=100 min=-100 step=1
 								readOnly=${!!cancel}
 								onValueChange=${(value) => { handleLogitBiasInput("power",value)} }
-								value=${logitBiasInput.power} 
+								value=${logitBiasInput.power}
 								id="logitBiasPower"/>
 						</div>
 						<${InputBox} label="Token" type="text"
@@ -2436,8 +2436,8 @@ function LogitBiasModal({ isOpen, closeModal, logitBias, setLogitBias, logitBias
 											<div class="lb-modal-tokenized">
 												${endpointAPI == 0 && bias.strings != ""
 													? "["+bias.strings.join("|")+"] "
-													: "["+bias.tokens+"]" } 
-												
+													: "["+bias.tokens+"]" }
+
 											</div>
 											<button
 												disabled=${!!cancel}
@@ -2792,7 +2792,7 @@ class WebSessionStorage extends SessionStorage {
 				reject(res.status);
 				return;
 			}
-			
+
 			// Select another session if the current was deleted
 			if (sessionId == this.selectedSession) {
 				const sessionIds = Object.keys(this.sessions).map(x => +x);
@@ -2856,7 +2856,9 @@ const defaultPresets = {
 		"suffix": ""
 	}),
 	logitBias:{ bias:{},model:"none" },
-	scrollTop: 0
+	scrollTop: 0,
+	userEndString: '',
+	botEndString: ''
 };
 
 function joinPrompt(prompt) {
@@ -2997,6 +2999,8 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 	const [authorNoteTokens, setAuthorNoteTokens] = useSessionState('authorNoteTokens', defaultPresets.authorNoteTokens);
 	const [authorNoteDepth, setAuthorNoteDepth] = useSessionState('authorNoteDepth', defaultPresets.authorNoteDepth);
 	const [worldInfo, setWorldInfo] = useSessionState('worldInfo', defaultPresets.worldInfo);
+	const [botEndString, setBotEndString] = useSessionState('botEndString', defaultPresets.botEndString);
+	const [userEndString, setUserEndString] = useSessionState('userEndString', defaultPresets.userEndString);
 
 	// AN and Memory
 	function handleauthorNoteTokensChange(key,value) {
@@ -3005,7 +3009,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 	function handleMemoryTokensChange(key,value) {
 		setMemoryTokens((prevMemoryTokens) => ({ ...prevMemoryTokens, [key]: value }));
 	}
-	
+
 	const toggleModal = (modalKey) => {
 		setModalState((prevState) => ({
 			...prevState,
@@ -3137,6 +3141,144 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 		return permContextPrompt;
 	}, [contextLength, promptText, memoryTokens, authorNoteTokens, authorNoteDepth, assembledWorldInfo, worldInfo.prefix, worldInfo.suffix]);
 
+	async function chat(prompt = modifiedPrompt, chunkCount = promptChunks.length) {
+		if (cancel) {
+			cancel?.();
+
+			// llama.cpp server sometimes generates gibberish if we stop and
+			// restart right away (???)
+			let cancelled = false;
+			setCancel(() => () => cancelled = true);
+			await new Promise(resolve => setTimeout(resolve, 500));
+			if (cancelled)
+				return;
+		}
+
+		const ac = new AbortController();
+		const cancelThis = () => {
+			abortCompletion({
+				endpoint,
+				endpointAPI,
+				...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {})
+			});
+			ac.abort();
+		};
+		setCancel(() => cancelThis);
+		setLastError(undefined);
+
+		try {
+			// sometimes "getTokenCount" can take a while because the server is busy
+			// so let's set the predictStartTokens beforehand.
+			setPredictStartTokens(tokens);
+
+		// Append the userEndString to the prompt if it has a value
+		const processedUserEndString = userEndString.replace(/\\n/g, '\n');
+		if (processedUserEndString && processedUserEndString.trim() !== "") {
+			// Update the main text box content
+			setPromptChunks(p => [...p, { content: processedUserEndString }]);
+			// Append userEndString to the prompt
+			prompt += ` ${processedUserEndString}`;
+		}
+
+			const tokenCount = await getTokenCount({
+				endpoint,
+				endpointAPI,
+				...(endpointAPI == 3 || endpointAPI == 0 ? { endpointAPIKey } : {}),
+				content: ` ${prompt}`,
+				signal: ac.signal,
+				...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {})
+			});
+			setTokens(tokenCount);
+			setPredictStartTokens(tokenCount);
+
+			while (undoStack.current.at(-1) >= chunkCount)
+				undoStack.current.pop();
+			undoStack.current.push(chunkCount);
+			redoStack.current = [];
+			setUndoHovered(false);
+			setRejectedAPIKey(false);
+			promptArea.current.scrollTarget = undefined;
+			useScrollSmoothing.current = true;
+
+			for await (const chunk of completion({
+				endpoint,
+				endpointAPI,
+				...(endpointAPI == 3 || endpointAPI == 0 ? {
+					endpointAPIKey,
+					model: endpointModel
+				} : {}),
+				prompt,
+				...(seed != -1 ? { seed } : {}),
+				temperature,
+				...(!openaiPresets || endpointAPI != 3 ? {
+					dynatemp_range: dynaTempRange,
+					dynatemp_exponent: dynaTempExp,
+					repeat_penalty: repeatPenalty,
+					repeat_last_n: repeatLastN,
+					penalize_nl: penalizeNl,
+					ignore_eos: ignoreEos,
+				} : {}),
+				...(Object.keys(logitBias.bias).length > 0 && endpointAPI != 3 ? {
+					logit_bias: logitBiasParam,
+				} : {}),
+				presence_penalty: presencePenalty,
+				frequency_penalty: frequencyPenalty,
+				...((mirostat && (!openaiPresets || endpointAPI != 3)) ? {
+					mirostat,
+					mirostat_tau: mirostatTau,
+					mirostat_eta: mirostatEta,
+				} : {
+					top_p: topP,
+					...(!openaiPresets || endpointAPI != 3 ? {
+						top_k: topK,
+						typical_p: typicalP,
+						min_p: minP,
+						tfs_z: tfsZ
+					} : {})
+				}),
+				n_predict: maxPredictTokens,
+				n_probs: 10,
+				...(JSON.parse(stoppingStrings).length ? { stop: JSON.parse(stoppingStrings) } : {}),
+				signal: ac.signal,
+				...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {})
+			})) {
+				ac.signal.throwIfAborted();
+				if (chunk.stopping_word)
+					chunk.content = chunk.stopping_word;
+				if (!chunk.content)
+					continue;
+				setPromptChunks(p => [...p, chunk]);
+				setTokens(t => t + (chunk?.completion_probabilities?.length ?? 1));
+				chunkCount += 1;
+			}
+
+		// Append the "bot end string" if it has a value when the generation finishes
+		const processedBotEndString = botEndString.replace(/\\n/g, '\n');
+		if (processedBotEndString && processedBotEndString.trim() !== "") {
+			setPromptChunks(p => [...p, { content: processedBotEndString }]);
+		}
+
+		} catch (e) {
+			if (e.name !== 'AbortError') {
+				reportError(e);
+				const errStr = e.toString();
+				if ((endpointAPI == 3 || endpointAPI == 0) && errStr.includes("401")) {
+					setLastError("Error: Rejected API Key");
+					setRejectedAPIKey(true);
+				} else if (endpointAPI == 3 && errStr.includes("429")) {
+					setLastError("Error: Insufficient Quota");
+				} else {
+					setLastError(errStr);
+				}
+			}
+			return false;
+		} finally {
+			setCancel(c => c === cancelThis ? null : c);
+			if (undoStack.current.at(-1) === chunkCount)
+				undoStack.current.pop();
+		}
+	}
+
 	async function predict(prompt = modifiedPrompt, chunkCount = promptChunks.length) {
 		if (cancel) {
 			cancel?.();
@@ -3238,6 +3380,13 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 				setTokens(t => t + (chunk?.completion_probabilities?.length ?? 1));
 				chunkCount += 1;
 			}
+
+		// Append the "bot end string" if it has a value when the generation finishes
+		const processedBotEndString = botEndString.replace(/\\n/g, '\n');
+		if (processedBotEndString && processedBotEndString.trim() !== "") {
+			setPromptChunks(p => [...p, { content: processedBotEndString }]);
+		}
+
 		} catch (e) {
 			if (e.name !== 'AbortError') {
 				reportError(e);
@@ -3481,6 +3630,8 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 				return;
 			switch (`${altKey}:${ctrlKey}:${shiftKey}:${key}`) {
 			case 'false:false:true:Enter':
+				chat();
+				break;
 			case 'false:true:false:Enter':
 				predict();
 				break;
@@ -3576,7 +3727,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 					container.style.borderLeft = '2px dotted transparent';
 					break;
 			}
-			
+
 			if (!isDragging) return;
 
 			// reset selection
@@ -4035,6 +4186,13 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 				</button>
 
 			</${CollapsibleGroup}>
+			<${CollapsibleGroup} label="Formatting Strings" expanded>
+				<${InputBox} label="User End String" type="text"
+					readOnly=${!!cancel} value=${userEndString} onValueChange=${setUserEndString}/>
+				<${InputBox} label="Bot End String" type="text"
+					readOnly=${!!cancel} value=${botEndString} onValueChange=${setBotEndString}/>
+			</${CollapsibleGroup}>
+
 			${!!tokens && html`
 				<${InputBox} label="Tokens" value=${tokens} readOnly/>`}
 			<div className="buttons">
@@ -4078,6 +4236,15 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 						<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24"><path d="M6.974 22.957c-10.957-11.421 2.326-20.865 10.384-13.309l-2.464 2.352h9.106v-8.947l-2.232 2.229c-14.794-13.203-31.51 7.051-14.794 17.675z" fill="var(--color-light)"/></svg>
 					</button>
 				</div>
+			</div>
+			<div className="buttons">
+				<button
+					title="Run next chat (Shift + Enter)"
+					className=${cancel && !sessionEndpointConnecting ? (predictStartTokens === tokens ? 'processing' : 'completing') : ''}
+					disabled=${!!cancel || stoppingStringsError}
+					onClick=${() => chat()}>
+					Chat
+				</button>
 			</div>
 			${!!lastError && html`
 				<span className="error-text">${lastError}</span>`}
@@ -4178,7 +4345,7 @@ async function main() {
 			reportError(e);
 		}
 	}
-	
+
 	if (sessionStorage == null) {
 		sessionStorage = new SessionStorage();
 		await sessionStorage.init();
