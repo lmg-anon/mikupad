@@ -840,6 +840,12 @@ button.completing {
 	height: 100%;
 }
 
+.instructTemplatesImportExport{
+	width: fit-content;
+	margin: auto;
+	display: flex;
+	gap: 8px;
+}
 .instructTemplateSidebar > .SelectBox {
 	width: 100%;
 }
@@ -2533,13 +2539,12 @@ function InstructModal({ isOpen, closeModal, sessionStorage, updateTemplateDB, s
 			var newState = {
 				...prevState
 			}
-			newState[""] = {
+			newState["New Template"] = {
 				"sysPre": "",
 				"sysSuf": "",
 				"instPre": "",
 				"instSuf": "",
 			}
-			
 			return { ...newState }
 		})
 		setAddDeleteTemplate(true)
@@ -2628,6 +2633,26 @@ function InstructModal({ isOpen, closeModal, sessionStorage, updateTemplateDB, s
 				</table>
 			</div>
 			<hr/>
+			<div class="instructTemplatesImportExport">
+				<button
+					title="Import Instruct Templates"
+					disabled=${!!cancel}
+					onClick=${() => importTemplates()}>
+					Import
+				</button>
+				<button
+					title="Export Instruct Templates"
+					disabled=${!!cancel}
+					onClick=${() => exportTemplates()}>
+					Export
+				</button>
+				<button
+					title="Re-Add Default Instruct Templates"
+					disabled=${!!cancel}
+					onClick=${() => importTemplates(true)}>
+					Re-Add Defaults
+				</button>
+			</div>
 			<div className="buttons instructTemplateSidebar">
 				<${SelectBoxTemplate}
 					id="instructModalSelect"
@@ -2649,27 +2674,6 @@ function InstructModal({ isOpen, closeModal, sessionStorage, updateTemplateDB, s
 						class="hbox-button"
 						onClick=${() => handleInstructTemplateDelete(selectedTemplate)}>
 						Delete
-					</button>
-					<button
-						title="Import Instruct Templates"
-						disabled=${!!cancel}
-						class="hbox-button"
-						onClick=${() => importTemplates()}>
-						Import
-					</button>
-					<button
-						title="Export Instruct Template"
-						disabled=${!!cancel}
-						class="hbox-button"
-						onClick=${() => exportTemplates()}>
-						Export
-					</button>
-					<button
-						title="Re-add defaults"
-						disabled=${!!cancel}
-						class="hbox-button"
-						onClick=${() => importTemplates(true)}>
-						Add Defaults
 					</button>
 			</div>
 			<hr/>
@@ -3382,7 +3386,6 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 	const [addDeleteTemplate, setAddDeleteTemplate] = useState(false);
 	const [templatesImport, setTemplatesImport] = useState(false);
 	const [selectedTemplate, setSelectedTemplate] = usePersistentState('template', "Llama 3");
-	const [triggerTemplateDBUpdate, setTriggerTemplateDBUpdate] = useState(false);
 	const [templateList, setTemplateList] = useState([]);
 	const [currentPromptChunk, setCurrentPromptChunk] = useState(undefined);
 	const [undoHovered, setUndoHovered] = useState(false);
@@ -3518,7 +3521,7 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 	const templateReselect = useMemo(() => {
 		if (!addDeleteTemplate)
 			return
-		setSelectedTemplate("")
+		setSelectedTemplate("New Template")
 		setAddDeleteTemplate(false)
 
 	}, [addDeleteTemplate]);
@@ -3559,7 +3562,7 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 	}
 	const updateTemplateDBCaller = useMemo(() => {
 		updateTemplateDB()
-	}, [modalState["instruct"],triggerTemplateDBUpdate,selectedTemplate]);
+	}, [modalState["instruct"],selectedTemplate]);
 	
 
 	const toggleModal = (modalKey) => {
