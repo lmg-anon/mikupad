@@ -585,7 +585,6 @@ html.nockoffAI .wi-entry-name input {
 }
 
 #instructmodal-name {
-
 	size:110%;
 }
 .instructmodal-edits .hbox {
@@ -2608,7 +2607,8 @@ function InstructModal({ isOpen, closeModal, sessionStorage, updateTemplateDB, s
 		<${Modal} isOpen=${isOpen} onClose=${closeModal}
 			title="Instruct Templates"
 			description="Use placeholders to insert the selected prompt template formats when sending your prompt to the model.
-			Placeholders are listed below. You can insert newlines with '\\n'.">
+			Placeholders are listed below. You can insert newlines with '\\n'.
+			When Chat Mode is active, the 'Instruct Suffix' field of the current template will be added at the end of your prompt, before it is processed by the model. Similarly, the 'Instruct Prefix' field will be added at the end of the model's response.">
 			<div id="advancedContextPlaceholders">
 				<table border="1" frame="void" rules="all">
 					<thead>
