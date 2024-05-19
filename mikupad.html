@@ -3503,10 +3503,8 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 		const assembled = authorNoteTokens.text && authorNoteTokens.text !== ""
 			? order.map(key => authorNoteTokens[key]).join("")
 			: "";	
-		console.log(assembled)
 		if (assembled == "" || endpointAPI == 3) {
 			setAuthorNoteTokens((prevauthorNoteTokens) => ({ ...prevauthorNoteTokens, "tokens": 0 }))
-			console.log("TOKEN COUNT",0)
 			return
 		}
 		const ac = new AbortController();
@@ -3524,7 +3522,6 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 					...prevauthorNoteTokens,
 					"tokens": tokenCount - 1 
 				}));
-				console.log("TOKEN COUNT",tokenCount)
 			} catch (e) {
 				if (e.name !== 'AbortError'){
 					reportError(e);
@@ -3548,10 +3545,8 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 		const assembled = memoryTokens.text && memoryTokens.text !== ""
 			? order.map(key => memoryTokens[key]).join("")
 			: "";	
-		console.log(replacePlaceholders(assembled,templateReplacements))
 		if (assembled == "" || endpointAPI == 3){
 			setMemoryTokens((prevMemoryTokens) => ({ ...prevMemoryTokens, "tokens": 0 }));
-			console.log("TOKEN COUNT",0)
 			return
 		}
 
@@ -3570,7 +3565,6 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 					...prevMemoryTokens,
 					"tokens": tokenCount - 1 
 				}));
-				console.log("TOKEN COUNT",tokenCount)
 			} catch (e) {
 				if (e.name !== 'AbortError'){
 					reportError(e);
@@ -3591,7 +3585,6 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 			: "";
 		if (assembled == "" || endpointAPI == 3){
 			setMemoryTokens((prevMemoryTokens) => ({ ...prevMemoryTokens, "tokensWI": 0 }));
-			console.log("TOKEN COUNT",0)
 			return
 		}
 
@@ -3610,7 +3603,6 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 					...prevMemoryTokens,
 					"tokensWI": tokenCount - 1 
 				}));
-				console.log("TOKEN COUNT",tokenCount)
 			} catch (e) {
 				if (e.name !== 'AbortError'){
 					reportError(e);
@@ -3892,21 +3884,17 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 		if (endpointAPI == 3) // don't think ooba/openai has n_keep
 			return
 
-		console.log("in memo")
 		if (!persistentContext || nKeepTimeout) {
 			setNKeep(0)
 			return
 		}
 		const calc = (memoryTokens?.tokens||0) + (memoryTokens?.tokensWI||0)
-		console.log("calc",calc)
 		setNKeep(calc + 1)
 	}, [memoryTokens.tokens,memoryTokens.tokensWI,nKeepTimeout]);
 
 
 
 	const modifiedPrompt = useMemo(() => {
-		console.log(nKeep)
-		console.log([persistentContext,promptRemainder])
 		const finalPrompt = [persistentContext,promptRemainder].join("")
 
 		return finalPrompt;
