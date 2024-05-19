@@ -2727,6 +2727,15 @@ function InstructModal({ isOpen, closeModal, sessionStorage, updateTemplateDB, s
 						onInput=${e => handleInstructTemplateChange(selectedTemplate,"sysSuf",e.target.value)}
 						onValueChange=${() => {}}/>
 				</div>
+				<hr/>
+				<${InputBox} label="Bot End String (Chat Mode)"
+					placeholder="<|im_end|>"
+					className=""
+					tooltip=""
+					readOnly=${!!cancel}
+					value=${getArrObjByName(templateList,selectedTemplate)?.affixes.botEnd || ""}
+					onInput=${e => handleInstructTemplateChange(selectedTemplate,"botEnd",e.target.value)}
+					onValueChange=${() => {}}/>
 			</div>
 
 
@@ -3210,8 +3219,8 @@ const defaultPresets = {
 	instructTemplates:{
 		'Alpaca': {
 			'sysPre' : '### System:\\n',
-			'sysSuf' : '\\n\\n',
-			'instPre': '### Instruction:\\n',
+			'sysSuf' : '',
+			'instPre': '\\n\\n### Instruction:\\n',
 			'instSuf': '\\n\\n### Response:',
 		},
 		'Mistral': {
@@ -3222,32 +3231,32 @@ const defaultPresets = {
 		},
 		'ChatML': {
 			'sysPre' : '<|im_start|>system\\n',
-			'sysSuf' : '<|im_end|>\\n',
-			'instPre': '<|im_start|>user\\n',
+			'sysSuf' : '',
+			'instPre': '<|im_end|>\\n<|im_start|>user\\n',
 			'instSuf': '<|im_end|>\\n<|im_start|>assistant\\n',
 		},
 		'Llama 3': {
 			'sysPre' : '<|start_header_id|>system<|end_header_id|>\\n\\n',
-			'sysSuf' : '<|eot_id|>',
-			'instPre': '<|start_header_id|>user<|end_header_id|>\\n\\n',
+			'sysSuf' : '',
+			'instPre': '<|eot_id|><|start_header_id|>user<|end_header_id|>\\n\\n',
 			'instSuf': '<|eot_id|><|start_header_id|>assistant<|end_header_id|>\\n\\n',
 		},
 		'Phi 2': {
 			'sysPre' : '',
 			'sysSuf' : '',
-			'instPre': 'Instruct: ',
+			'instPre': '\\nInstruct: ',
 			'instSuf': '\\nOutput: ',
 		},
 		'Phi 3': {
 			'sysPre' : '<|system|>\\n',
-			'sysSuf' : '<|end|>\\n',
-			'instPre': '<|user|>\\n',
+			'sysSuf' : '',
+			'instPre': '<|end|>\\n<|user|>\\n',
 			'instSuf': '<|end|>\\n<|assistant|>\\n',
 		},
 		'Command-R': {
 			'sysPre' : '<|START_OF_TURN_TOKEN|><|SYSTEM_TOKEN|>',
-			'sysSuf' : '<|END_OF_TURN_TOKEN|>',
-			'instPre': '<|START_OF_TURN_TOKEN|><|USER_TOKEN|>',
+			'sysSuf' : '',
+			'instPre': '<|END_OF_TURN_TOKEN|><|START_OF_TURN_TOKEN|><|USER_TOKEN|>',
 			'instSuf': '<|END_OF_TURN_TOKEN|><|START_OF_TURN_TOKEN|><|CHATBOT_TOKEN|>',
 		},
 		'Metharme': {
@@ -3259,13 +3268,13 @@ const defaultPresets = {
 		'Vicuna': {
 			'sysPre' : '',
 			'sysSuf' : '\\n\\n',
-			'instPre': 'USER: ',
+			'instPre': '\\nUSER: ',
 			'instSuf': '\\nASSISTANT: ',
 		},
 		'Gemma': {
 			'sysPre' : '',
 			'sysSuf' : '',
-			'instPre': '<start_of_turn>user\\n',
+			'instPre': '\\n<end_of_turn><start_of_turn>user\\n',
 			'instSuf': '\\n<end_of_turn><start_of_turn>model\\n',
 		},
 	},
@@ -3384,6 +3393,7 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 	const [addDeleteTemplate, setAddDeleteTemplate] = useState(false);
 	const [templatesImport, setTemplatesImport] = useState(false);
 	const [selectedTemplate, setSelectedTemplate] = usePersistentState('template', "Llama 3");
+	const [chatMode, setChatMode] = usePersistentState('chatMode', false);
 	const [templateList, setTemplateList] = useState([]);
 	const [currentPromptChunk, setCurrentPromptChunk] = useState(undefined);
 	const [undoHovered, setUndoHovered] = useState(false);
@@ -3762,6 +3772,14 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 			setTokens(tokenCount);
 			setPredictStartTokens(tokenCount);
 
+			// Chat Mode
+			if (chatMode) {
+				// add user EOT template (instruct suffix)
+				const eotUser = templates[selectedTemplate]?.instSuf.replace(/\\n/g, '\n')
+				setPromptChunks(p => [...p, { type: 'user', content: eotUser }])
+				prompt += `${eotUser}`
+			}
+
 			while (undoStack.current.at(-1) >= chunkCount)
 				undoStack.current.pop();
 			undoStack.current.push(chunkCount);
@@ -3840,6 +3858,13 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 			setCancel(c => c === cancelThis ? null : c);
 			if (undoStack.current.at(-1) === chunkCount)
 				undoStack.current.pop();
+		}
+		// Chat Mode
+		if (chatMode) {
+			// add bot EOT template (instruct prefix)
+			const eotBot = templates[selectedTemplate]?.instPre.replace(/\\n/g, '\n')
+			setPromptChunks(p => [...p, { type: 'user', content: eotBot }])
+			prompt += `${eotBot}`
 		}
 	}
 
@@ -3975,7 +4000,8 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 			const oldHeight = elem.scrollHeight;
 			const atBottom = (elem.scrollTarget ?? elem.scrollTop) + elem.clientHeight + 1 > oldHeight;
 			const oldLen = elem.value.length;
-			if (!isTextSelected && !preserveCursorPosition) {
+			// disable preserveCursorPosition in chatMode
+			if ( (!isTextSelected && !preserveCursorPosition) || chatMode) {
 				elem.value = promptText;
 			} else {
 				elem.setRangeText(promptText.slice(oldLen), oldLen, oldLen, 'preserve');
@@ -4505,6 +4531,16 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 						onClick=${() => insertTemplate("inst")}>
 						<svg style=${{ 'height':'1.05em','transform':'translate(-50%, -60%)' }} xmlns="http://www.w3.org/2000/svg"  viewBox="0 -10 5 10"><path d="M 2.5 -6 A 0.75 0.75 90 0 0 3.25 -6.75 A 0.75 0.75 90 0 0 2.5 -7.5 A 0.75 0.75 90 0 0 1.75 -6.75 A 0.75 0.75 90 0 0 2.5 -6 M 1 0 L 4 0 L 4 -1 L 3 -1 L 3 -5 L 1 -5 L 1 -4 L 2 -4 L 2 -1 L 1 -1 Z" fill="var(--color-light)"/></svg>
 					</button>
+					<button
+						title="Toggle Chat Mode ${ chatMode ? "Off" : "On"}"
+						disabled=${!!cancel}
+						class="symbol-button"
+						onClick=${() => setChatMode( (prevState) => !prevState)}>
+						${ chatMode ? 
+						  html`<svg style=${{ 'width':'.9em' }} xmlns="http://www.w3.org/2000/svg"  viewBox="0 0 10 10"><path d="M 2 10 L 2 7 Q 0 7 0 5 L 0 2 Q 0 0 2 0 L 8 0 Q 10 0 10 2 Q 10 2 10 3 L 10 5 Q 10 7 8 7 L 6 7 Z" fill="var(--color-light)"/></svg>`
+						: html`<svg style=${{ 'width':'.9em' }} xmlns="http://www.w3.org/2000/svg"  viewBox="0 0 31 31"><path d="M 0 32 L 3 23 L 26 0 L 32 6 L 9 29 Z M 22 4 L 28 10 L 29 9 L 23 3 M 3 23 L 9 29 L 10 28 L 4 22 Z" fill="var(--color-light)"/></svg>`
+						}
+					</button>
 				</div>
 				<${InputBox} label="Seed (-1 = random)" type="text" inputmode="numeric"
 					readOnly=${!!cancel} value=${seed} onValueChange=${setSeed}/>
@@ -4705,7 +4741,7 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 				value=${attachSidebar} onValueChange=${setAttachSidebar}/>
 			<${Checkbox} label="Highlight generated tokens"
 				value=${highlightGenTokens} onValueChange=${setHighlightGenTokens}/>
-			<${Checkbox} label="Preserve cursor position after prediction"
+			<${Checkbox} label="Preserve cursor position after prediction (disabled in Chat Mode)"
 				value=${preserveCursorPosition} onValueChange=${setPreserveCursorPosition}/>
 			<${SelectBox}
 				label="Token probabilities"
