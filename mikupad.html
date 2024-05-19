@@ -2727,15 +2727,6 @@ function InstructModal({ isOpen, closeModal, sessionStorage, updateTemplateDB, s
 						onInput=${e => handleInstructTemplateChange(selectedTemplate,"sysSuf",e.target.value)}
 						onValueChange=${() => {}}/>
 				</div>
-				<hr/>
-				<${InputBox} label="Bot End String (Chat Mode)"
-					placeholder="<|im_end|>"
-					className=""
-					tooltip=""
-					readOnly=${!!cancel}
-					value=${getArrObjByName(templateList,selectedTemplate)?.affixes.botEnd || ""}
-					onInput=${e => handleInstructTemplateChange(selectedTemplate,"botEnd",e.target.value)}
-					onValueChange=${() => {}}/>
 			</div>
 
 
