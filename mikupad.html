@@ -585,7 +585,7 @@ html.nockoffAI .wi-entry-name input {
 }
 
 #instructmodal-name {
-	
+
 	size:110%;
 }
 .instructmodal-edits .hbox {
@@ -854,6 +854,12 @@ button.completing {
 	height: 100%;
 }
 
+.instructTemplatesImportExport{
+	width: fit-content;
+	margin: auto;
+	display: flex;
+	gap: 8px;
+}
 .instructTemplateSidebar > .SelectBox {
 	width: 100%;
 }
@@ -1063,12 +1069,12 @@ function exportText(filename, text) {
 function normalizeEndpoint(endpoint) {
 	const url = new URL(endpoint.trim());
 	url.pathname = url.pathname.replace(/\/+/g, "/"); // normalize consecutive slashes
-	
+
 	let urlString = url.toString();
 	urlString = urlString.replace(/\/v1\/?$/, ""); // remove "/v1" from the end of the string
 	urlString = urlString.replace(/\/api\/?$/, ""); // remove "/api" from the end of the string
 	urlString = urlString.replace(/\/$/, ""); // remove "/" from the end of the string
-	
+
 	return urlString;
 }
 
@@ -1319,7 +1325,7 @@ async function koboldCppTokenize({ endpoint, proxyEndpoint, signal, ...options }
 	const { ids } = await res.json();
 	ids.shift() // kobold automatically adds a token, so we need to remove it
 	return {ids:ids,str:""};
-	
+
 }
 
 function koboldCppConvertOptions(options) {
@@ -1475,7 +1481,7 @@ async function openaiTokenize({ endpoint, endpointAPIKey, proxyEndpoint, signal,
 			strings.push(string);
 		};
 		return {ids:tokens,str:strings};
-		
+
 	} catch (e) {
 		reportError(e);
 		return -1;
@@ -2217,7 +2223,7 @@ function LogitBiasModal({ isOpen, closeModal, logitBias, setLogitBias, logitBias
 	const [logitBiasTemp, setLogitBiasTemp] = useState([]);
 	const [logitBiasSorted, setLogitBiasSorted] = useState([]);
 	const [logitBiasInput, setLogitBiasInput] = useState({power:"0",string:""});
-	
+
 	const handleLogitBiasInput = (key,value) => {
 		setLogitBiasInput((prevLogitBiasInput) => {
 			return {
@@ -2240,7 +2246,7 @@ function LogitBiasModal({ isOpen, closeModal, logitBias, setLogitBias, logitBias
 		biasPower = Number(biasPower);
 
 		const modBias = logitBias.bias;
-		
+
 		// delete entry if power 0 or empty
 		if (biasPower == 0) {	
 			if (!logitBias.bias[biasString]) {
@@ -2414,7 +2420,7 @@ function LogitBiasModal({ isOpen, closeModal, logitBias, setLogitBias, logitBias
 		setLogitBiasTemp((prevLogitBiasTemp) => {
 			const rest = { ...prevLogitBiasTemp };
 			const updatedTemp = [ ...prevLogitBiasTemp[posneg] ];
-			 
+
 			updatedTemp[index] = {
 				...updatedTemp[index],
 				[key]: value,
@@ -2505,7 +2511,7 @@ function LogitBiasModal({ isOpen, closeModal, logitBias, setLogitBias, logitBias
 												${endpointAPI == 0 && bias.strings != ""
 													? "["+bias.strings.join("|")+"] "
 													: "["+bias.tokens+"]" } 
-												
+
 											</div>
 											<button
 												disabled=${!!cancel}
@@ -2528,7 +2534,7 @@ function LogitBiasModal({ isOpen, closeModal, logitBias, setLogitBias, logitBias
 }
 
 function InstructModal({ isOpen, closeModal, sessionStorage, updateTemplateDB, selectedTemplate, setSelectedTemplate, templateList, setTemplateList, templates, setTemplates, setAddDeleteTemplate, cancel }) {
-	
+
 	function getArrObjByName(array,name,getIndex=false) {
 		const index = array.findIndex(obj => obj.name === name)
 		if (getIndex)
@@ -2557,13 +2563,12 @@ function InstructModal({ isOpen, closeModal, sessionStorage, updateTemplateDB, s
 			var newState = {
 				...prevState
 			}
-			newState[""] = {
+			newState["New Template"] = {
 				"sysPre": "",
 				"sysSuf": "",
 				"instPre": "",
 				"instSuf": "",
 			}
-			
 			return { ...newState }
 		})
 		setAddDeleteTemplate(true)
@@ -2622,7 +2627,7 @@ function InstructModal({ isOpen, closeModal, sessionStorage, updateTemplateDB, s
 		fileInput.click();
 		document.body.removeChild(fileInput);
 	};
-	
+
 	return getArrObjByName(templateList,selectedTemplate) && html`
 		<${Modal} isOpen=${isOpen} onClose=${closeModal}
 			title="Instruct Templates"
@@ -2652,6 +2657,26 @@ function InstructModal({ isOpen, closeModal, sessionStorage, updateTemplateDB, s
 				</table>
 			</div>
 			<hr/>
+			<div class="instructTemplatesImportExport">
+				<button
+					title="Import Instruct Templates"
+					disabled=${!!cancel}
+					onClick=${() => importTemplates()}>
+					Import
+				</button>
+				<button
+					title="Export Instruct Templates"
+					disabled=${!!cancel}
+					onClick=${() => exportTemplates()}>
+					Export
+				</button>
+				<button
+					title="Re-Add Default Instruct Templates"
+					disabled=${!!cancel}
+					onClick=${() => importTemplates(true)}>
+					Re-Add Defaults
+				</button>
+			</div>
 			<div className="buttons instructTemplateSidebar">
 				<${SelectBoxTemplate}
 					id="instructModalSelect"
@@ -2660,41 +2685,20 @@ function InstructModal({ isOpen, closeModal, sessionStorage, updateTemplateDB, s
 					value=${selectedTemplate}
 					onValueChange=${setSelectedTemplate}
 					options=${templateList}/>
-					<button
-						title="Add Instruct Template"
-						disabled=${!!cancel}
-						class="hbox-button"
-						onClick=${() => handleInstructTemplateAdd()}>
-						New
-					</button>
-					<button
-						title="Delete Selected Instruct Template"
-						disabled=${!!cancel}
-						class="hbox-button"
-						onClick=${() => handleInstructTemplateDelete(selectedTemplate)}>
-						Delete
-					</button>
-					<button
-						title="Import Instruct Templates"
-						disabled=${!!cancel}
-						class="hbox-button"
-						onClick=${() => importTemplates()}>
-						Import
-					</button>
-					<button
-						title="Export Instruct Template"
-						disabled=${!!cancel}
-						class="hbox-button"
-						onClick=${() => exportTemplates()}>
-						Export
-					</button>
-					<button
-						title="Re-add defaults"
-						disabled=${!!cancel}
-						class="hbox-button"
-						onClick=${() => importTemplates(true)}>
-						Add Defaults
-					</button>
+				<button
+					title="Add Instruct Template"
+					disabled=${!!cancel}
+					class="hbox-button"
+					onClick=${() => handleInstructTemplateAdd()}>
+					New
+				</button>
+				<button
+					title="Delete Selected Instruct Template"
+					disabled=${!!cancel}
+					class="hbox-button"
+					onClick=${() => handleInstructTemplateDelete(selectedTemplate)}>
+					Delete
+				</button>
 			</div>
 			<hr/>
 			<div class="instructmodal-edits">
@@ -2707,8 +2711,6 @@ function InstructModal({ isOpen, closeModal, sessionStorage, updateTemplateDB, s
 						value=${getArrObjByName(templateList,selectedTemplate).nameNew}
 						onInput=${e => handleInstructTemplateChange(selectedTemplate,"name",e.target.value,getArrObjByName(templateList,selectedTemplate).nameBack)}
 						onValueChange=${() => {}}/>
-				
-				
 
 				<div className="hbox">
 					<${InputBox} label="Instruct Prefix {inst}"
@@ -2798,7 +2800,7 @@ class SessionStorage extends EventTarget {
 				reject(openRequest.error);
 			};
 			openRequest.onsuccess = () => resolve(openRequest.result);
-			
+
 			openRequest.onupgradeneeded = (event) => {
 				const db = event.target.result;
 				this.storeNames.forEach(storeName => {
@@ -3165,7 +3167,7 @@ class WebSessionStorage extends SessionStorage {
 				reject(res.status);
 				return;
 			}
-			
+
 			// Select another session if the current was deleted
 			if (sessionId == this.selectedSession) {
 				const sessionIds = Object.keys(this.sessions).map(x => +x);
@@ -3236,7 +3238,7 @@ const defaultPresets = {
 			'instPre': '### Instruction:\\n',
 			'instSuf': '\\n\\n### Response:',
 		},
-		'Mixtral': {
+		'Mistral': {
 			'sysPre' : '<<SYS>>\\n',
 			'sysSuf' : '<</SYS>>\\n\\n',
 			'instPre': '[INST]',
@@ -3254,11 +3256,17 @@ const defaultPresets = {
 			'instPre': '<|start_header_id|>user<|end_header_id|>\\n\\n',
 			'instSuf': '<|eot_id|><|start_header_id|>assistant<|end_header_id|>\\n\\n',
 		},
-		'Phi': {
+		'Phi 2': {
 			'sysPre' : '',
 			'sysSuf' : '',
 			'instPre': 'Instruct: ',
 			'instSuf': '\\nOutput: ',
+		},
+		'Phi 3': {
+			'sysPre' : '<|system|>\\n',
+			'sysSuf' : '<|end|>\\n',
+			'instPre': '<|user|>\\n',
+			'instSuf': '<|end|>\\n<|assistant|>\\n',
 		},
 		'Command-R': {
 			'sysPre' : '<|START_OF_TURN_TOKEN|><|SYSTEM_TOKEN|>',
@@ -3401,7 +3409,6 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 	const [addDeleteTemplate, setAddDeleteTemplate] = useState(false);
 	const [templatesImport, setTemplatesImport] = useState(false);
 	const [selectedTemplate, setSelectedTemplate] = usePersistentState('template', "Llama 3");
-	const [triggerTemplateDBUpdate, setTriggerTemplateDBUpdate] = useState(false);
 	const [templateList, setTemplateList] = useState([]);
 	const [currentPromptChunk, setCurrentPromptChunk] = useState(undefined);
 	const [undoHovered, setUndoHovered] = useState(false);
@@ -3688,11 +3695,11 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 	const templateReselect = useMemo(() => {
 		if (!addDeleteTemplate)
 			return
-		setSelectedTemplate("")
+		setSelectedTemplate("New Template")
 		setAddDeleteTemplate(false)
 
 	}, [addDeleteTemplate]);
-	
+
 
 	const updateTemplateDB = async () => {
 		setTemplates((prevState) => {
@@ -3729,8 +3736,8 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 	}
 	const updateTemplateDBCaller = useMemo(() => {
 		updateTemplateDB()
-	}, [modalState["instruct"],triggerTemplateDBUpdate,selectedTemplate]);
-	
+	}, [modalState["instruct"],selectedTemplate]);
+
 
 	const toggleModal = (modalKey) => {
 		setModalState((prevState) => ({
@@ -4347,7 +4354,7 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 					container.style.borderLeft = '2px dotted transparent';
 					break;
 			}
-			
+
 			if (!isDragging) return;
 
 			// reset selection
@@ -4951,7 +4958,7 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 			setLogitBiasParam=${setLogitBiasParam}
 			sessionStorage=${sessionStorage} endpoint=${endpoint} endpointAPI=${endpointAPI} endpointAPIKey=${endpointAPIKey} isMikupadEndpoint=${isMikupadEndpoint}
 			cancel=${cancel}/>
-		
+
 		<!-- Sorry. -->
 		<${InstructModal}
 			isOpen=${modalState.instruct}
@@ -4993,7 +5000,7 @@ async function main() {
 			reportError(e);
 		}
 	}
-	
+
 	if (sessionStorage == null) {
 		sessionStorage = new SessionStorage();
 		await sessionStorage.init();
