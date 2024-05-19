@@ -3820,7 +3820,7 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 		return assembledWorldInfo
 	}, [worldInfo]);
 
-	const [persistentContextTemp,promptRemainderTemp] = useMemo(() => {
+	const [persistentContextTemp,promptRemainderTemp,rawPersistentContext] = useMemo(() => {
 		// add world info to memory for easier assembly
 		memoryTokens["worldInfo"] = assembledWorldInfo;
 
@@ -3884,6 +3884,7 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 			splitContextOrder.slice(0, splitContextOrder.indexOf("{prompt}")).join(""),
 			splitContextOrder.slice(splitContextOrder.indexOf("{prompt}")).join("")
 		]
+		const rawPersistentContext = contextOrderList[0]
 		
 
 		const contextList = contextOrderList.map(function (line) {
@@ -3892,7 +3893,7 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 		
 		// we split the prompt into stuff that comes before the prompt, and stuff that
 		// comes after
-		return [ contextList[0],contextList[1] ]
+		return [ contextList[0],contextList[1],rawPersistentContext ]
 	}, [contextLength, promptText, memoryTokens, authorNoteTokens, authorNoteDepth, assembledWorldInfo, worldInfo.prefix, worldInfo.suffix]);
 
 
@@ -3916,7 +3917,14 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 			setNKeep(0)
 			return
 		}
-		const calc = (memoryTokens?.tokens||0) + (memoryTokens?.tokensWI||0)
+		
+		var calc = 0
+		if (rawPersistentContext.includes("{memText}")) {
+			calc += (memoryTokens?.tokens||0)
+		}
+		if (rawPersistentContext.includes("{wiText}")) {
+			calc += (memoryTokens?.tokensWI||0)
+		}
 		setNKeep(calc + 1)
 	}, [memoryTokens.tokens,memoryTokens.tokensWI,nKeepTimeout]);
 
