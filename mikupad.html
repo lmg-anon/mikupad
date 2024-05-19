@@ -585,7 +585,7 @@ html.nockoffAI .wi-entry-name input {
 }
 
 #instructmodal-name {
-	
+
 	size:110%;
 }
 .instructmodal-edits .hbox {
@@ -1055,12 +1055,12 @@ function exportText(filename, text) {
 function normalizeEndpoint(endpoint) {
 	const url = new URL(endpoint.trim());
 	url.pathname = url.pathname.replace(/\/+/g, "/"); // normalize consecutive slashes
-	
+
 	let urlString = url.toString();
 	urlString = urlString.replace(/\/v1\/?$/, ""); // remove "/v1" from the end of the string
 	urlString = urlString.replace(/\/api\/?$/, ""); // remove "/api" from the end of the string
 	urlString = urlString.replace(/\/$/, ""); // remove "/" from the end of the string
-	
+
 	return urlString;
 }
 
@@ -1311,7 +1311,7 @@ async function koboldCppTokenize({ endpoint, proxyEndpoint, signal, ...options }
 	const { ids } = await res.json();
 	ids.shift() // kobold automatically adds a token, so we need to remove it
 	return {ids:ids,str:""};
-	
+
 }
 
 function koboldCppConvertOptions(options) {
@@ -1467,7 +1467,7 @@ async function openaiTokenize({ endpoint, endpointAPIKey, proxyEndpoint, signal,
 			strings.push(string);
 		};
 		return {ids:tokens,str:strings};
-		
+
 	} catch (e) {
 		reportError(e);
 		return -1;
@@ -2199,7 +2199,7 @@ function LogitBiasModal({ isOpen, closeModal, logitBias, setLogitBias, logitBias
 	const [logitBiasTemp, setLogitBiasTemp] = useState([]);
 	const [logitBiasSorted, setLogitBiasSorted] = useState([]);
 	const [logitBiasInput, setLogitBiasInput] = useState({power:"0",string:""});
-	
+
 	const handleLogitBiasInput = (key,value) => {
 		setLogitBiasInput((prevLogitBiasInput) => {
 			return {
@@ -2222,7 +2222,7 @@ function LogitBiasModal({ isOpen, closeModal, logitBias, setLogitBias, logitBias
 		biasPower = Number(biasPower);
 
 		const modBias = logitBias.bias;
-		
+
 		// delete entry if power 0 or empty
 		if (biasPower == 0) {	
 			if (!logitBias.bias[biasString]) {
@@ -2396,7 +2396,7 @@ function LogitBiasModal({ isOpen, closeModal, logitBias, setLogitBias, logitBias
 		setLogitBiasTemp((prevLogitBiasTemp) => {
 			const rest = { ...prevLogitBiasTemp };
 			const updatedTemp = [ ...prevLogitBiasTemp[posneg] ];
-			 
+
 			updatedTemp[index] = {
 				...updatedTemp[index],
 				[key]: value,
@@ -2487,7 +2487,7 @@ function LogitBiasModal({ isOpen, closeModal, logitBias, setLogitBias, logitBias
 												${endpointAPI == 0 && bias.strings != ""
 													? "["+bias.strings.join("|")+"] "
 													: "["+bias.tokens+"]" } 
-												
+
 											</div>
 											<button
 												disabled=${!!cancel}
@@ -2510,7 +2510,7 @@ function LogitBiasModal({ isOpen, closeModal, logitBias, setLogitBias, logitBias
 }
 
 function InstructModal({ isOpen, closeModal, sessionStorage, updateTemplateDB, selectedTemplate, setSelectedTemplate, templateList, setTemplateList, templates, setTemplates, setAddDeleteTemplate, cancel }) {
-	
+
 	function getArrObjByName(array,name,getIndex=false) {
 		const index = array.findIndex(obj => obj.name === name)
 		if (getIndex)
@@ -2603,7 +2603,7 @@ function InstructModal({ isOpen, closeModal, sessionStorage, updateTemplateDB, s
 		fileInput.click();
 		document.body.removeChild(fileInput);
 	};
-	
+
 	return getArrObjByName(templateList,selectedTemplate) && html`
 		<${Modal} isOpen=${isOpen} onClose=${closeModal}
 			title="Instruct Templates"
@@ -2661,20 +2661,20 @@ function InstructModal({ isOpen, closeModal, sessionStorage, updateTemplateDB, s
 					value=${selectedTemplate}
 					onValueChange=${setSelectedTemplate}
 					options=${templateList}/>
-					<button
-						title="Add Instruct Template"
-						disabled=${!!cancel}
-						class="hbox-button"
-						onClick=${() => handleInstructTemplateAdd()}>
-						New
-					</button>
-					<button
-						title="Delete Selected Instruct Template"
-						disabled=${!!cancel}
-						class="hbox-button"
-						onClick=${() => handleInstructTemplateDelete(selectedTemplate)}>
-						Delete
-					</button>
+				<button
+					title="Add Instruct Template"
+					disabled=${!!cancel}
+					class="hbox-button"
+					onClick=${() => handleInstructTemplateAdd()}>
+					New
+				</button>
+				<button
+					title="Delete Selected Instruct Template"
+					disabled=${!!cancel}
+					class="hbox-button"
+					onClick=${() => handleInstructTemplateDelete(selectedTemplate)}>
+					Delete
+				</button>
 			</div>
 			<hr/>
 			<div class="instructmodal-edits">
@@ -2687,8 +2687,6 @@ function InstructModal({ isOpen, closeModal, sessionStorage, updateTemplateDB, s
 						value=${getArrObjByName(templateList,selectedTemplate).nameNew}
 						onInput=${e => handleInstructTemplateChange(selectedTemplate,"name",e.target.value,getArrObjByName(templateList,selectedTemplate).nameBack)}
 						onValueChange=${() => {}}/>
-				
-				
 
 				<div className="hbox">
 					<${InputBox} label="Instruct Prefix {inst}"
@@ -2778,7 +2776,7 @@ class SessionStorage extends EventTarget {
 				reject(openRequest.error);
 			};
 			openRequest.onsuccess = () => resolve(openRequest.result);
-			
+
 			openRequest.onupgradeneeded = (event) => {
 				const db = event.target.result;
 				this.storeNames.forEach(storeName => {
@@ -3145,7 +3143,7 @@ class WebSessionStorage extends SessionStorage {
 				reject(res.status);
 				return;
 			}
-			
+
 			// Select another session if the current was deleted
 			if (sessionId == this.selectedSession) {
 				const sessionIds = Object.keys(this.sessions).map(x => +x);
@@ -3525,7 +3523,7 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 		setAddDeleteTemplate(false)
 
 	}, [addDeleteTemplate]);
-	
+
 
 	const updateTemplateDB = async () => {
 		setTemplates((prevState) => {
@@ -3563,7 +3561,7 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 	const updateTemplateDBCaller = useMemo(() => {
 		updateTemplateDB()
 	}, [modalState["instruct"],selectedTemplate]);
-	
+
 
 	const toggleModal = (modalKey) => {
 		setModalState((prevState) => ({
@@ -4162,7 +4160,7 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 					container.style.borderLeft = '2px dotted transparent';
 					break;
 			}
-			
+
 			if (!isDragging) return;
 
 			// reset selection
@@ -4767,7 +4765,7 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 			setLogitBiasParam=${setLogitBiasParam}
 			sessionStorage=${sessionStorage} endpoint=${endpoint} endpointAPI=${endpointAPI} endpointAPIKey=${endpointAPIKey} isMikupadEndpoint=${isMikupadEndpoint}
 			cancel=${cancel}/>
-		
+
 		<!-- Sorry. -->
 		<${InstructModal}
 			isOpen=${modalState.instruct}
@@ -4809,7 +4807,7 @@ async function main() {
 			reportError(e);
 		}
 	}
-	
+
 	if (sessionStorage == null) {
 		sessionStorage = new SessionStorage();
 		await sessionStorage.init();
