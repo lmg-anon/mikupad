@@ -3872,11 +3872,11 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 	// we then replace instruct templates in both
 	const persistentContext = useMemo(() => {
 		return replacePlaceholders(persistentContextTemp,templateReplacements)
-	}, [persistentContextTemp])
+	}, [persistentContextTemp,selectedTemplate,templates])
 
 	const promptRemainder = useMemo(() => {
 		return replacePlaceholders(promptRemainderTemp,templateReplacements)
-	}, [promptRemainderTemp])
+	}, [promptRemainderTemp,selectedTemplate,templates])
 
 	
 	// and if we use an n_keep compatible backend, we get a count of all the stuff
