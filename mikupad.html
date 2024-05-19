@@ -1021,22 +1021,22 @@ function exportText(filename, text) {
 	document.body.removeChild(element);
 }
 
-function normalizeEndpoint(endpoint) {
+function normalizeEndpoint(endpoint, endpointAPI) {
 	const url = new URL(endpoint.trim());
 	url.pathname = url.pathname.replace(/\/+/g, "/"); // normalize consecutive slashes
 	
 	let urlString = url.toString();
-	urlString = urlString.replace(/\/v1\/?$/, ""); // remove "/v1" from the end of the string
-	if (!urlString.match(/^https:\/\/openrouter.ai/)) {
+	if (endpointAPI == 3) // openai
+		urlString = urlString.replace(/\/v1\/?$/, ""); // remove "/v1" from the end of the string
+	if (endpointAPI == 2) // koboldcpp
 		urlString = urlString.replace(/\/api\/?$/, ""); // remove "/api" from the end of the string
-	}
 	urlString = urlString.replace(/\/$/, ""); // remove "/" from the end of the string
 	
 	return urlString;
 }
 
 export async function getTokenCount({ endpoint, endpointAPI, endpointAPIKey, signal, ...options }) {
-	endpoint = normalizeEndpoint(endpoint);
+	endpoint = normalizeEndpoint(endpoint, endpointAPI);
 	switch (endpointAPI) {
 		case 0: // llama.cpp
 			return await llamaCppTokenCount({ endpoint, endpointAPIKey, signal, ...options });
@@ -1068,7 +1068,7 @@ export async function getTokens({ endpoint, endpointAPI, endpointAPIKey, signal,
 	// returns a json object in the format of:
 	// { ids:[ array of token ids ], str:[ array of detokenized ids ] }
 	// example: { ids:[9288,4731],str:["test"," string"] }
-	endpoint = normalizeEndpoint(endpoint);
+	endpoint = normalizeEndpoint(endpoint, endpointAPI);
 	switch (endpointAPI) {
 		case 0: // llama.cpp
 			return await llamaCppTokenize({ endpoint, endpointAPIKey, signal, ...options });
@@ -1080,7 +1080,7 @@ export async function getTokens({ endpoint, endpointAPI, endpointAPIKey, signal,
 }
 
 export async function getModels({ endpoint, endpointAPI, endpointAPIKey, signal, ...options }) {
-	endpoint = normalizeEndpoint(endpoint);
+	endpoint = normalizeEndpoint(endpoint, endpointAPI);
 	switch (endpointAPI) {
 		case 3: // openai
 			return await openaiModels({ endpoint, endpointAPIKey, signal, ...options });
@@ -1090,7 +1090,7 @@ export async function getModels({ endpoint, endpointAPI, endpointAPIKey, signal,
 }
 
 export async function* completion({ endpoint, endpointAPI, endpointAPIKey, signal, ...options }) {
-	endpoint = normalizeEndpoint(endpoint);
+	endpoint = normalizeEndpoint(endpoint, endpointAPI);
 	switch (endpointAPI) {
 		case 0: // llama.cpp
 			return yield* await llamaCppCompletion({ endpoint, endpointAPIKey, signal, ...options });
@@ -1102,7 +1102,7 @@ export async function* completion({ endpoint, endpointAPI, endpointAPIKey, signa
 }
 
 export async function abortCompletion({ endpoint, endpointAPI, ...options }) {
-	endpoint = normalizeEndpoint(endpoint);
+	endpoint = normalizeEndpoint(endpoint, endpointAPI);
 	switch (endpointAPI) {
 		case 2: // koboldcpp
 			return await koboldCppAbortCompletion({ endpoint, ...options });
