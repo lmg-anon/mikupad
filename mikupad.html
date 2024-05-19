@@ -231,6 +231,7 @@ html.nockoffAI .wi-textarea {
 	min-height: 4em;
 }
 
+
 #advancedContextPlaceholders {
 	background: var(--color-base-30);
 	margin: 1em auto;
@@ -378,6 +379,7 @@ html.nockoffAI .modal-title {
 	color:var(--color-text);
 }
 html.nockoffAI  #context-order-desc,
+html.nockoffAI  #contextTokensTable,
 html.nockoffAI .modal-desc {
 	color:var(--color-base-80);
 }
@@ -2013,11 +2015,37 @@ function AuthorNoteModal({ isOpen, closeModal, authorNoteTokens, handleauthorNot
 			</${Modal}>`;
 }
 
-function ContextModal({ isOpen, closeModal, memoryTokens, handleMemoryTokensChange, modifiedPrompt, defaultPresets, cancel }) {
+function ContextModal({ isOpen, closeModal, tokens, memoryTokens, authorNoteTokens, handleMemoryTokensChange, modifiedPrompt, defaultPresets, cancel }) {
 	return html`
 		<${Modal} isOpen=${isOpen} onClose=${closeModal}
 			title="Context"
 			description="This is the prompt being sent to your large language model.">
+			<div id="advancedContextPlaceholders">
+			<table id="contextTokensTable" border="1" frame="void" rules="all">
+				<thead>
+					<tr>
+						<th></th>
+						<th>Memory</th>
+						<th>World Info</th>
+						<th>Author's Note</th>
+						<th>Prompt</th>
+						<th></th>
+						<th>Total</th>
+					</tr>
+				</thead>
+				<tbody>
+					<tr>
+						<th>Tokens</th>
+						<td>${memoryTokens.tokens}</td>
+						<td>${memoryTokens.tokensWI}</td>
+						<td>${authorNoteTokens.tokens}</td>
+						<td>${tokens - authorNoteTokens.tokens - memoryTokens.tokensWI - memoryTokens.tokens}</td>
+						<td></td>
+						<td>${tokens}</td>
+					</tr>
+				</tbody>
+			</table>
+			</div>
 			<${CollapsibleGroup} label="Advanced Context Ordering">
 				<div id="context-order-desc">
 					You can use the following placeholders to order the context according to your needs:<br />
@@ -4923,7 +4951,9 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 		<${ContextModal}
 			isOpen=${modalState.context}
 			closeModal=${() => closeModal("context")}
+			tokens=${tokens}
 			memoryTokens=${memoryTokens}
+			authorNoteTokens=${authorNoteTokens}
 			handleMemoryTokensChange=${handleMemoryTokensChange}
 			modifiedPrompt=${modifiedPrompt}
 			defaultPresets=${defaultPresets}
