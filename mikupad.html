@@ -1660,7 +1660,7 @@ function SelectBoxTemplate({ label, value, onValueChange, options, ...props }) {
 				...${props}>
 				${(options = typeof options === 'function' ? options() : options).map(o => html`<option
 					key=${JSON.stringify(o.value)}
-					value=${o.value}>${o.name}</option>`)}
+					value=${o.nameNew}>${o.nameNew}</option>`)}
 			</select>
 		</label>`;
 }
@@ -2508,7 +2508,7 @@ function LogitBiasModal({ isOpen, closeModal, logitBias, setLogitBias, logitBias
 			</${Modal}>`;
 }
 
-function InstructModal({ isOpen, closeModal, sessionStorage, updateTemplateDB, selectedTemplate, setSelectedTemplate, templateList, setTemplateList, templates, setTemplates, setAddDeleteTemplate, cancel }) {
+function InstructModal({ isOpen, closeModal, sessionStorage, updateTemplateDB, newTemplateName, setNewTemplateName, selectedTemplate, setSelectedTemplate, templateList, setTemplateList, templates, setTemplates, setAddDeleteTemplate, cancel }) {
 
 	function getArrObjByName(array,name,getIndex=false) {
 		const index = array.findIndex(obj => obj.name === name)
@@ -2524,6 +2524,7 @@ function InstructModal({ isOpen, closeModal, sessionStorage, updateTemplateDB, s
 
 		if (key == "name") { 
 			templateListMod[index].nameNew = value
+			setNewTemplateName(value)
 		} else {
 			templateListMod[index].affixes[key] = value
 		}
@@ -2538,7 +2539,7 @@ function InstructModal({ isOpen, closeModal, sessionStorage, updateTemplateDB, s
 			var newState = {
 				...prevState
 			}
-			newState["New Template"] = {
+			newState[""] = {
 				"sysPre": "",
 				"sysSuf": "",
 				"instPre": "",
@@ -2658,7 +2659,7 @@ function InstructModal({ isOpen, closeModal, sessionStorage, updateTemplateDB, s
 					id="instructModalSelect"
 					label="Instruct Template"
 					disabled=${!!cancel}
-					value=${selectedTemplate}
+					value=${newTemplateName ?? selectedTemplate}
 					onValueChange=${setSelectedTemplate}
 					options=${templateList}/>
 				<button
@@ -3381,10 +3382,11 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 	const sessionReconnectTimer = useRef();
 	const useScrollSmoothing = useRef(true);
 	const [templates, setTemplates] = useDBTemplates(defaultPresets.instructTemplates);
+	const [newTemplateName, setNewTemplateName] = useState(undefined);
 	const [addDeleteTemplate, setAddDeleteTemplate] = useState(false);
 	const [templatesImport, setTemplatesImport] = useState(false);
-	const [selectedTemplate, setSelectedTemplate] = usePersistentState('template', "Llama 3");
-	const [chatMode, setChatMode] = usePersistentState('chatMode', false);
+	const [selectedTemplate, setSelectedTemplate] = useSessionState('template', "Llama 3");
+	const [chatMode, setChatMode] = useSessionState('chatMode', false);
 	const [templateList, setTemplateList] = useState([]);
 	const [currentPromptChunk, setCurrentPromptChunk] = useState(undefined);
 	const [undoHovered, setUndoHovered] = useState(false);
@@ -3520,13 +3522,14 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 	const templateReselect = useMemo(() => {
 		if (!addDeleteTemplate)
 			return
-		setSelectedTemplate("New Template")
+		setSelectedTemplate("")
 		setAddDeleteTemplate(false)
 
 	}, [addDeleteTemplate]);
 
 
 	const updateTemplateDB = async () => {
+		setNewTemplateName(undefined);
 		setTemplates((prevState) => {
 			var newState = {
 				...prevState
@@ -4501,7 +4504,7 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 					<${SelectBoxTemplate}
 						label="Instruct Template"
 						disabled=${!!cancel}
-						value=${selectedTemplate}
+						value=${newTemplateName ?? selectedTemplate}
 						onValueChange=${setSelectedTemplate}
 						options=${templateList}/>
 					<button
@@ -4802,6 +4805,8 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 			closeModal=${() => closeModal("instruct")}
 			templateList=${templateList}
 			setTemplateList=${setTemplateList}
+			newTemplateName=${newTemplateName}
+			setNewTemplateName=${setNewTemplateName}
 			selectedTemplate=${selectedTemplate}
 			setSelectedTemplate=${setSelectedTemplate}
 			setTemplatesImport=${setTemplatesImport}
