@@ -3764,12 +3764,13 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 			setPredictStartTokens(tokenCount);
 
 			// Chat Mode
-			if (chatMode) {
-				// add user EOT template (instruct suffix)
+			if (chatMode && !restartedPredict) {
+				// add user EOT template (instruct suffix) if not switch completion
 				const eotUser = templates[selectedTemplate]?.instSuf.replace(/\\n/g, '\n')
 				setPromptChunks(p => [...p, { type: 'user', content: eotUser }])
 				prompt += `${eotUser}`
 			}
+			setRestartedPredict(false)
 
 			while (undoStack.current.at(-1) >= chunkCount)
 				undoStack.current.pop();
@@ -3877,6 +3878,7 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 	}
 
 	const [triggerPredict, setTriggerPredict] = useState(false);
+	const [restartedPredict, setRestartedPredict] = useState(false);
 
 	function undoAndPredict() {
 		if (!undoStack.current.length) return;
@@ -4328,6 +4330,7 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 		];
 		setPromptChunks(newPrompt);
 		setTriggerPredict(true);
+		setRestartedPredict(true);
 	}
 
 	function switchEndpointAPI(value) {
