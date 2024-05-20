@@ -3069,7 +3069,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 			[modalKey]: false,
 		}));
 	};
-	
+
 	const promptText = useMemo(() => joinPrompt(promptChunks), [promptChunks]);
 
 	// compute separately as I imagine this can get expensive
