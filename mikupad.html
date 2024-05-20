@@ -1003,10 +1003,7 @@ html.monospace-dark .eye-button {
 	transform: translate(-50%, -50%);
 } 
 
-#button-settings {
-	display: none;
-}
-.hide {
+#button-settings, .hide {
 	display: none;
 }
 
@@ -3072,7 +3069,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 			[modalKey]: false,
 		}));
 	};
-
+	
 	const promptText = useMemo(() => joinPrompt(promptChunks), [promptChunks]);
 
 	// compute separately as I imagine this can get expensive
