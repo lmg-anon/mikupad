@@ -2508,7 +2508,7 @@ function LogitBiasModal({ isOpen, closeModal, logitBias, setLogitBias, logitBias
 			</${Modal}>`;
 }
 
-function InstructModal({ isOpen, closeModal, sessionStorage, updateTemplateDB, newTemplateName, setNewTemplateName, selectedTemplate, setSelectedTemplate, templateList, setTemplateList, templates, setTemplates, setAddDeleteTemplate, cancel }) {
+function InstructModal({ isOpen, closeModal, sessionStorage, updateTemplateDB, newTemplateName, setNewTemplateName, selectedTemplate, setSelectedTemplate, templateList, setTemplateList, templates, templatesImport, setTemplates, addDeleteTemplate, setAddDeleteTemplate, cancel }) {
 
 	function getArrObjByName(array,name,getIndex=false) {
 		const index = array.findIndex(obj => obj.name === name)
@@ -2566,6 +2566,38 @@ function InstructModal({ isOpen, closeModal, sessionStorage, updateTemplateDB, n
 		})
 		setAddDeleteTemplate(true)
 	}
+
+	// re-selecting doesn't work properly when I move this inside the InstructModal
+	const updateTemplateList = useEffect(() => {
+		const index = templateList.findIndex(obj => obj.name === selectedTemplate)
+		const reselectTemplate = templateList[index == -1 ? 0 : index]?.nameNew
+		const list = []
+		let i = 0;
+		for (const key in templates) {
+			list.push({
+				name: key,
+				nameNew:key,
+				value: key,
+				nameBack: key,
+				affixes: templates[key]
+			})
+		}
+		list.sort((a, b) => {
+			var nameA = a.name.toLowerCase();
+			var nameB = b.name.toLowerCase();
+			return (nameA < nameB) ? -1 : (nameA > nameB) ? 1 : 0;
+		});
+		setTemplateList(list)
+		if (reselectTemplate)
+			setSelectedTemplate(reselectTemplate)
+	}, [templates,selectedTemplate,templatesImport]);
+	const templateReselect = useEffect(() => {
+		if (!addDeleteTemplate)
+			return
+		setSelectedTemplate("")
+		setAddDeleteTemplate(false)
+
+	}, [addDeleteTemplate]);
 
 
 	const exportTemplates = () => {
@@ -3495,39 +3527,6 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 		onInput({ target: elem });
 	}
 
-	// re-selecting doesn't work properly when I move this inside the InstructModal
-	const updateTemplateList = useMemo(() => {
-		const index = templateList.findIndex(obj => obj.name === selectedTemplate)
-		const reselectTemplate = templateList[index == -1 ? 0 : index]?.nameNew
-		const list = []
-		let i = 0;
-		for (const key in templates) {
-			list.push({
-				name: key,
-				nameNew:key,
-				value: key,
-				nameBack: key,
-				affixes: templates[key]
-			})
-		}
-		list.sort((a, b) => {
-			var nameA = a.name.toLowerCase();
-			var nameB = b.name.toLowerCase();
-			return (nameA < nameB) ? -1 : (nameA > nameB) ? 1 : 0;
-		});
-		setTemplateList(list)
-		if (reselectTemplate)
-			setSelectedTemplate(reselectTemplate)
-	}, [templates,selectedTemplate,templatesImport]);
-	const templateReselect = useMemo(() => {
-		if (!addDeleteTemplate)
-			return
-		setSelectedTemplate("")
-		setAddDeleteTemplate(false)
-
-	}, [addDeleteTemplate]);
-
-
 	const updateTemplateDB = async () => {
 		setNewTemplateName(undefined);
 		setTemplates((prevState) => {
@@ -3562,7 +3561,7 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 			return { ...newState }
 		})
 	}
-	const updateTemplateDBCaller = useMemo(() => {
+	const updateTemplateDBCaller = useEffect(() => {
 		updateTemplateDB()
 	}, [modalState["instruct"],selectedTemplate]);
 
@@ -4809,10 +4808,12 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 			setNewTemplateName=${setNewTemplateName}
 			selectedTemplate=${selectedTemplate}
 			setSelectedTemplate=${setSelectedTemplate}
+			templatesImport=${templatesImport}
 			setTemplatesImport=${setTemplatesImport}
 			templates=${templates}
 			setTemplates=${setTemplates}
 			updateTemplateDB=${updateTemplateDB}
+			addDeleteTemplate=${addDeleteTemplate}
 			setAddDeleteTemplate=${setAddDeleteTemplate}
 			sessionStorage=${sessionStorage} endpoint=${endpoint} endpointAPI=${endpointAPI} endpointAPIKey=${endpointAPIKey} isMikupadEndpoint=${isMikupadEndpoint}
 			cancel=${cancel}/>
