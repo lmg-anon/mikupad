@@ -2567,7 +2567,6 @@ function InstructModal({ isOpen, closeModal, sessionStorage, updateTemplateDB, n
 		setAddDeleteTemplate(true)
 	}
 
-	// re-selecting doesn't work properly when I move this inside the InstructModal
 	const updateTemplateList = useEffect(() => {
 		const index = templateList.findIndex(obj => obj.name === selectedTemplate)
 		const reselectTemplate = templateList[index == -1 ? 0 : index]?.nameNew
