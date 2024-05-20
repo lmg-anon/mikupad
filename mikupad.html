@@ -1011,8 +1011,11 @@ html.monospace-dark .eye-button {
 }
 
 @media (max-width: 767.98px) {
+	body {
+		flex-direction: column;
+	}
 	#prompt-container {
-    	font-size: 1.35rem;
+    	font-size: 1.125rem;
 		height: 96.9vh; /* There's a better way to this */
 	}
 	#prompt-container {
@@ -1020,8 +1023,12 @@ html.monospace-dark .eye-button {
 		max-width: 100%;
 	}
 	#sidebar {
-		width: 100%;
+		width: auto;
 		position: fixed;
+		left: 0;
+		right: 0;
+		bottom: 0;
+	}
 		bottom: 0%;
 	}
 	#button-settings {
