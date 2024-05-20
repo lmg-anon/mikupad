@@ -2508,7 +2508,7 @@ function LogitBiasModal({ isOpen, closeModal, logitBias, setLogitBias, logitBias
 			</${Modal}>`;
 }
 
-function InstructModal({ isOpen, closeModal, sessionStorage, selectedTemplate, setSelectedTemplate, templateList, setTemplateList, templates, templatesImport, setTemplates, cancel }) {
+function InstructModal({ isOpen, closeModal, templateStorage, selectedTemplate, setSelectedTemplate, templateList, setTemplateList, templates, templatesImport, setTemplates, cancel }) {
 	const [addDeleteTemplate, setAddDeleteTemplate] = useState(false);
 	const [newTemplateName, setNewTemplateName] = useState(undefined);
 
@@ -2644,7 +2644,7 @@ function InstructModal({ isOpen, closeModal, sessionStorage, selectedTemplate, s
 		if (importDefaults) {
 			if (!window.confirm("This will add all default templates, and overwrite any changes you made to the default templates. This action cannot be undone. Do you wish to continue?"))
 				return;
-			await sessionStorage.saveTemplates(defaultPresets.instructTemplates,true)
+			await templateStorage.saveTemplates(defaultPresets.instructTemplates,true)
 			window.location.reload()
 			// a little dirty, but updateTemplateList isn't cooperating
 			return
@@ -2664,7 +2664,7 @@ function InstructModal({ isOpen, closeModal, sessionStorage, selectedTemplate, s
 			reader.readAsText(file);
 		}
 		fileInput.func = async (text) => {
-			await sessionStorage.saveTemplates(JSON.parse(text),true)
+			await templateStorage.saveTemplates(JSON.parse(text),true)
 			window.location.reload()
 			// a little dirty, but updateTemplateList isn't cooperating
 		};
@@ -3472,7 +3472,7 @@ function usePersistentState(name, initialState) {
 	return [value, updateState];
 }
 
-export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupadEndpoint }) {
+export function App({ sessionStorage, templateStorage, useSessionState, useDBTemplates, isMikupadEndpoint }) {
 	const promptArea = useRef();
 	const promptOverlay = useRef();
 	const undoStack = useRef([]);
@@ -4836,7 +4836,7 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 			templatesImport=${templatesImport}
 			templates=${templates}
 			setTemplates=${setTemplates}
-			sessionStorage=${sessionStorage}
+			templateStorage=${templateStorage}
 			cancel=${cancel}/>
 
 		${sessionEndpointError && html`
@@ -4874,6 +4874,7 @@ async function main() {
 	createRoot(document.body).render(html`
 		<${App}
 			sessionStorage=${sessionStorage}
+			templateStorage=${templateStorage}
 			useSessionState=${(name, initialState) => useSessionState(sessionStorage, name, initialState)}
 			useDBTemplates=${(initialState => useDBTemplates(templateStorage, initialState))}
 			isMikupadEndpoint=${isMikupadEndpoint}/>`);
