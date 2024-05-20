@@ -5,6 +5,7 @@ const sqlite3 = require('sqlite3');
 const path = require('path');
 const minimist = require('minimist');
 const axios = require('axios');
+const open = require('open');
 
 const app = express();
 
@@ -13,8 +14,31 @@ const args = minimist(process.argv.slice(2));
 // Default fallbacks: command line args -> environment variables -> static defaults
 const port = args.port || process.env.MIKUPAD_PORT || 3000;
 const host = args.host || process.env.MIKUPAD_HOST || '0.0.0.0';
+const noOpen = (args.open !== undefined && !args.open) || process.env.MIKUPAD_NO_OPEN;
+const login = args.login || process.env.MIKUPAD_LOGIN || 'anon';
+const password = args.password || process.env.MIKUPAD_PASSWORD || undefined;
 
 app.use(cors(), bodyParser.json({limit: "100mb"}));
+
+// authentication middleware
+app.use((req, res, next) => {
+    if (!password) {
+        // No password defined, access granted.
+        return next();
+    }
+
+    const b64auth = (req.headers.authorization || '').split(' ')[1] || '';
+    const [reqLogin, reqPassword] = Buffer.from(b64auth, 'base64').toString().split(':');
+
+    if (reqLogin == login && reqPassword == password) {
+        // Access granted.
+        return next();
+    }
+
+    // Access denied.
+    res.set('WWW-Authenticate', 'Basic realm="401"');
+    res.status(401).send('Authentication required.');
+});
 
 // Open a database connection
 const db = new sqlite3.Database('./web-session-storage.db', (err) => {
@@ -175,6 +199,9 @@ app.post('/delete', (req, res) => {
 // Start the server
 app.listen(port, host, () => {
     console.log(`Server listening at http://${host}:${port}`);
+    if (!noOpen) {
+        open(`http://127.0.0.1:${port}/`);
+    }
 });
 
 // Close db connection on server close

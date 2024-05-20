@@ -197,6 +197,9 @@ html.nockoffAI #prompt-area {
 	background: var(--color-prompt-area);
 	color: var(--color-text);
 }
+html.nockoffAI #prompt-overlay {
+	text-indent: 1em each-line;
+}
 html.nockoffAI #memory-area,
 html.nockoffAI #an-area,
 html.nockoffAI .expanded-text-area-settings,
@@ -382,9 +385,6 @@ html.nockoffAI  #context-order-desc,
 html.nockoffAI .modal-desc {
 	color:var(--color-base-80);
 }
-.modal-content {
-	overflow-y: auto;
-}
 
 .button-modal-top {
 	all:unset;
@@ -401,6 +401,10 @@ html.nockoffAI .modal-desc {
 	margin-bottom: .25em;
 }
 
+.modal-content {
+	overflow: hidden;
+}
+
 hr {
 	border:unset;
 	border-top: 1px solid var(--color-base-40);
@@ -413,7 +417,8 @@ hr {
 .modal-wi-content {
 	display: flex;
 	flex-direction:column;
-	overflow-y: auto;
+	margin-top:0.5em;
+	max-height:50vh;
 }
 
 #modal-wi-global{
@@ -424,9 +429,6 @@ hr {
 
 #button-wi-new {
 	width: 100%;
-}
-.modal-wi-content{
-	margin-top:0.5em;
 }
 
 .wi-entry {
@@ -483,6 +485,98 @@ html.nockoffAI .wi-entry-name input {
 	grid-area: wi-entry-text;
 	margin-bottom:4px;
 }
+
+/* logit bias */
+.hbox-button {
+	margin-top: auto;
+	width: 1.625rem;
+}
+.hbox-flex {
+	display: flex;
+	flex-direction: row;
+	gap: 8px;
+}
+.hbox-flex > .InputBox {
+  width: 100%;
+}
+.small-inputBox {
+	width: 8em;
+}
+.logitBiasContainer {
+	position: relative;
+	flex-wrap: unset !important;
+}
+.logitBiasPower-sidebar {
+	width:10ch !important;
+} 
+
+
+.overflow-container {
+	overflow-y:auto;
+}
+#logitBiasPower {
+	text-align: center;
+}
+
+.lb-modal-grid-column {
+	display: grid;
+	grid-auto-rows: min-content;
+	gap: 8px;
+	max-height: 40vh;
+	padding-right: .75em;
+
+}
+.lb-modal-grid-row  {
+	display: grid;
+	grid-template-columns: 4em 1fr min-content;
+	grid-template-rows: min-content min-content min-content;
+	gap: 1px 8px;
+	grid-template-areas: 
+		"power input add"
+		". tokens remove"
+		"hr hr hr"; 
+	padding: 1px;
+}
+.lb-modal-power {
+	grid-area: power;
+	text-align: center;
+}
+.lb-modal-input { 
+	grid-area: input;
+	text-align: left;
+}
+.lb-modal-button.lb-modal-button-add { 
+	grid-area: add;
+}
+.lb-modal-button.lb-modal-button-remove { 
+	grid-area: remove;
+}
+.lb-modal-tokenized { 
+	grid-area: tokens;
+	font-family: monospace;
+	font-size:0.7rem;
+	margin-top: auto;
+	display: grid;
+	align-content: center;
+	margin: auto 0 auto 0;
+	/* height: 1.625rem; */
+	width: 100%;
+	overflow-wrap: anywhere;
+}
+.lb-modal-biasList hr {
+	grid-area: hr;
+	width: 90%;
+	margin: 4px auto auto auto;
+}
+
+.lb-modal-biasList {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 8px;
+}
+
+
+
 
 #sidebar {
 	font-family: inherit;
@@ -550,6 +644,7 @@ html.nockoffAI #sidebar {
 	border-radius: 2px;
 	color: inherit;
 	background: var(--color-base-30);
+	flex: none;
 }
 
 html.monospace-dark .InputBox > div > input, html.monospace-dark .SelectBox > select,
@@ -676,6 +771,10 @@ button.textAreaSettings {
 	position:absolute;
 	top:calc(1.25em + 1px);
 	right:1px;
+}
+button.textAreaSettings.textAreaSettings-bias {
+	top: 1.45em;
+	right: 5px;
 }
 button:hover {
 	background: var(--color-base-40);
@@ -885,6 +984,25 @@ html.monospace-dark .horz-separator {
 	border-top: 3px dotted var(--color-base-20);
 }
 
+.eye-button {
+	position: relative;
+	margin-top: auto;
+	width: 1.891rem;
+	height: 1.625rem;
+}
+html.monospace-dark .eye-button {
+	position: relative;
+	margin-top: auto;
+	width: 1.891rem;
+	height: 1.725rem;
+}
+.eye-button > svg {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+} 
+
 #button-settings {
 	display: none;
 }
@@ -933,17 +1051,43 @@ if (!(Symbol.asyncIterator in ReadableStream.prototype)) {
 	};
 }
 
+function exportText(filename, text) {
+	const textBlob = new Blob([text], {type: 'text/plain;charset=utf-8'});
+	const textURL = URL.createObjectURL(textBlob);
+	var element = document.createElement('a');
+	element.setAttribute('href', textURL);
+	element.setAttribute('download', filename);
+	element.style.display = 'none';
+	document.body.appendChild(element);
+	element.click();
+	URL.revokeObjectURL(textURL);
+	document.body.removeChild(element);
+}
+
+function normalizeEndpoint(endpoint, endpointAPI) {
+	const url = new URL(endpoint.trim());
+	url.pathname = url.pathname.replace(/\/+/g, "/"); // normalize consecutive slashes
+	
+	let urlString = url.toString();
+	if (endpointAPI == 3) // openai
+		urlString = urlString.replace(/\/v1\/?$/, ""); // remove "/v1" from the end of the string
+	if (endpointAPI == 2) // koboldcpp
+		urlString = urlString.replace(/\/api\/?$/, ""); // remove "/api" from the end of the string
+	urlString = urlString.replace(/\/$/, ""); // remove "/" from the end of the string
+	
+	return urlString;
+}
+
 export async function getTokenCount({ endpoint, endpointAPI, endpointAPIKey, signal, ...options }) {
+	endpoint = normalizeEndpoint(endpoint, endpointAPI);
 	switch (endpointAPI) {
 		case 0: // llama.cpp
 			return await llamaCppTokenCount({ endpoint, endpointAPIKey, signal, ...options });
 		case 2: // koboldcpp
 			return await koboldCppTokenCount({ endpoint, signal, ...options });
 		case 3: // openai
-			// OpenAI itself doesn't have a token count endpoint...
-			if (new URL(endpoint).host === 'api.openai.com')
-				return 0;
-			if (options.realEndpoint && new URL(options.realEndpoint).host === 'api.openai.com')
+			// These endpoints don't have a token count endpoint...
+			if (new URL(endpoint).host === 'api.openai.com' || new URL(endpoint).host === 'api.together.xyz')
 				return 0;
 
 			// Each backend that exposes an OpenAI-compatible API may have a different token count endpoint.
@@ -962,7 +1106,24 @@ export async function getTokenCount({ endpoint, endpointAPI, endpointAPIKey, sig
 	}
 }
 
+export async function getTokens({ endpoint, endpointAPI, endpointAPIKey, signal, ...options }) {
+	// currently only implemented for llama.cpp and koboldcpp
+	// returns a json object in the format of:
+	// { ids:[ array of token ids ], str:[ array of detokenized ids ] }
+	// example: { ids:[9288,4731],str:["test"," string"] }
+	endpoint = normalizeEndpoint(endpoint, endpointAPI);
+	switch (endpointAPI) {
+		case 0: // llama.cpp
+			return await llamaCppTokenize({ endpoint, endpointAPIKey, signal, ...options });
+		case 2: // koboldcpp
+			return await koboldCppTokenize({ endpoint, signal, ...options });
+		case 3: // openai
+			return await openaiTokenize({ endpoint, endpointAPIKey, signal, ...options })
+	}
+}
+
 export async function getModels({ endpoint, endpointAPI, endpointAPIKey, signal, ...options }) {
+	endpoint = normalizeEndpoint(endpoint, endpointAPI);
 	switch (endpointAPI) {
 		case 3: // openai
 			return await openaiModels({ endpoint, endpointAPIKey, signal, ...options });
@@ -972,6 +1133,7 @@ export async function getModels({ endpoint, endpointAPI, endpointAPIKey, signal,
 }
 
 export async function* completion({ endpoint, endpointAPI, endpointAPIKey, signal, ...options }) {
+	endpoint = normalizeEndpoint(endpoint, endpointAPI);
 	switch (endpointAPI) {
 		case 0: // llama.cpp
 			return yield* await llamaCppCompletion({ endpoint, endpointAPIKey, signal, ...options });
@@ -983,6 +1145,7 @@ export async function* completion({ endpoint, endpointAPI, endpointAPIKey, signa
 }
 
 export async function abortCompletion({ endpoint, endpointAPI, ...options }) {
+	endpoint = normalizeEndpoint(endpoint, endpointAPI);
 	switch (endpointAPI) {
 		case 2: // koboldcpp
 			return await koboldCppAbortCompletion({ endpoint, ...options });
@@ -1026,12 +1189,16 @@ async function* parseEventStream(eventStream) {
 			}
 			// We only emit message-type events for now (and assume JSON)
 			if (data && (type || 'message') === 'message') {
-				if (data === '[DONE]')
+				if (data === '[DONE]') {
+					// This is a hack because we aren't following exactly the spec...
 					break;
+				}
 				const json = JSON.parse(data);
 				// Both Chrome and Firefox suck at debugging
 				// text/event-stream, so make it easier by logging events
-				console.log('event', json);
+				if (window.logSSEEvents) {
+					console.log('event', json);
+				}
 				yield json;
 				type = undefined;
 				data = undefined;
@@ -1040,13 +1207,13 @@ async function* parseEventStream(eventStream) {
 	}
 }
 
-async function llamaCppTokenCount({ endpoint, endpointAPIKey, realEndpoint, signal, ...options }) {
-	const res = await fetch(`${endpoint}/tokenize`, {
+async function llamaCppTokenCount({ endpoint, endpointAPIKey, proxyEndpoint, signal, ...options }) {
+	const res = await fetch(`${proxyEndpoint ?? endpoint}/tokenize`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
 			...(endpointAPIKey ? { 'Authorization': `Bearer ${endpointAPIKey}` } : {}),
-			...(realEndpoint ? { 'X-Real-URL': realEndpoint } : {})
+			...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
 		},
 		body: JSON.stringify(options),
 		signal,
@@ -1057,13 +1224,59 @@ async function llamaCppTokenCount({ endpoint, endpointAPIKey, realEndpoint, sign
 	return tokens.length + 1; // + 1 for BOS, I guess.
 }
 
-async function* llamaCppCompletion({ endpoint, endpointAPIKey, realEndpoint, signal, ...options }) {
-	const res = await fetch(`${endpoint}/completion`, {
+async function llamaCppTokenize({ endpoint, endpointAPIKey, proxyEndpoint, signal, ...options }) {
+	const res = await fetch(`${proxyEndpoint ?? endpoint}/tokenize`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
 			...(endpointAPIKey ? { 'Authorization': `Bearer ${endpointAPIKey}` } : {}),
-			...(realEndpoint ? { 'X-Real-URL': realEndpoint } : {})
+			...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
+		},
+		body: JSON.stringify(options),
+		signal,
+	});
+	if (!res.ok)
+		throw new Error(`HTTP ${res.status}`);
+	const { tokens } = await res.json();
+
+	const strings = [];
+	for (let i=0; i<tokens.length; i++) {
+		const string = await llamaCppDetokenize({
+				endpoint,
+				endpointAPIKey,
+				tokens: [ tokens[i] ],
+				signal: signal,
+		}); // maybe batch all tokens together with a bos token between them
+			// something? that'd probably be more efficient. don't know how
+			// to get the bos token ID though.
+		strings.push(string);
+	};
+	return {ids:tokens,str:strings};
+}
+async function llamaCppDetokenize({ endpoint, endpointAPIKey, proxyEndpoint, signal, ...options }) {
+	const res = await fetch(`${proxyEndpoint ?? endpoint}/detokenize`, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+			...(endpointAPIKey ? { 'Authorization': `Bearer ${endpointAPIKey}` } : {}),
+			...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
+		},
+		body: JSON.stringify(options),
+		signal,
+	});
+	if (!res.ok)
+		throw new Error(`HTTP ${res.status}`);
+	const { content } = await res.json();
+	return content
+}
+
+async function* llamaCppCompletion({ endpoint, endpointAPIKey, proxyEndpoint, signal, ...options }) {
+	const res = await fetch(`${proxyEndpoint ?? endpoint}/completion`, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+			...(endpointAPIKey ? { 'Authorization': `Bearer ${endpointAPIKey}` } : {}),
+			...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
 		},
 		body: JSON.stringify({
 			...options,
@@ -1077,24 +1290,12 @@ async function* llamaCppCompletion({ endpoint, endpointAPIKey, realEndpoint, sig
 	return yield* await parseEventStream(res.body);
 }
 
-function koboldFixEndpoint(endpoint) {
-	if (endpoint === undefined)
-		return undefined;
-	const url = new URL(endpoint.trim());
-	if (url.pathname.endsWith("/api")) {
-		url.pathname = url.pathname.replace("/api", "");
-	}
-	return url.toString();
-}
-
-async function koboldCppTokenCount({ endpoint, realEndpoint, signal, ...options }) {
-	endpoint = koboldFixEndpoint(endpoint);
-	realEndpoint = koboldFixEndpoint(realEndpoint);
-	const res = await fetch(`${endpoint}/api/extra/tokencount`, {
+async function koboldCppTokenCount({ endpoint, proxyEndpoint, signal, ...options }) {
+	const res = await fetch(`${proxyEndpoint ?? endpoint}/api/extra/tokencount`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
-			...(realEndpoint ? { 'X-Real-URL': realEndpoint } : {})
+			...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
 		},
 		body: JSON.stringify({
 			prompt: options.content
@@ -1105,6 +1306,26 @@ async function koboldCppTokenCount({ endpoint, realEndpoint, signal, ...options 
 		throw new Error(`HTTP ${res.status}`);
 	const { value } = await res.json();
 	return value;
+}
+
+async function koboldCppTokenize({ endpoint, proxyEndpoint, signal, ...options }) {
+	const res = await fetch(`${proxyEndpoint ?? endpoint}/api/extra/tokencount`, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+			...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
+		},
+		body: JSON.stringify({
+			prompt: options.content
+		}),
+		signal,
+	});
+	if (!res.ok)
+		throw new Error(`HTTP ${res.status}`);
+	const { ids } = await res.json();
+	ids.shift() // kobold automatically adds a token, so we need to remove it
+	return {ids:ids,str:""};
+	
 }
 
 function koboldCppConvertOptions(options) {
@@ -1129,14 +1350,12 @@ function koboldCppConvertOptions(options) {
 	return options;
 }
 
-async function* koboldCppCompletion({ endpoint, realEndpoint, signal, ...options }) {
-	endpoint = koboldFixEndpoint(endpoint);
-	realEndpoint = koboldFixEndpoint(realEndpoint);
-	const res = await fetch(`${endpoint}/api/extra/generate/stream`, {
+async function* koboldCppCompletion({ endpoint, proxyEndpoint, signal, ...options }) {
+	const res = await fetch(`${proxyEndpoint ?? endpoint}/api/extra/generate/stream`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
-			...(realEndpoint ? { 'X-Real-URL': realEndpoint } : {})
+			...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
 		},
 		body: JSON.stringify({
 			...koboldCppConvertOptions(options),
@@ -1151,14 +1370,12 @@ async function* koboldCppCompletion({ endpoint, realEndpoint, signal, ...options
 	}
 }
 
-async function koboldCppAbortCompletion({ endpoint, realEndpoint, ...options }) {
+async function koboldCppAbortCompletion({ endpoint, proxyEndpoint, ...options }) {
 	try {
-		endpoint = koboldFixEndpoint(endpoint);
-		realEndpoint = koboldFixEndpoint(realEndpoint);
-		await fetch(`${endpoint}/api/extra/abort`, {
+		await fetch(`${proxyEndpoint ?? endpoint}/api/extra/abort`, {
 			method: 'POST',
 			headers: {
-				...(realEndpoint ? { 'X-Real-URL': realEndpoint } : {})
+				...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
 			},
 		});
 	} catch (e) {
@@ -1166,26 +1383,14 @@ async function koboldCppAbortCompletion({ endpoint, realEndpoint, ...options }) 
 	}
 }
 
-function openaiFixEndpoint(endpoint) {
-	if (endpoint === undefined)
-		return undefined;
-	const url = new URL(endpoint.trim());
-	if (url.pathname.endsWith("/v1")) {
-		url.pathname = url.pathname.replace("/v1", "");
-	}
-	return url.toString();
-}
-
-async function openaiAphroditeTokenCount({ endpoint, endpointAPIKey, realEndpoint, signal, ...options }) {
+async function openaiAphroditeTokenCount({ endpoint, endpointAPIKey, proxyEndpoint, signal, ...options }) {
 	try {
-		endpoint = openaiFixEndpoint(endpoint);
-		realEndpoint = openaiFixEndpoint(realEndpoint);
-		const res = await fetch(`${endpoint}/v1/token/encode`, {
+		const res = await fetch(`${proxyEndpoint ?? endpoint}/v1/token/encode`, {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',
 				'Authorization': `Bearer ${endpointAPIKey}`,
-				...(realEndpoint ? { 'X-Real-URL': realEndpoint } : {})
+				...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
 			},
 			body: JSON.stringify({
 				prompt: options.content
@@ -1197,20 +1402,17 @@ async function openaiAphroditeTokenCount({ endpoint, endpointAPIKey, realEndpoin
 		const tokens = await res.json();
 		return tokens.length;
 	} catch (e) {
-		reportError(e);
 		return -1;
 	}
 }
 
-async function openaiOobaTokenCount({ endpoint, realEndpoint, signal, ...options }) {
+async function openaiOobaTokenCount({ endpoint, proxyEndpoint, signal, ...options }) {
 	try {
-		endpoint = openaiFixEndpoint(endpoint);
-		realEndpoint = openaiFixEndpoint(realEndpoint);
-		const res = await fetch(`${endpoint}/v1/internal/token-count`, {
+		const res = await fetch(`${proxyEndpoint ?? endpoint}/v1/internal/token-count`, {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',
-				...(realEndpoint ? { 'X-Real-URL': realEndpoint } : {})
+				...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
 			},
 			body: JSON.stringify({
 				text: options.content
@@ -1222,21 +1424,18 @@ async function openaiOobaTokenCount({ endpoint, realEndpoint, signal, ...options
 		const { length } = await res.json();
 		return length;
 	} catch (e) {
-		reportError(e);
 		return -1;
 	}
 }
 
-async function openaiTabbyTokenCount({ endpoint, endpointAPIKey, realEndpoint, signal, ...options }) {
+async function openaiTabbyTokenCount({ endpoint, endpointAPIKey, proxyEndpoint, signal, ...options }) {
 	try {
-		endpoint = openaiFixEndpoint(endpoint);
-		realEndpoint = openaiFixEndpoint(realEndpoint);
-		const res = await fetch(`${endpoint}/v1/token/encode`, {
+		const res = await fetch(`${proxyEndpoint ?? endpoint}/v1/token/encode`, {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',
 				'Authorization': `Bearer ${endpointAPIKey}`,
-				...(realEndpoint ? { 'X-Real-URL': realEndpoint } : {})
+				...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
 			},
 			body: JSON.stringify({
 				text: options.content
@@ -1248,30 +1447,93 @@ async function openaiTabbyTokenCount({ endpoint, endpointAPIKey, realEndpoint, s
 		const tokens = await res.json();
 		return tokens.length;
 	} catch (e) {
-		reportError(e);
 		return -1;
 	}
 }
 
-async function openaiModels({ endpoint, endpointAPIKey, realEndpoint, signal, ...options }) {
-	endpoint = openaiFixEndpoint(endpoint);
-	realEndpoint = openaiFixEndpoint(realEndpoint);
-	const res = await fetch(`${endpoint}/v1/models`, {
+async function openaiTokenize({ endpoint, endpointAPIKey, proxyEndpoint, signal, ...options }) {
+	try {
+		const res = await fetch(`${proxyEndpoint ?? endpoint}/v1/internal/encode`, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
+			},
+			body: JSON.stringify({
+				text: options.content
+			}),
+			signal,
+		});
+		if (!res.ok)
+			throw new Error(`HTTP ${res.status}`);
+		const { tokens } = await res.json();
+
+		const strings = [];
+		for (let i=0; i<tokens.length; i++) {
+			const string = await openaiDetokenize({
+					endpoint,
+					...(endpointAPIKey ? {
+						endpointAPIKey,
+					} : {}),
+					tokens: [ tokens[i] ],
+					signal: signal,
+			});
+			strings.push(string);
+		};
+		return {ids:tokens,str:strings};
+		
+	} catch (e) {
+		reportError(e);
+		return -1;
+	}
+}
+async function openaiDetokenize({ endpoint, endpointAPIKey, proxyEndpoint, signal, ...options }) {
+
+	const res = await fetch(`${proxyEndpoint ?? endpoint}/v1/internal/decode`, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+			...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
+		},
+		body: JSON.stringify(options),
+		signal,
+	});
+	if (!res.ok)
+		throw new Error(`HTTP ${res.status}`);
+	const { text } = await res.json();
+	return text
+}
+
+async function openaiModels({ endpoint, endpointAPIKey, proxyEndpoint, signal, ...options }) {
+	const isTogetherAI = endpoint.toLowerCase().includes("together.xyz");
+
+	const res = await fetch(`${proxyEndpoint ?? endpoint}/v1/models`, {
 		method: 'GET',
 		headers: {
 			'Content-Type': 'application/json',
 			'Authorization': `Bearer ${endpointAPIKey}`,
-			...(realEndpoint ? { 'X-Real-URL': realEndpoint } : {})
+			...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
 		},
 		signal,
 	});
 	if (!res.ok)
 		throw new Error(`HTTP ${res.status}`);
-	const { data } = await res.json();
+
+	const response = await res.json();
+	let data;
+
+	if (isTogetherAI) {
+		// TogetherAI returns an array.
+		data = response;
+	} else {
+		data = response.data;
+	}
 	return data.map(item => item.id);
 }
 
-function openaiConvertOptions(options, isOpenAI) {
+function openaiConvertOptions(options, endpoint){
+	const isOpenAI = endpoint.toLowerCase().includes("openai.com");
+	const isTogetherAI = endpoint.toLowerCase().includes("together.xyz");
 	const swapOption = (lhs, rhs) => {
 		if (lhs in options) {
 			options[rhs] = options[lhs];
@@ -1283,6 +1545,9 @@ function openaiConvertOptions(options, isOpenAI) {
 	}
 	if (isOpenAI && options.n_probs > 5) {
 		options.n_probs = 5;
+	}
+	if (isTogetherAI && options.n_probs > 1) {
+		options.n_probs = 1;
 	}
 	if ("dynatemp_range" in options && options.dynatemp_range !== 0) {
 		// oobabooga specific.
@@ -1305,18 +1570,16 @@ function openaiConvertOptions(options, isOpenAI) {
 	return options;
 }
 
-async function* openaiCompletion({ endpoint, endpointAPIKey, realEndpoint, signal, ...options }) {
-	endpoint = openaiFixEndpoint(endpoint);
-	realEndpoint = openaiFixEndpoint(realEndpoint);
-	const res = await fetch(`${endpoint}/v1/completions`, {
+async function* openaiCompletion({ endpoint, endpointAPIKey, proxyEndpoint, signal, ...options }) {
+	const res = await fetch(`${proxyEndpoint ?? endpoint}/v1/completions`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
 			'Authorization': `Bearer ${endpointAPIKey}`,
-			...(realEndpoint ? { 'X-Real-URL': realEndpoint } : {})
+			...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
 		},
 		body: JSON.stringify({
-			...openaiConvertOptions(options, endpoint.toLowerCase().includes("openai.com")),
+			...openaiConvertOptions(options, endpoint),
 			stream: true,
 		}),
 		signal,
@@ -1336,18 +1599,16 @@ async function* openaiCompletion({ endpoint, endpointAPIKey, realEndpoint, signa
 	}
 }
 
-async function openaiOobaAbortCompletion({ endpoint, realEndpoint, ...options }) {
-	endpoint = openaiFixEndpoint(endpoint);
-	realEndpoint = openaiFixEndpoint(realEndpoint);
+async function openaiOobaAbortCompletion({ endpoint, proxyEndpoint, ...options }) {
 	try {
-		await fetch(`${endpoint}/v1/internal/stop-generation`, {
+		await fetch(`${proxyEndpoint ?? endpoint}/v1/internal/stop-generation`, {
 			method: 'POST',
 			headers: {
-				...(realEndpoint ? { 'X-Real-URL': realEndpoint } : {})
+				...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
 			},
 		});
 	} catch (e) {
-		reportError(e);
+		// do nothing
 	}
 }
 
@@ -1453,43 +1714,7 @@ function CollapsibleGroup({ label, expanded, children }) {
 		</div>`;
 }
 
-	function Modal({ isOpen, onClose, title, description, children, ...props }) {
-		if (!isOpen) {
-			return null;
-		}
-		useEffect(() => {
-			const onKeyDown = (event) => {
-				if (event.key === 'Escape') {
-					onClose();
-				}
-			};
-			document.addEventListener('keydown', onKeyDown);
-			return () => {
-				document.removeEventListener('keydown', onKeyDown);
-			};
-		});
-		return html`
-		<div className="modal-overlay" onClick=${onClose}>
-			<div className="modal-container">
-				<div className="modal" onClick=${(e) => e.stopPropagation()} ...${props}>
-					<div class="modal-title">${title}</div>
-					${ description=="" ? false : html`<div style=${{ whiteSpace: 'pre-line' }} class='modal-desc'>${description}</div>` }
-					<hr/>
-					<div className="modal-content">
-						${children}
-					</div>
-					<button
-					class="button-modal-top"
-					onClick=${onClose}>
-						<svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="-1 -1 10 10" xmlns="http://www.w3.org/2000/svg"><path d="M 0 1 L 3 4 L 0 7 L 1 8 L 4 5 L 7 8 L 8 7 L 5 4 L 8 1 L 7 0 L 4 3 L 1 0 L 1 0 Z"></path></svg>
-					</button>
-				</div>
-			</div>
-		</div>
-		`;
-	}
-
-function Sessions({ sessionStorage, onSessionChange, onSessionError, disabled }) {
+function Sessions({ sessionStorage, disabled }) {
 	const [version, setVersion] = useState(0);
 	const [newSessionName, setNewSessionName] = useState('');
 	const [renameSessionName, setRenameSessionName] = useState('');
@@ -1497,14 +1722,9 @@ function Sessions({ sessionStorage, onSessionChange, onSessionError, disabled })
 	const [isCreating, setIsCreating] = useState(false);
 
 	useEffect(() => {
-		sessionStorage.onchange = () => setVersion(v => v + 1);
-		sessionStorage.onsessionchange = onSessionChange;
-		sessionStorage.onerror = onSessionError;
-		return () => {
-			sessionStorage.onchange = null;
-			sessionStorage.onsessionchange = null;
-			sessionStorage.onerror = null;
-		};
+		const incrementVersion = () => setVersion(v => v + 1);
+		sessionStorage.addEventListener('change', incrementVersion);
+		return () => sessionStorage.removeEventListener('change', incrementVersion);
 	}, []);
 
 	const switchSession = async (sessionId) => {
@@ -1567,18 +1787,12 @@ function Sessions({ sessionStorage, onSessionChange, onSessionError, disabled })
 	};
 
 	const exportSession = () => {
-		var element = document.createElement('a');
 		const sessionObj = { ...sessionStorage.sessions[sessionStorage.selectedSession] };
 		for (const [key, value] of Object.entries(sessionObj)) {
 			// This is done for compatibility with localStorage export files.
 			sessionObj[key] = JSON.stringify(value);
 		}
-		element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(JSON.stringify(sessionObj)));
-		element.setAttribute('download', `${sessionStorage.getProperty('name')}.json`);
-		element.style.display = 'none';
-		document.body.appendChild(element);
-		element.click();
-		document.body.removeChild(element);
+		exportText(`${sessionStorage.getProperty('name')}.json`, JSON.stringify(sessionObj));
 	};
 
 	const cloneSession = async () => {
@@ -1672,20 +1886,650 @@ function Sessions({ sessionStorage, onSessionChange, onSessionError, disabled })
 		</div>`;
 }
 
-class SessionStorage {
-	constructor(defaultPresets) {
+
+
+function Modal({ isOpen, onClose, title, description, children, ...props }) {
+	if (!isOpen) {
+		return null;
+	}
+
+	useEffect(() => {
+		const onKeyDown = (event) => {
+			if (event.key === 'Escape') {
+				onClose();
+			}
+		};
+		document.addEventListener('keydown', onKeyDown);
+		return () => {
+			document.removeEventListener('keydown', onKeyDown);
+		};
+	}, []);
+
+	return html`
+		<div className="modal-overlay" onClick=${onClose}>
+			<div className="modal-container">
+				<div className="modal" onClick=${(e) => e.stopPropagation()} ...${props}>
+					<div class="modal-title">${title}</div>
+					${ description=="" ? false : html`<div style=${{ whiteSpace: 'pre-line' }} class='modal-desc'>${description}</div>` }
+					<hr/>
+					<div className="modal-content">
+						${children}
+					</div>
+					<button
+					class="button-modal-top"
+					onClick=${onClose}>
+						<svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="-1 -1 10 10" xmlns="http://www.w3.org/2000/svg"><path d="M 0 1 L 3 4 L 0 7 L 1 8 L 4 5 L 7 8 L 8 7 L 5 4 L 8 1 L 7 0 L 4 3 L 1 0 L 1 0 Z"></path></svg>
+					</button>
+				</div>
+			</div>
+		</div>`;
+}
+
+function EditorPreferencesModal({ isOpen, closeModal, children }) {
+	return html`
+		<${Modal} isOpen=${isOpen} onClose=${closeModal}
+			title="Editor Preferences"
+			description=""
+			style=${{ 'max-width': '20em' }}>
+				<div className="vbox">
+					${children}
+				</div>
+			</${Modal}>`;
+}
+
+function MemoryModal({ isOpen, closeModal, memoryTokens, handleMemoryTokensChange, cancel }) {
+	return html`
+		<${Modal} isOpen=${isOpen} onClose=${closeModal}
+			title="Memory"
+			description="This text will be added at the very top of your context.
+			Prefix and suffix will be attached at the beginning or end of your memory respectively. \\n for newlines in pre/suffix.">
+				<div className="hbox">
+					<${InputBox} label="Prefix" type="text" placeholder="[INST]"
+						readOnly=${!!cancel} value=${memoryTokens.prefix} onValueChange=${(value) => handleMemoryTokensChange("prefix", value)}/>
+					<${InputBox} label="Suffix" type="text" placeholder="[/INST]"
+						readOnly=${!!cancel} value=${memoryTokens.suffix} onValueChange=${(value) => handleMemoryTokensChange("suffix", value)}/>
+				</div>
+				<textarea
+					readOnly=${!!cancel}
+					placeholder="Anything written here will be injected at the head of the prompt. Tokens here DO count towards the Context Limit."
+					defaultValue=${memoryTokens.text}
+					value=${memoryTokens.text}
+					onInput=${(e) => handleMemoryTokensChange("text", e.target.value) }
+					class="expanded-text-area-settings"
+					id="memory-area-settings"/>
+			</${Modal}>`;
+}
+
+function AuthorNoteModal({ isOpen, closeModal, authorNoteTokens, handleauthorNoteTokensChange, authorNoteDepth, setAuthorNoteDepth, cancel }) {
+	const handleAuthorNoteDepthChange = (value) => {
+		setAuthorNoteDepth(!isNaN(+value) && value >= 0 ? value : 0);
+	};
+
+	return html`
+		<${Modal} isOpen=${isOpen} onClose=${closeModal}
+			title="Author's Note"
+			description="This text will be injected N newlines from the bottom of your prompt.
+			Prefix and suffix will be attached at the beginning or end of your author's note respectively. \\n for newlines in pre/suffix.">
+				<div className="hbox">
+					<${InputBox} label="Prefix" type="text" placeholder="[INST]"
+						readOnly=${!!cancel} value=${authorNoteTokens.prefix} onValueChange=${(value) => handleauthorNoteTokensChange("prefix", value)}/>
+					<${InputBox} label="Suffix" type="text" placeholder="[/INST]"
+						readOnly=${!!cancel} value=${authorNoteTokens.suffix} onValueChange=${(value) => handleauthorNoteTokensChange("suffix", value)}/>
+					<${InputBox} label="AN Injection Depth (0-N)" type="number" step="1"
+						readOnly=${!!cancel} value=${authorNoteDepth} onValueChange=${handleAuthorNoteDepthChange}/>
+				</div>
+				<textarea
+					readOnly=${!!cancel}
+					placeholder="Anything written here will be injected ${authorNoteDepth} newlines from bottom into context."
+					defaultValue=${authorNoteTokens.text}
+					value=${authorNoteTokens.text}
+					onInput=${(e) => handleauthorNoteTokensChange("text", e.target.value) }
+					class="expanded-text-area-settings"
+					id="expanded-an-settings"/>
+			</${Modal}>`;
+}
+
+function ContextModal({ isOpen, closeModal, memoryTokens, handleMemoryTokensChange, modifiedPrompt, defaultPresets, cancel }) {
+	return html`
+		<${Modal} isOpen=${isOpen} onClose=${closeModal}
+			title="Context"
+			description="This is the prompt being sent to your large language model.">
+			<${CollapsibleGroup} label="Advanced Context Ordering">
+				<div id="context-order-desc">
+					You can use the following placeholders to order the context according to your needs:<br />
+					<div id="advancedContextPlaceholders">
+						<table border="1" frame="void" rules="all">
+							<thead>
+							<tr>
+								<th></th>
+								<th>Prefix</th>
+								<th>Text</th>
+								<th>Suffix</th>
+							</tr>
+							</thead>
+							<tbody>
+							<tr>
+								<th>Memory</th>
+								<td>{memPrefix}</td>
+								<td>{memText}</td>
+								<td>{memSuffix}</td>
+							</tr>
+							<tr>
+								<th>World Info</th>
+								<td>{wiPrefix}</td>
+								<td>{wiText}</td>
+								<td>{wiSuffix}</td>
+							</tr>
+							<tr>
+								<th>Prompt</th>
+								<td></td>
+								<td>{prompt}</td>
+								<td></td>
+							</tr>
+							</tbody>
+						</table>
+					</div>
+					Any text that is not a placeholder will be added into the context as is.
+				</div>
+				<textarea
+					readOnly=${!!cancel}
+					placeholder=${defaultPresets.memoryTokens.contextOrder}
+					defaultValue=${memoryTokens.contextOrder}
+					value=${memoryTokens.contextOrder}
+					onInput=${(e) => handleMemoryTokensChange("contextOrder", e.target.value)}
+					class="expanded-text-area-settings"
+					id="advanced-context-order-settings"/>
+			</${CollapsibleGroup}>
+			<textarea
+				readOnly=${!!cancel}
+				value=${modifiedPrompt}
+				class="expanded-text-area-settings"
+				id="context-area-settings" readOnly/>
+		</${Modal}>`;
+}
+
+function WorldInfoModal({ isOpen, closeModal, worldInfo, setWorldInfo, cancel }) {
+	const handleWorldInfoNew = () => {
+		setWorldInfo((prevWorldInfo) => {
+			return {
+				...prevWorldInfo,
+				entries: [ { "displayName":"New Entry","text":"","keys":[], "search":"" },...prevWorldInfo.entries ],
+			};
+		});
+	};
+	const handleWorldInfoMove = (index,move) => {
+		const modEntries = worldInfo.entries;
+		if (index+move < 0 || index+move > modEntries.length-1 ) {
+			return;
+		}
+		modEntries.splice(index+move, 0, modEntries.splice(index, 1)[0]);
+		setWorldInfo((prevWorldInfo) => {
+			return {
+				...prevWorldInfo,
+				entries: [ ...modEntries ],
+			};
+		});
+	};
+	const handleWorldInfoDel = (index) => {
+		if (!window.confirm("Are you sure you want to delete the world info entry #" + (index + 1) + ": "+ worldInfo.entries[index].displayName + "?\nThis action cannot be undone."))
+			return;
+		if (index > -1 && index < worldInfo.entries.length) {
+			setWorldInfo((prevWorldInfo) => {
+				console.warn(`Deleting world info entry #${(index + 1)}:`,prevWorldInfo.entries[index])
+				return {
+					...prevWorldInfo,
+					entries: prevWorldInfo.entries.filter((_, i) => i !== index),
+				};
+			});
+		}
+		else {
+			alert("Index " + index + " out of range!");
+		}
+	};
+	const handleWorldInfoChange = (key,index,value) => {
+		setWorldInfo((prevWorldInfo) => {
+			const updatedEntries = [...prevWorldInfo.entries];
+			const updatedEntry = key == "keys"
+				? { ...updatedEntries[index], [key]: value.split(/(?<!\\), ?/) } //.map(item => item.trim())
+				: { ...updatedEntries[index], [key]: value };
+			updatedEntries[index] = updatedEntry;
+
+			return {
+				...prevWorldInfo,
+				entries: updatedEntries,
+			};
+		});
+	};
+	const handleWorldInfoAffixChange = (key, value) => {
+		setWorldInfo((prevWorldInfo) => ({
+			...prevWorldInfo,
+			[key]: value,
+		}));
+	};
+
+	return html`
+		<${Modal} isOpen=${isOpen} onClose=${closeModal}
+			title="World Info"
+			description="Additional information that is added when specific keywords are found in context.
+			World info will be added at the top of your memory, in the order specified here.
+
+			Each entry will begin on a newline. Keys will be interpreted as case-insensitive regular expressions. Search Range specifies how many tokens back into the context will be searched for activation keys. Search range 0 to disable an entry.">
+			<div id="modal-wi-global">
+				<${CollapsibleGroup} label="Prefix/Suffix">
+					The prefix and suffix will be added at the beginning or end of all your active World Info entries respectively.
+					<br />
+					<div className="hbox">
+						<${InputBox} label="Prefix" type="text" placeholder="\\n"
+							readOnly=${!!cancel} value=${worldInfo.prefix} onValueChange=${(value) => handleWorldInfoAffixChange("prefix", value)}/>
+						<${InputBox} label="Suffix" type="text" placeholder="\\n"
+							readOnly=${!!cancel} value=${worldInfo.suffix} onValueChange=${(value) => handleWorldInfoAffixChange("suffix", value)}/>
+					</div>
+				</${CollapsibleGroup}>
+				<button id="button-wi-new" disabled=${!!cancel} onClick=${handleWorldInfoNew}>New Entry</button>
+			</div>
+			<div className="modal-wi-content overflow-container">
+				${!Array.isArray(worldInfo.entries) ? null : worldInfo.entries.map((entry, index) => html`
+					<div class="wi-entry" key=${index}>
+						<div class="wi-entry-controls">
+							<div class="wi-entry-filler" />
+							<div class="wi-entry-name">
+								<${InputBox}
+								label="Entry #${index+1}"
+								type="text"
+								readOnly=${!!cancel}
+								placeholder="Name of this entry"
+								value=${entry.displayName}
+								onValueChange=${(value) => handleWorldInfoChange("displayName",index,value)}
+								/>
+							</div>
+							<div class="wi-entry-buttons">
+								<div class="wi-entry-buttons-container">
+									<button disabled=${!!cancel} onClick=${() => handleWorldInfoMove(index,-1)}>
+										<svg fill="var(--color-light)" height="12" width="12" viewBox="0 0 330 330"><path d="M325.606,229.393l-150.004-150C172.79,76.58,168.974,75,164.996,75c-3.979,0-7.794,1.581-10.607,4.394 l-149.996,150c-5.858,5.858-5.858,15.355,0,21.213c5.857,5.857,15.355,5.858,21.213,0l139.39-139.393l139.397,139.393 C307.322,253.536,311.161,255,315,255c3.839,0,7.678-1.464,10.607-4.394C331.464,244.748,331.464,235.251,325.606,229.393z"/></svg>
+									</button>
+									<button disabled=${!!cancel} onClick=${() => handleWorldInfoDel(index)}>
+										✕
+									</button>
+									<button disabled=${!!cancel} onClick=${() => handleWorldInfoMove(index,1)}>
+										<svg fill="var(--color-light)" height="12" width="12" viewBox="0 0 330 330"><path d="M325.607,79.393c-5.857-5.857-15.355-5.858-21.213,0.001l-139.39,139.393L25.607,79.393 c-5.857-5.857-15.355-5.858-21.213,0.001c-5.858,5.858-5.858,15.355,0,21.213l150.004,150c2.813,2.813,6.628,4.393,10.606,4.393 s7.794-1.581,10.606-4.394l149.996-150C331.465,94.749,331.465,85.251,325.607,79.393z"/></svg>
+									</button>
+								</div>
+							</div>
+							<div class="wi-entry-text">
+								<div class="hbox">
+									<${InputBox}
+										label="Comma Separated RegEx Keys"
+										type="text"
+										readOnly=${!!cancel}
+										value=${entry.keys.join(',')}
+										placeholder="Required to activate entry"
+										onValueChange=${(value) => handleWorldInfoChange("keys",index,value)}
+										/>
+									<${InputBox}
+										label="Search Range (0 = disabled)"
+										tooltip="Currently not accurate to the token count, it will be used as an estimate."
+
+										type="text"
+										readOnly=${!!cancel}
+										inputmode="numeric"
+										value=${entry.search}
+										placeholder="2048"
+										onValueChange=${(value) => handleWorldInfoChange("search",index,value)}
+										/>
+								</div>
+								<label class="TextArea">
+									Text
+									<textarea
+										readOnly=${!!cancel}
+										placeholder="Information to be inserted into context when key is found"
+										value=${entry.text ? entry.text : ""}
+										defaultValue=${entry.text ? entry.text : ""}
+										onInput=${(e) => handleWorldInfoChange("text",index, e.target.value)}
+										class="wi-textarea" />
+								</label>
+							</div>
+						</div>
+					</div>`)}
+			</div>
+		</${Modal}>`;
+}
+
+function LogitBiasModal({ isOpen, closeModal, logitBias, setLogitBias, logitBiasParam, setLogitBiasParam, sessionStorage, endpoint, endpointAPI, endpointAPIKey, isMikupadEndpoint, cancel }) {
+	const [lastBiasError, setLastBiasError] = useState(undefined);
+	const [logitBiasTemp, setLogitBiasTemp] = useState([]);
+	const [logitBiasSorted, setLogitBiasSorted] = useState([]);
+	const [logitBiasInput, setLogitBiasInput] = useState({power:"0",string:""});
+	
+	const handleLogitBiasInput = (key,value) => {
+		setLogitBiasInput((prevLogitBiasInput) => {
+			return {
+				...prevLogitBiasInput,
+				[key]: value
+			}
+		});
+	};
+
+	const logitBiasAdd = async (biasPower="",biasString="",origValue="") => {
+		setLastBiasError(undefined);
+		// abort if no input or power is NaN
+		if(!biasString) {
+			return;
+		}
+		if (isNaN(+biasPower) || biasPower == "") { 
+			setLastBiasError("Error: Bias must be a number");
+			return;
+		}
+		biasPower = Number(biasPower);
+
+		const modBias = logitBias.bias;
+		
+		// delete entry if power 0 or empty
+		if (biasPower == 0) {	
+			if (!logitBias.bias[biasString]) {
+				setLastBiasError("Error: Bias 0 = no Bias");
+				return;
+			}
+			console.log("delete",biasString);
+			setLogitBias((prevLogitBias) => {
+				delete modBias[biasString];
+				return { 
+					...prevLogitBias,
+					bias: {
+						...modBias
+					}
+				};
+			})
+			return;
+		}
+		// if overwriting the string value of an entry, delete the original one
+		if (origValue && origValue != biasString) {
+			delete modBias[origValue];
+		}
+
+		const ac = new AbortController();
+		try {
+			// if the string is a comma separated list of numbers wrapped in /
+			var tokens
+			const isTokenIds = biasString.match(/^(?<!\\)\/(\s*\d+\s*,?\s*)+(?<!\\)\/$/g);
+			if ( isTokenIds != null ) {
+				// split by "," and use it as token ids directly
+				tokens = {
+					ids: isTokenIds[0].replaceAll("/","").split(",").map( item => Number(item.trim()) ),
+					str: ""
+				};
+			}
+			// else process like normal
+			else {
+				// KNOWN ISSUE: some models automatically prepend a space to any tokenization 
+				// input. to work around this, I'm prepending the input with a "!==", then 
+				// slicing the output array by the number of tokens of "!==".
+				// This could cause issues when trying to bias a token starting with ? where
+				// ? is any character that forms a single token together with " !==", like 
+				// this: " !==?" I've chosen "!==" because it seems to be a very conserved
+				// token between models.
+				//
+				// Now granted, I have not found any strings where this is actually an issue in 
+				// the tokenizers of the models I use, but this is still a huge hackjob of a 
+				// workaround. If anyone can think of a better solution, please let me know.
+				tokens = await getTokens({
+					endpoint,
+					endpointAPI,
+					...(endpointAPI == 3 || endpointAPI == 0 ? { endpointAPIKey } : {}),
+					content: `!==${biasString}`.replace(/\\n/g,'\n'),
+					signal: ac.signal,
+					...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {})
+				});
+				const logitBiasWorkaround = await getTokens({
+					endpoint,
+					endpointAPI,
+					...(endpointAPI == 3 || endpointAPI == 0 ? { endpointAPIKey } : {}),
+					content: `!==`,
+					signal: ac.signal,
+					...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {})
+				});
+				// Remove however many tokens !== is tokenized as for the workaround
+				tokens.ids = tokens.ids.slice(logitBiasWorkaround.ids.length);
+				if ( Array.isArray(tokens.str) ) {
+					tokens.str = tokens.str.slice(logitBiasWorkaround.ids.length);
+				}
+			}
+
+			console.log("Biasing tokens [",tokens.ids.join(", "),"]",
+				Array.isArray(tokens.str) ? "'"+tokens.str.join("|")+"'"
+					: "'"+biasString+"'",
+				"by power",biasPower)
+			await setLogitBias((prevLogitBias) => ({
+				...prevLogitBias,
+				bias: {
+					...modBias,
+					[biasString]: { // removed Number() here
+						ids: [ ...tokens.ids ],
+						strings: [ ...tokens.str ],
+						power: biasPower
+					}
+				}
+			}));
+		}
+		catch(e) {
+			if (e.name !== 'AbortError') {
+				reportError(e);
+				const errStr = e.toString();
+				if ((endpointAPI == 3 || endpointAPI == 0) && errStr.includes("401")) {
+					setLastBiasError("Error: Rejected API Key");
+					setRejectedAPIKey(true);
+				} else if (endpointAPI == 3 && errStr.includes("429")) {
+					setLastBiasError("Error: Insufficient Quota");
+				} else {
+					setLastBiasError(errStr);
+				}
+			}
+			return;
+		}
+	};
+
+	const clamp = (num, min = -Infinity, max = Infinity) => {
+		return Math.min(Math.max(num, min), max);
+	};
+
+	const llamaCppSetLogitBiasParams = () => {
+		const param = [];
+		// TODO grab multi-token strings here and put them in a separate state variable
+		// for phrase bias
+		Object.keys(logitBias.bias).forEach(entry => {
+			// set banned tokens to false, else divide power by 10 to remain within
+			// reasonable range
+			const power = logitBias.bias[entry].power < -99 ? false : Number(logitBias.bias[entry].power) / 10;
+			param.push( [ Number(logitBias.bias[entry].ids[0]), power ] );
+		});
+		setLogitBiasParam(param);
+	};
+	const koboldCppSetLogitBiasParams = () => {
+		const param = {};
+		Object.keys(logitBias.bias).forEach(entry => {
+			// -100 to 100
+			param[Number(logitBias.bias[entry].ids[0])] = clamp(Number(logitBias.bias[entry].power),-100,100)
+		});
+		setLogitBiasParam(param);
+	};
+	const openaiSetLogitBiasParams = () => {
+		const param = {};
+		Object.keys(logitBias.bias).forEach(entry => {
+			// -100 to 100
+			param[Number(logitBias.bias[entry].ids[0])] = clamp(Number(logitBias.bias[entry].power),-100,100).toFixed(1)
+		});
+		setLogitBiasParam(param);
+	};
+
+	useMemo(() => {
+		// set the parameters sent to the model in the format expected by the endpoint
+		switch (endpointAPI) {
+			case 0:
+				llamaCppSetLogitBiasParams();
+				break;
+			case 2:
+				koboldCppSetLogitBiasParams();
+				break;
+			case 3:
+				//openaiSetLogitBiasParams()
+				// for some reason this causes an error
+				break;
+		}
+	}, [logitBias, endpointAPI]);
+
+
+	useEffect(() => {
+		const tempArray = logitBiasSorted.map((string, index) =>  ({
+			value: string,
+			valueBack: string,
+			strings: logitBias.bias[string].strings,
+			tokens: logitBias.bias[string].ids,
+			power: logitBias.bias[string].power
+		}));
+		setLogitBiasTemp({
+			positive: tempArray.filter(item => item.power > 0),
+			negative: tempArray.filter(item => item.power < 0)
+		});
+	},[logitBiasSorted,isOpen]);
+
+
+	const handleBiasTempChange = (posneg, key, index, value) => {
+		setLogitBiasTemp((prevLogitBiasTemp) => {
+			const rest = { ...prevLogitBiasTemp };
+			const updatedTemp = [ ...prevLogitBiasTemp[posneg] ];
+			 
+			updatedTemp[index] = {
+				...updatedTemp[index],
+				[key]: value,
+			};
+			return {
+				...rest,
+				[posneg]: updatedTemp
+			};
+		});
+	};
+
+	useMemo(() => {
+		const biasListToSort = Object.entries(logitBias.bias);
+		const sortPowerString = (a, b) => {
+			const powerDiff = parseInt(b[1].power) - parseInt(a[1].power);
+			if (powerDiff !== 0) {
+				// If powers are different, sort by power
+				return powerDiff;
+			} else {
+				// If powers are the same, sort alphabetically by string value
+				return a[0].localeCompare(b[0]);
+			}
+		};
+
+		const biasListSorted = biasListToSort.sort(sortPowerString);
+		const resultArray = biasListSorted.map(([key]) => key);
+
+		setLogitBiasSorted(resultArray);
+	}, [logitBias]);
+
+	return html`
+		<${Modal} isOpen=${isOpen} onClose=${closeModal}
+			title="Logit Bias"
+			description="Make certain tokens more or less likely to be generated. Recommended ranges are 100 to -100, with -100 being a total ban of the token.
+			Currently only works on the first token of multi-token phrases/words.
+			You can bias IDs directly in a comma separated list, wrapped in '/'. Example: /382,1449,1802/
+
+			Different models might tokenize words differently. Always Re-Tokenize your biases when switching models by pressing the '+' button again for every entry.">
+			${isOpen 
+				&& html`
+					<div className="hbox-flex logitBiasContainer">
+						<div class="small-inputBox">
+							<${InputBox} label="Bias" className="logitBiasPower-container"
+								type="enumber"  max=100 min=-100 step=1
+								readOnly=${!!cancel}
+								onValueChange=${(value) => { handleLogitBiasInput("power",value)} }
+								value=${logitBiasInput.power} 
+								id="logitBiasPower"/>
+						</div>
+						<${InputBox} label="Token" type="text"
+							tooltip="Currently, only the first token of multi-token strings will be biased."
+							readOnly=${!!cancel}
+							value=${logitBiasInput.string}
+							placeholder="String or /ID,.../"
+							onValueChange=${() => {} }
+							onInput=${(e) => {handleLogitBiasInput("string",e.target.value)} }
+							/>
+						<button disabled=${!!cancel} class="hbox-button" onClick=${() => logitBiasAdd(logitBiasInput.power,logitBiasInput.string)}>+</button>
+					</div>
+					${!!lastBiasError && html`
+						<div style=${{"margin":"8px auto"}} className="error-text">${lastBiasError}</div>`}
+				<hr style=${{"width":"95%","margin":"8px auto"}} />
+				<div class="lb-modal-biasList" >
+					${Object.keys(logitBiasTemp).map((key) => {
+						return html`
+							<div class="overflow-container lb-modal-grid-column" id="lb-modal-${key}">
+								${logitBiasTemp[key].map((bias, index) => {
+									return html`
+										<div class="lb-modal-entry lb-modal-grid-row" key=${index}>
+											<${InputBox} label="Bias" class="lb-modal-power"
+												type="enumber" max=100 min=-100 step=1
+												id="lb-modal-power-${index}"
+												readOnly=${!!cancel}
+												onValueChange=${(value) => {handleBiasTempChange(key,"power", index, value)} }
+												value=${bias.power}/>
+
+											<${InputBox} label="Token" type="text"
+												tooltip="Currently, only the first token of multi-token strings will be biased."
+												readOnly=${!!cancel}
+												value=${bias.value}
+												placeholder="String or /ID,.../"
+												onValueChange=${() => {} }
+												onInput=${(e) => handleBiasTempChange(key,"value", index, e.target.value) }
+												/>
+											<div class="lb-modal-tokenized">
+												${endpointAPI == 0 && bias.strings != ""
+													? "["+bias.strings.join("|")+"] "
+													: "["+bias.tokens+"]" } 
+												
+											</div>
+											<button
+												disabled=${!!cancel}
+												class="hbox-button lb-modal-button lb-modal-button-add"
+												onClick=${() => logitBiasAdd(bias.power, bias.value, bias.valueBack)}
+												>
+												+
+											</button>
+											<button
+												disabled=${!!cancel}
+												class="hbox-button lb-modal-button lb-modal-button-remove"
+												onClick=${() => logitBiasAdd("0", bias.valueBack, bias.valueBack)}
+												>
+												-
+											</button>
+											<hr/>
+										</div>`})}
+							</div>`})}
+				</div>`}
+			</${Modal}>`;
+}
+
+class SessionStorage extends EventTarget {
+	constructor() {
+		super();
 		this.dbName = 'MikuPad';
 		this.storeName = 'Sessions';
 		this.nextId = undefined;
-		this.dependents = {};
 		this.saveQueue = [];
 		this.saveTimer = undefined;
 		this.sessions = {};
 		this.selectedSession = undefined;
-		this.sessionTemplate = { ...defaultPresets };
-		this.onchange = null;
-		this.onsessionchange = null;
-		this.onerror = null;
+	}
+
+	dispatchChangeEvent() {
+		this.dispatchEvent(new CustomEvent('change'));
+	}
+
+	dispatchSessionChangeEvent() {
+		this.dispatchEvent(new CustomEvent('sessionchange'));
+	}
+
+	dispatchErrorEvent(detail) {
+		this.dispatchEvent(new CustomEvent('error', { detail }));
 	}
 
 	async init() {
@@ -1701,7 +2545,7 @@ class SessionStorage {
 			const openRequest = indexedDB.open(this.dbName);
 
 			openRequest.onerror = () => {
-				this.onerror?.(openRequest.error);
+				this.dispatchErrorEvent(openRequest.error);
 				reject(openRequest.error);
 			};
 			openRequest.onsuccess = () => resolve(openRequest.result);
@@ -1717,19 +2561,6 @@ class SessionStorage {
 		this.nextId += 1;
 		await this.saveToDatabase('nextSessionId', this.nextId);
 		return this.nextId - 1;
-	}
-
-	addDependent(name, callback) {
-		this.dependents[name] = this.dependents[name] || new Set();
-		this.dependents[name].add(callback);
-	}
-
-	updateDependents(name, newValue) {
-		if (!this.dependents[name])
-			return;
-		for (const callback of this.dependents[name]) {
-			callback(newValue);
-		}
 	}
 
 	async saveTimerHandler() {
@@ -1844,20 +2675,15 @@ class SessionStorage {
 		this.selectedSession = +sessionId;
 		await this.saveToDatabase('selectedSessionId', this.selectedSession);
 
-		this.onchange?.();
-		this.onsessionchange?.();
-
-		const deepCopy = (value) => JSON.parse(JSON.stringify(value));
-		for (const propertyName of Object.keys(this.sessionTemplate)) {
-			this.updateDependents(propertyName, this.getProperty(propertyName) ?? deepCopy(this.sessionTemplate[propertyName]));
-		}
+		this.dispatchChangeEvent();
+		this.dispatchSessionChangeEvent();
 	}
 
 	async renameSession(sessionId, renameSessionName) {
 		this.sessions[sessionId]['name'] = renameSessionName;
 		await this.saveToDatabase(sessionId, this.sessions[sessionId]);
 
-		this.onchange?.();
+		this.dispatchChangeEvent();
 	}
 
 	async deleteSession(sessionId) {
@@ -1881,7 +2707,7 @@ class SessionStorage {
 				}
 
 				delete this.sessions[sessionId];
-				this.onchange?.();
+				this.dispatchChangeEvent();
 				resolve();
 			};
 			request.onerror = () => reject(request.error);
@@ -1922,8 +2748,8 @@ class SessionStorage {
 }
 
 class WebSessionStorage extends SessionStorage {
-	constructor(defaultPresets, sessionEndpoint) {
-		super(defaultPresets);
+	constructor(sessionEndpoint) {
+		super();
 		this.sessionEndpoint = sessionEndpoint;
 		this.proxyEndpoint = `${sessionEndpoint}/proxy`;
 	}
@@ -1939,7 +2765,7 @@ class WebSessionStorage extends SessionStorage {
 					body: JSON.stringify(options),
 				});
 			} catch (e) {
-				this.onerror?.(e);
+				this.dispatchErrorEvent(e);
 				reportError(e);
 				return { ok: false, status: e.toString() };
 			}
@@ -2024,7 +2850,7 @@ class WebSessionStorage extends SessionStorage {
 			}
 
 			delete this.sessions[sessionId];
-			this.onchange?.();
+			this.dispatchChangeEvent();
 			resolve();
 		});
 	}
@@ -2077,6 +2903,7 @@ const defaultPresets = {
 		"prefix": "",
 		"suffix": ""
 	}),
+	logitBias:{ bias:{},model:"none" },
 	scrollTop: 0
 };
 
@@ -2108,7 +2935,18 @@ function useSessionState(sessionStorage, name, initialState) {
 	}, []);
 
 	const [value, setValue] = useState(savedState ?? initialState);
-	sessionStorage.addDependent(name, setValue);
+
+	useEffect(() => {
+		function deepCopy(value) {
+			return JSON.parse(JSON.stringify(value));
+		}
+		function onSessionChange() {
+			setValue(sessionStorage.getProperty(name) ?? deepCopy(initialState));
+		}
+
+		sessionStorage.addEventListener('sessionchange', onSessionChange);
+		return () => sessionStorage.removeEventListener('sessionchange', onSessionChange);
+	}, []);
 
 	const updateState = (newValue) => {
 		setValue((prevValue) => {
@@ -2152,6 +2990,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 	const probsDelayTimer = useRef();
 	const keyState = useRef({});
 	const sessionReconnectTimer = useRef();
+	const useScrollSmoothing = useRef(true);
 	const [currentPromptChunk, setCurrentPromptChunk] = useState(undefined);
 	const [undoHovered, setUndoHovered] = useState(false);
 	const [showProbs, setShowProbs] = useState(true);
@@ -2161,10 +3000,11 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 	const [showProbsMode, setShowProbsMode] = usePersistentState('showProbsMode', 0);
 	const [highlightGenTokens, setHighlightGenTokens] = usePersistentState('highlightGenTokens', true);
 	const [preserveCursorPosition, setPreserveCursorPosition] = usePersistentState('preserveCursorPosition', true);
-	const [darkMode, _] = usePersistentState('darkMode', false); // legacy
-	const [theme, setTheme] = usePersistentState('theme', darkMode ? 1 : 0);
+	const [promptAreaWidth, setPromptAreaWidth] = usePersistentState('promptAreaWidth', undefined);
+	const [theme, setTheme] = usePersistentState('theme', 0);
 	const [sessionEndpointConnecting, setSessionEndpointConnecting] = useState(false);
 	const [sessionEndpointError, setSessionEndpointError] = useState(undefined);
+	const [showAPIKey, setShowAPIKey] = useState(false);
 	const [endpoint, setEndpoint] = useSessionState('endpoint', defaultPresets.endpoint);
 	const [endpointAPI, setEndpointAPI] = useSessionState('endpointAPI', defaultPresets.endpointAPI);
 	const [endpointAPIKey, setEndpointAPIKey] = useSessionState('endpointAPIKey', defaultPresets.endpointAPIKey);
@@ -2198,87 +3038,23 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 	const [stoppingStrings, setStoppingStrings] = useSessionState('stoppingStrings', defaultPresets.stoppingStrings);
 	const [stoppingStringsError, setStoppingStringsError] = useState(undefined);
 	const [savedScrollTop, setSavedScrollTop] = useSessionState('scrollTop', defaultPresets.scrollTop);
-
+	const [modalState, setModalState] = useState({});
+	const [logitBias, setLogitBias] = useSessionState('logitBias', defaultPresets.logitBias);
+	const [logitBiasParam, setLogitBiasParam] = useState({});
 	const [contextLength, setContextLength] = useSessionState('contextLength', defaultPresets.contextLength);
 	const [memoryTokens, setMemoryTokens] = useSessionState('memoryTokens', defaultPresets.memoryTokens);
-
 	const [authorNoteTokens, setAuthorNoteTokens] = useSessionState('authorNoteTokens', defaultPresets.authorNoteTokens);
 	const [authorNoteDepth, setAuthorNoteDepth] = useSessionState('authorNoteDepth', defaultPresets.authorNoteDepth);
+	const [worldInfo, setWorldInfo] = useSessionState('worldInfo', defaultPresets.worldInfo);
 
-	const handleAuthorNoteDepthChange = (value) => {
-		setAuthorNoteDepth(!isNaN(+value) && value >= 0 ? value : 0);
-	};
-
+	// AN and Memory
 	function handleauthorNoteTokensChange(key,value) {
 		setAuthorNoteTokens((prevauthorNoteTokens) => ({ ...prevauthorNoteTokens, [key]: value }));
 	}
 	function handleMemoryTokensChange(key,value) {
 		setMemoryTokens((prevMemoryTokens) => ({ ...prevMemoryTokens, [key]: value }));
 	}
-
-	// world info
-	const [worldInfo, setWorldInfo] = useSessionState('worldInfo', defaultPresets.worldInfo)
-
-	const handleWorldInfoNew = () => {
-		setWorldInfo((prevWorldInfo) => {
-			return {
-				...prevWorldInfo,
-				entries: [ { "displayName":"New Entry","text":"","keys":[], "search":"" },...prevWorldInfo.entries ],
-			};
-		});
-	}
-	const handleWorldInfoMove = (index,move) => {
-		const modEntries = worldInfo.entries
-		if (index+move < 0 || index+move > modEntries.length-1 ) {
-			return
-		}
-		modEntries.splice(index+move, 0, modEntries.splice(index, 1)[0])
-		setWorldInfo((prevWorldInfo) => {
-		 return {
-			 ...prevWorldInfo,
-			 entries: [ ...modEntries ],
-		 };
-		});
-	}
-	const handleWorldInfoDel = (index) => {
-		if (!window.confirm("Are you sure you want to delete the world info entry #" + (index + 1) + ": "+ worldInfo.entries[index].displayName + "?\nThis action cannot be undone."))
-			return;
-		if (index > -1 && index < worldInfo.entries.length) {
-			setWorldInfo((prevWorldInfo) => {
-				console.warn(`Deleting world info entry #${(index + 1)}:`,prevWorldInfo.entries[index])
-				return {
-					...prevWorldInfo,
-					entries: prevWorldInfo.entries.filter((_, i) => i !== index),
-				};
-			});
-		}
-		else {
-			alert("Index " + index + " out of range!")
-		}
-	};
-
-	const handleWorldInfoChange = (key,index,value) => {
-		setWorldInfo((prevWorldInfo) => {
-			const updatedEntries = [...prevWorldInfo.entries];
-			const updatedEntry = key == "keys"
-				? { ...updatedEntries[index], [key]: value.split(/(?<!\\), ?/) } //.map(item => item.trim())
-				: { ...updatedEntries[index], [key]: value };
-			updatedEntries[index] = updatedEntry;
-
-			return {
-				...prevWorldInfo,
-				entries: updatedEntries,
-			};
-		});
-	}
-	const handleWorldInfoAffixChange = (key, value) => {
-		setWorldInfo((prevWorldInfo) => ({
-			...prevWorldInfo,
-			[key]: value,
-		}));
-	}
-
-	const [modalState, setModalState] = useState({});
+	
 	const toggleModal = (modalKey) => {
 		setModalState((prevState) => ({
 			...prevState,
@@ -2290,18 +3066,6 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 			...prevState,
 			[modalKey]: false,
 		}));
-	};
-
-	const exportPadText = () => {
-		const textBlob = new Blob([promptArea.current.value], {type: 'text/plain;charset=utf-8'});
-		const textURL = URL.createObjectURL(textBlob);
-		var element = document.createElement('a');
-		element.setAttribute('href', textURL);
-		element.setAttribute('download', `${sessionStorage.getProperty('name') || 'default'}.txt`);
-		document.body.appendChild(element);
-		element.click();
-		URL.revokeObjectURL(textURL);
-		document.body.removeChild(element);
 	};
 
 	const promptText = useMemo(() => joinPrompt(promptChunks), [promptChunks]);
@@ -2440,7 +3204,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 			abortCompletion({
 				endpoint,
 				endpointAPI,
-				...(isMikupadEndpoint ? { endpoint: sessionStorage.proxyEndpoint, realEndpoint: endpoint } : {})
+				...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {})
 			});
 			ac.abort();
 		};
@@ -2456,9 +3220,9 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 				endpoint,
 				endpointAPI,
 				...(endpointAPI == 3 || endpointAPI == 0 ? { endpointAPIKey } : {}),
-				content: ` ${prompt}`,
+				content: prompt,
 				signal: ac.signal,
-				...(isMikupadEndpoint ? { endpoint: sessionStorage.proxyEndpoint, realEndpoint: endpoint } : {})
+				...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {})
 			});
 			setTokens(tokenCount);
 			setPredictStartTokens(tokenCount);
@@ -2469,6 +3233,8 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 			redoStack.current = [];
 			setUndoHovered(false);
 			setRejectedAPIKey(false);
+			promptArea.current.scrollTarget = undefined;
+			useScrollSmoothing.current = true;
 
 			for await (const chunk of completion({
 				endpoint,
@@ -2487,6 +3253,9 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 					repeat_last_n: repeatLastN,
 					penalize_nl: penalizeNl,
 					ignore_eos: ignoreEos,
+				} : {}),
+				...(Object.keys(logitBias.bias).length > 0 && endpointAPI != 3 ? {
+					logit_bias: logitBiasParam,
 				} : {}),
 				presence_penalty: presencePenalty,
 				frequency_penalty: frequencyPenalty,
@@ -2507,7 +3276,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 				n_probs: 10,
 				...(JSON.parse(stoppingStrings).length ? { stop: JSON.parse(stoppingStrings) } : {}),
 				signal: ac.signal,
-				...(isMikupadEndpoint ? { endpoint: sessionStorage.proxyEndpoint, realEndpoint: endpoint } : {})
+				...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {})
 			})) {
 				ac.signal.throwIfAborted();
 				if (chunk.stopping_word)
@@ -2591,6 +3360,14 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 	}, [attachSidebar]);
 
 	useLayoutEffect(() => {
+		if (promptAreaWidth) {
+			const container = document.querySelector('#prompt-container');
+			container.style.setProperty('min-width', promptAreaWidth);
+			container.style.setProperty('max-width', promptAreaWidth);
+		}
+	}, [promptAreaWidth]);
+
+	useLayoutEffect(() => {
 		document.documentElement.classList.remove('serif-dark');
 		document.documentElement.classList.remove('monospace-dark');
 		document.documentElement.classList.remove('nockoffAI');
@@ -2670,10 +3447,14 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 			}
 			const newHeight = elem.scrollHeight;
 			if (atBottom && oldHeight !== newHeight) {
+				if (elem.scrollHeight - (elem.scrollTop + elem.clientHeight + 1) >= 100) {
+					// smooth scroll isn't keeping up with prediction speed =(
+					useScrollSmoothing.current = false;
+				}
 				elem.scrollTarget = newHeight - elem.clientHeight;
 				elem.scrollTo({
 					top: newHeight - elem.clientHeight,
-					behavior: 'smooth',
+					behavior: useScrollSmoothing.current ? 'smooth' : 'instant',
 				});
 			}
 		} else {
@@ -2699,9 +3480,9 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 					endpoint,
 					endpointAPI,
 					...(endpointAPI == 3 || endpointAPI == 0 ? { endpointAPIKey } : {}),
-					content: ` ${modifiedPrompt}`,
+					content: modifiedPrompt,
 					signal: ac.signal,
-					...(isMikupadEndpoint ? { endpoint: sessionStorage.proxyEndpoint, realEndpoint: endpoint } : {})
+					...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {})
 				});
 				setTokens(tokenCount);
 			} catch (e) {
@@ -2725,7 +3506,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 					endpointAPI,
 					...(endpointAPI == 3 ? { endpointAPIKey } : {}),
 					signal: ac.signal,
-					...(isMikupadEndpoint ? { endpoint: sessionStorage.proxyEndpoint, realEndpoint: endpoint } : {})
+					...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {})
 				});
 				setOpenaiModels(models);
 			} catch (e) {
@@ -2790,6 +3571,87 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 		};
 	}, [predict, cancel]);
 
+	// textarea resize
+	useEffect(() => {
+		const container = document.querySelector('#prompt-container');
+
+		let isDragging = false;
+		let startX;
+		let startMaxWidth;
+		let startEdge;
+		let edgeDetectionZone = 5; // Pixels from edge to trigger resize
+
+		function getNearEdge(e) {
+			const rect = container.getBoundingClientRect();
+			if (e.clientX - rect.left < edgeDetectionZone && e.clientX - rect.left > 0) {
+				return 'left';
+			} else if (rect.right - e.clientX < edgeDetectionZone && rect.right - e.clientX > 0) {
+				return 'right';
+			}
+			return false;
+		}
+
+		function startDragging(e) {
+			const edge = getNearEdge(e);
+			if (!edge) return; // Only drag from edges
+
+			// reset selection
+			promptArea.current.selectionStart = promptArea.current.selectionEnd;
+
+			isDragging = true;
+
+			const invEdgePos = edge == 'right' ? container.getBoundingClientRect().left : container.getBoundingClientRect().right;
+			startX = e.clientX - invEdgePos;
+			startMaxWidth = getComputedStyle(container).getPropertyValue('max-width');
+			startEdge = edge;
+		}
+
+		function drag(e) {
+			switch (getNearEdge(e)) {
+				case 'right':
+					promptArea.current.style.cursor = 'col-resize';
+					container.style.cursor = 'col-resize';
+					container.style.borderRight = '2px dotted var(--color-light)';
+					break;
+				case 'left':
+					promptArea.current.style.cursor = 'col-resize';
+					container.style.cursor = 'col-resize';
+					container.style.borderLeft = '2px dotted var(--color-light)';
+					break;
+				default:
+					promptArea.current.style.cursor = '';
+					container.style.cursor = '';
+					container.style.borderRight = '2px dotted transparent';
+					container.style.borderLeft = '2px dotted transparent';
+					break;
+			}
+			
+			if (!isDragging) return;
+
+			// reset selection
+			promptArea.current.selectionStart = promptArea.current.selectionEnd;
+
+			const invEdgePos = startEdge == 'right' ? container.getBoundingClientRect().left : container.getBoundingClientRect().right;
+			const currentX = e.clientX - invEdgePos;
+			setPromptAreaWidth(`calc(${startMaxWidth} + ${(currentX - startX) * (startEdge == 'right' ? 1 : -1)}px)`);
+		}
+
+		function stopDragging() {
+			isDragging = false;
+		}
+
+		container.addEventListener('mousedown', startDragging);
+		document.addEventListener('mousemove', drag);
+		document.addEventListener('mouseup', stopDragging);
+		document.addEventListener('mouseleave', stopDragging);
+		return () => {
+			container.removeEventListener('mousedown', startDragging);
+			document.removeEventListener('mousemove', drag);
+			document.removeEventListener('mouseup', stopDragging);
+			document.removeEventListener('mouseleave', stopDragging);
+		};
+	}, []);
+
 	function onInput({ target }) {
 		setPromptChunks(oldPrompt => {
 			const start = [];
@@ -2848,6 +3710,12 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 
 		const newTop = target.scrollTop;
 		const oldTop = promptOverlay.current.scrollTop;
+
+		if (newTop < oldTop) {
+			// user scrolled up
+			target.scrollTarget = undefined;
+		}
+
 		promptOverlay.current.scrollTop = target.scrollTop;
 		promptOverlay.current.scrollLeft = target.scrollLeft;
 		setSavedScrollTop(newTop);
@@ -2948,31 +3816,38 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 		return isHttps && (url.protocol !== 'https:' && url.protocol !== 'wss:');
 	}
 
-	function onSessionChange() {
-		// TODO: Store the undo/redo in the session.
-		redoStack.current = [];
-		undoStack.current = [];
-		setUndoHovered(false);
-		setTitleToSession();
-	}
-
-	function onSessionError(e) {
-		if (!sessionReconnectTimer.current) {
-			sessionReconnectTimer.current = setInterval(async () => {
-				try {
-					await sessionStorage.saveToDatabase('selectedSessionId', sessionStorage.selectedSession);
-					setSessionEndpointError(undefined);
-					clearTimeout(sessionReconnectTimer.current);
-					sessionReconnectTimer.current = undefined;
-				} catch (e) {
-					reportError(e);
-				}
-			}, 1000);
+	useEffect(() => {
+		function onSessionChange() {
+			redoStack.current = [];
+			undoStack.current = [];
+			setUndoHovered(false);
+			setTitleToSession();
 		}
-		setSessionEndpointError("Mikupad server is unreachable!");
-		setCurrentPromptChunk(undefined);
-		setUndoHovered(false);
-	}
+		function onSessionError() {
+			if (!sessionReconnectTimer.current) {
+				sessionReconnectTimer.current = setInterval(async () => {
+					try {
+						await sessionStorage.saveToDatabase('selectedSessionId', sessionStorage.selectedSession);
+						setSessionEndpointError(undefined);
+						clearTimeout(sessionReconnectTimer.current);
+						sessionReconnectTimer.current = undefined;
+					} catch (e) {
+						reportError(e);
+					}
+				}, 1000);
+			}
+			setSessionEndpointError("Mikupad server is unreachable!");
+			setCurrentPromptChunk(undefined);
+			setUndoHovered(false);
+		}
+
+		sessionStorage.addEventListener('sessionchange', onSessionChange);
+		sessionStorage.addEventListener('error', onSessionError);
+		return () => {
+			sessionStorage.removeEventListener('sessionchange', onSessionChange);
+			sessionStorage.removeEventListener('error', onSessionError);
+		};
+	}, []);
 
 	const probs = useMemo(() =>
 		showProbs && promptChunks[currentPromptChunk?.index]?.completion_probabilities?.[0]?.probs,
@@ -3033,10 +3908,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 				]}/>
 			<div class="horz-separator"/>
 			<${CollapsibleGroup} label="Sessions">
-				<${Sessions} sessionStorage=${sessionStorage}
-					disabled=${!!cancel}
-					onSessionChange=${onSessionChange}
-					onSessionError=${onSessionError}/>
+				<${Sessions} sessionStorage=${sessionStorage} disabled=${!!cancel}/>
 			</${CollapsibleGroup}>
 			<${CollapsibleGroup} label="Parameters" expanded>
 				<${InputBox} label="Server"
@@ -3057,13 +3929,22 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 						{ name: 'openai-compatible', value: 3 },
 					]}/>
 				${(endpointAPI == 3 || endpointAPI == 0) && html`
-					<${InputBox} label="API Key" type="password"
-						className="${rejectedAPIKey ? 'rejected' : ''}"
-						tooltip="${rejectedAPIKey ? 'This API Key was rejected by the backend.' : ''}"
-						tooltipSize="short"
-						readOnly=${!!cancel}
-						value=${endpointAPIKey}
-						onValueChange=${setEndpointAPIKey}/>`}
+					<div className="hbox-flex" style=${{"flex-wrap": "unset"}}>
+						<${InputBox} label="API Key" type="${!showAPIKey ? "password" : "text"}"
+							className="${rejectedAPIKey ? 'rejected' : ''}"
+							tooltip="${rejectedAPIKey ? 'This API Key was rejected by the backend.' : ''}"
+							tooltipSize="short"
+							readOnly=${!!cancel}
+							value=${endpointAPIKey}
+							onValueChange=${setEndpointAPIKey}/>
+						<button title="${!showAPIKey ? "Show API Key" : "Hide API Key"}"
+							className="eye-button"
+							disabled=${!!cancel}
+							onClick=${() => setShowAPIKey(!showAPIKey)}>
+							${!showAPIKey ? html`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"><path d="M15 12c0 1.654-1.346 3-3 3s-3-1.346-3-3 1.346-3 3-3 3 1.346 3 3zm9-.449s-4.252 8.449-11.985 8.449c-7.18 0-12.015-8.449-12.015-8.449s4.446-7.551 12.015-7.551c7.694 0 11.985 7.551 11.985 7.551zm-7 .449c0-2.757-2.243-5-5-5s-5 2.243-5 5 2.243 5 5 5 5-2.243 5-5z" fill="var(--color-light)"/></svg>`
+										  : html`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"><path d="M11.885 14.988l3.104-3.098.011.11c0 1.654-1.346 3-3 3l-.115-.012zm8.048-8.032l-3.274 3.268c.212.554.341 1.149.341 1.776 0 2.757-2.243 5-5 5-.631 0-1.229-.13-1.785-.344l-2.377 2.372c1.276.588 2.671.972 4.177.972 7.733 0 11.985-8.449 11.985-8.449s-1.415-2.478-4.067-4.595zm1.431-3.536l-18.619 18.58-1.382-1.422 3.455-3.447c-3.022-2.45-4.818-5.58-4.818-5.58s4.446-7.551 12.015-7.551c1.825 0 3.456.426 4.886 1.075l3.081-3.075 1.382 1.42zm-13.751 10.922l1.519-1.515c-.077-.264-.132-.538-.132-.827 0-1.654 1.346-3 3-3 .291 0 .567.055.833.134l1.518-1.515c-.704-.382-1.496-.619-2.351-.619-2.757 0-5 2.243-5 5 0 .852.235 1.641.613 2.342z" fill="var(--color-light)"/></svg>`}
+						</button>
+					</div>`}
 				${endpointAPI == 3 && html`
 					<${InputBox} label="Model"
 						datalist=${openaiModels}
@@ -3152,9 +4033,17 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 							</div>`}
 					`}
 				`}
+				${(endpointAPI != 3) && html`
+					<button
+						disabled=${!!cancel}
+						onClick=${() => toggleModal("bias")}>
+						Logit Bias
+						</button>`}
 				${(!openaiPresets || endpointAPI != 3) && html`
 					<${Checkbox} label="Ignore <eos>"
 						disabled=${!!cancel} value=${ignoreEos} onValueChange=${setIgnoreEos}/>`}
+
+
 			</${CollapsibleGroup}>
 			<${CollapsibleGroup} label="Persistent Context">
 				<label className="TextArea">
@@ -3263,218 +4152,76 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 				<span className="error-text">${lastError}</span>`}
 		</div>
 
-		<${Modal} isOpen=${modalState.prompt} onClose=${() => closeModal("prompt")}
-		title="Editor Preferences"
-		description=""
-		style=${{ 'width': '30%' }}>
-			<div className="vbox">
-				<${Checkbox} label="Enable spell checking"
-					value=${spellCheck} onValueChange=${setSpellCheck}/>
-				<${Checkbox} label="Attach sidebar"
-					value=${attachSidebar} onValueChange=${setAttachSidebar}/>
-				<${Checkbox} label="Highlight generated tokens"
-					value=${highlightGenTokens} onValueChange=${setHighlightGenTokens}/>
-				<${Checkbox} label="Preserve cursor position after prediction"
-					value=${preserveCursorPosition} onValueChange=${setPreserveCursorPosition}/>
-				<${SelectBox}
-					label="Token probabilities"
-					value=${showProbsMode}
-					onValueChange=${setShowProbsMode}
-					options=${[
-						{ name: 'Show on hover', value: 0 },
-						{ name: 'Show on hover while holding CTRL', value: 1 },
-						{ name: 'Don\'t show', value: -1 },
-					]}/>
-				<div style=${{ display: 'flex', justifyContent: 'flex-start' }}>
-					<button onClick=${exportPadText}>Export prompt to plaintext</button>
-				</div>
+		<${EditorPreferencesModal}
+			isOpen=${modalState.prompt}
+			closeModal=${() => closeModal("prompt")}>
+			<${Checkbox} label="Enable spell checking"
+				value=${spellCheck} onValueChange=${setSpellCheck}/>
+			<${Checkbox} label="Attach sidebar"
+				value=${attachSidebar} onValueChange=${setAttachSidebar}/>
+			<${Checkbox} label="Highlight generated tokens"
+				value=${highlightGenTokens} onValueChange=${setHighlightGenTokens}/>
+			<${Checkbox} label="Preserve cursor position after prediction"
+				value=${preserveCursorPosition} onValueChange=${setPreserveCursorPosition}/>
+			<${SelectBox}
+				label="Token probabilities"
+				value=${showProbsMode}
+				onValueChange=${setShowProbsMode}
+				options=${[
+					{ name: 'Show on hover', value: 0 },
+					{ name: 'Show on hover while holding CTRL', value: 1 },
+					{ name: 'Don\'t show', value: -1 },
+				]}/>
+			<div style=${{ display: 'flex', justifyContent: 'flex-start' }}>
+				<button onClick=${() => exportText(`${sessionStorage.getProperty('name')}.txt`, promptArea.current.value)}>
+					Export prompt to plaintext
+				</button>
 			</div>
-		</${Modal}>
+		</${EditorPreferencesModal}>
 
-		<${Modal} isOpen=${modalState.memory} onClose=${() => closeModal("memory")}
-		title="Memory"
-		description="This text will be added at the very top of your context.
-		Prefix and suffix will be attached at the beginning or end of your memory respectively. \\n for newlines in pre/suffix.">
-			<div className="hbox">
-				<${InputBox} label="Prefix" type="text" placeholder="[INST]"
-					readOnly=${!!cancel} value=${memoryTokens.prefix} onValueChange=${(value) => handleMemoryTokensChange("prefix", value)}/>
-				<${InputBox} label="Suffix" type="text" placeholder="[/INST]"
-					readOnly=${!!cancel} value=${memoryTokens.suffix} onValueChange=${(value) => handleMemoryTokensChange("suffix", value)}/>
-			</div>
-			<textarea
-				readOnly=${!!cancel}
-				placeholder="Anything written here will be injected at the head of the prompt. Tokens here DO count towards the Context Limit."
-				defaultValue=${memoryTokens.text}
-				value=${memoryTokens.text}
-				onInput=${(e) => handleMemoryTokensChange("text", e.target.value) }
-				class="expanded-text-area-settings"
-				id="memory-area-settings"/>
-		</${Modal}>
+		<${MemoryModal}
+			isOpen=${modalState.memory}
+			closeModal=${() => closeModal("memory")}
+			memoryTokens=${memoryTokens}
+			handleMemoryTokensChange=${handleMemoryTokensChange}
+			cancel=${cancel}/>
 
-		<${Modal} isOpen=${modalState.an} onClose=${() => closeModal("an")}
-		title="Author's Note"
-		description="This text will be injected N newlines from the bottom of your prompt.
-		Prefix and suffix will be attached at the beginning or end of your author's note respectively. \\n for newlines in pre/suffix.">
-			<div className="hbox">
-				<${InputBox} label="Prefix" type="text" placeholder="[INST]"
-					readOnly=${!!cancel} value=${authorNoteTokens.prefix} onValueChange=${(value) => handleauthorNoteTokensChange("prefix", value)}/>
-				<${InputBox} label="Suffix" type="text" placeholder="[/INST]"
-					readOnly=${!!cancel} value=${authorNoteTokens.suffix} onValueChange=${(value) => handleauthorNoteTokensChange("suffix", value)}/>
-				<${InputBox} label="AN Injection Depth (0-N)" type="number" step="1"
-					readOnly=${!!cancel} value=${authorNoteDepth} onValueChange=${handleAuthorNoteDepthChange}/>
-			</div>
+		<${AuthorNoteModal}
+			isOpen=${modalState.an}
+			closeModal=${() => closeModal("an")}
+			authorNoteTokens=${authorNoteTokens}
+			handleauthorNoteTokensChange=${handleauthorNoteTokensChange}
+			authorNoteDepth=${authorNoteDepth}
+			setAuthorNoteDepth=${setAuthorNoteDepth}
+			cancel=${cancel}/>
 
-			<textarea
-			readOnly=${!!cancel}
-			placeholder="Anything written here will be injected ${authorNoteDepth} newlines from bottom into context."
-			defaultValue=${authorNoteTokens.text}
-			value=${authorNoteTokens.text}
-			onInput=${(e) => handleauthorNoteTokensChange("text", e.target.value) }
-			class="expanded-text-area-settings"
-			id="expanded-an-settings"/>
-		</${Modal}>
+		<${ContextModal}
+			isOpen=${modalState.context}
+			closeModal=${() => closeModal("context")}
+			memoryTokens=${memoryTokens}
+			handleMemoryTokensChange=${handleMemoryTokensChange}
+			modifiedPrompt=${modifiedPrompt}
+			defaultPresets=${defaultPresets}
+			cancel=${cancel}/>
 
-		<${Modal} isOpen=${modalState.context} onClose=${() => closeModal("context")}
-			title="Context"
-			description="This is the prompt being sent to your large language model.">
-		<${CollapsibleGroup} label="Advanced Context Ordering">
-			<div id="context-order-desc">
-				You can use the following placeholders to order the context according to your needs:<br />
-				<div id="advancedContextPlaceholders">
-					<table border="1" frame="void" rules="all">
-						<thead>
-						<tr>
-							<th></th>
-							<th>Prefix</th>
-							<th>Text</th>
-							<th>Suffix</th>
-						</tr>
-						</thead>
-						<tbody>
-						<tr>
-							<th>Memory</th>
-							<td>{memPrefix}</td>
-							<td>{memText}</td>
-							<td>{memSuffix}</td>
-						</tr>
-						<tr>
-							<th>World Info</th>
-							<td>{wiPrefix}</td>
-							<td>{wiText}</td>
-							<td>{wiSuffix}</td>
-						</tr>
-						<tr>
-							<th>Prompt</th>
-							<td></td>
-							<td>{prompt}</td>
-							<td></td>
-						</tr>
-						</tbody>
-					</table>
-				</div>
-				Any text that is not a placeholder will be added into the context as is.
-			</div>
-			<textarea
-				readOnly=${!!cancel}
-				placeholder=${defaultPresets.memoryTokens.contextOrder}
-				defaultValue=${memoryTokens.contextOrder}
-				value=${memoryTokens.contextOrder}
-				onInput=${(e) => handleMemoryTokensChange("contextOrder", e.target.value)}
-				class="expanded-text-area-settings"
-				id="advanced-context-order-settings"/>
-		</${CollapsibleGroup}>
-			<textarea
-			readOnly=${!!cancel}
-			value=${modifiedPrompt}
-			class="expanded-text-area-settings"
-			id="context-area-settings" readOnly/>
-		</${Modal}>
+		<${WorldInfoModal}
+			isOpen=${modalState.wi}
+			closeModal=${() => closeModal("wi")}
+			worldInfo=${worldInfo}
+			setWorldInfo=${setWorldInfo}
+			cancel=${cancel}/>
 
-		<${Modal} isOpen=${modalState.wi} onClose=${() => closeModal("wi")}
-			title="World Info"
-			description="Additional information that is added when specific keywords are found in context.
-			World info will be added at the top of your memory, in the order specified here.
+		<!-- TODO: The amount of parameters in this modal is a bit excessive... -->
+		<${LogitBiasModal}
+			isOpen=${modalState.bias}
+			closeModal=${() => closeModal("bias")}
+			logitBias=${logitBias}
+			setLogitBias=${setLogitBias}
+			logitBiasParam=${logitBiasParam}
+			setLogitBiasParam=${setLogitBiasParam}
+			sessionStorage=${sessionStorage} endpoint=${endpoint} endpointAPI=${endpointAPI} endpointAPIKey=${endpointAPIKey} isMikupadEndpoint=${isMikupadEndpoint}
+			cancel=${cancel}/>
 
-			Each entry will begin on a newline. Keys will be interpreted as case-insensitive regular expressions. Search Range specifies how many tokens back into the context will be searched for activation keys. Search range 0 to disable an entry.">
-			<div id="modal-wi-global">
-				<${CollapsibleGroup} label="Prefix/Suffix">
-					The prefix and suffix will be added at the beginning or end of all your active World Info entries respectively.
-					<br />
-					<div className="hbox">
-						<${InputBox} label="Prefix" type="text" placeholder="\\n"
-							readOnly=${!!cancel} value=${worldInfo.prefix} onValueChange=${(value) => handleWorldInfoAffixChange("prefix", value)}/>
-						<${InputBox} label="Suffix" type="text" placeholder="\\n"
-							readOnly=${!!cancel} value=${worldInfo.suffix} onValueChange=${(value) => handleWorldInfoAffixChange("suffix", value)}/>
-					</div>
-				</${CollapsibleGroup}>
-				<button id="button-wi-new" disabled=${!!cancel} onClick=${handleWorldInfoNew}>New Entry</button>
-			</div>
-			<div className="modal-wi-content">
-				${ !Array.isArray(worldInfo.entries) ? null : worldInfo.entries.map((entry, index) => html`
-				<div class="wi-entry" key=${index}>
-					<div class="wi-entry-controls">
-						<div class="wi-entry-filler" />
-						<div class="wi-entry-name">
-							<${InputBox}
-							label="Entry #${index+1}"
-							type="text"
-							readOnly=${!!cancel}
-							placeholder="Name of this entry"
-							value=${entry.displayName}
-							onValueChange=${(value) => handleWorldInfoChange("displayName",index,value)}
-							/>
-						</div>
-						<div class="wi-entry-buttons">
-							<div class="wi-entry-buttons-container">
-								<button disabled=${!!cancel} onClick=${() => handleWorldInfoMove(index,-1)}>
-									<svg fill="var(--color-light)" height="12" width="12" viewBox="0 0 330 330"><path d="M325.606,229.393l-150.004-150C172.79,76.58,168.974,75,164.996,75c-3.979,0-7.794,1.581-10.607,4.394 l-149.996,150c-5.858,5.858-5.858,15.355,0,21.213c5.857,5.857,15.355,5.858,21.213,0l139.39-139.393l139.397,139.393 C307.322,253.536,311.161,255,315,255c3.839,0,7.678-1.464,10.607-4.394C331.464,244.748,331.464,235.251,325.606,229.393z"/></svg>
-								</button>
-								<button disabled=${!!cancel} onClick=${() => handleWorldInfoDel(index)}>
-									✕
-								</button>
-								<button disabled=${!!cancel} onClick=${() => handleWorldInfoMove(index,1)}>
-									<svg fill="var(--color-light)" height="12" width="12" viewBox="0 0 330 330"><path d="M325.607,79.393c-5.857-5.857-15.355-5.858-21.213,0.001l-139.39,139.393L25.607,79.393 c-5.857-5.857-15.355-5.858-21.213,0.001c-5.858,5.858-5.858,15.355,0,21.213l150.004,150c2.813,2.813,6.628,4.393,10.606,4.393 s7.794-1.581,10.606-4.394l149.996-150C331.465,94.749,331.465,85.251,325.607,79.393z"/></svg>
-								</button>
-							</div>
-						</div>
-						<div class="wi-entry-text">
-							<div class="hbox">
-								<${InputBox}
-									label="Comma Separated RegEx Keys"
-									type="text"
-									readOnly=${!!cancel}
-									value=${entry.keys.join(',')}
-									placeholder="Required to activate entry"
-									onValueChange=${(value) => handleWorldInfoChange("keys",index,value)}
-									/>
-								<${InputBox}
-									label="Search Range (0 = disabled)"
-									tooltip="Currently not accurate to the token count, it will be used as an estimate."
-
-									type="text"
-									readOnly=${!!cancel}
-									inputmode="numeric"
-									value=${entry.search}
-									placeholder="2048"
-									onValueChange=${(value) => handleWorldInfoChange("search",index,value)}
-									/>
-							</div>
-							<label class="TextArea">
-								Text
-								<textarea
-									readOnly=${!!cancel}
-									placeholder="Information to be inserted into context when key is found"
-									value=${entry.text ? entry.text : ""}
-									defaultValue=${entry.text ? entry.text : ""}
-									onInput=${(e) => handleWorldInfoChange("text",index, e.target.value)}
-									class="wi-textarea" />
-							</label>
-							</div>
-						</div>
-					</div>
-				`)}
-			</div>
-		</${Modal}>
 		${sessionEndpointError && html`
 			<div className="modal-overlay">
 				<div id="error-bar">
@@ -3491,7 +4238,7 @@ async function main() {
 	let isMikupadEndpoint = false;
 
 	if (window.location.protocol != 'file:' && window.location.pathname == '/') {
-		sessionStorage = new WebSessionStorage(defaultPresets, window.location.protocol + '//' + window.location.host);
+		sessionStorage = new WebSessionStorage(window.location.protocol + '//' + window.location.host);
 		try {
 			await sessionStorage.init();
 			isMikupadEndpoint = true;
@@ -3502,7 +4249,7 @@ async function main() {
 	}
 	
 	if (sessionStorage == null) {
-		sessionStorage = new SessionStorage(defaultPresets);
+		sessionStorage = new SessionStorage();
 		await sessionStorage.init();
 	}
 
