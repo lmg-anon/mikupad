@@ -2508,7 +2508,9 @@ function LogitBiasModal({ isOpen, closeModal, logitBias, setLogitBias, logitBias
 			</${Modal}>`;
 }
 
-function InstructModal({ isOpen, closeModal, sessionStorage, updateTemplateDB, newTemplateName, setNewTemplateName, selectedTemplate, setSelectedTemplate, templateList, setTemplateList, templates, templatesImport, setTemplates, addDeleteTemplate, setAddDeleteTemplate, cancel }) {
+function InstructModal({ isOpen, closeModal, sessionStorage, selectedTemplate, setSelectedTemplate, templateList, setTemplateList, templates, templatesImport, setTemplates, cancel }) {
+	const [addDeleteTemplate, setAddDeleteTemplate] = useState(false);
+	const [newTemplateName, setNewTemplateName] = useState(undefined);
 
 	function getArrObjByName(array,name,getIndex=false) {
 		const index = array.findIndex(obj => obj.name === name)
@@ -2567,7 +2569,7 @@ function InstructModal({ isOpen, closeModal, sessionStorage, updateTemplateDB, n
 		setAddDeleteTemplate(true)
 	}
 
-	const updateTemplateList = useEffect(() => {
+	useEffect(() => {
 		const index = templateList.findIndex(obj => obj.name === selectedTemplate)
 		const reselectTemplate = templateList[index == -1 ? 0 : index]?.nameNew
 		const list = []
@@ -2590,14 +2592,50 @@ function InstructModal({ isOpen, closeModal, sessionStorage, updateTemplateDB, n
 		if (reselectTemplate)
 			setSelectedTemplate(reselectTemplate)
 	}, [templates,selectedTemplate,templatesImport]);
-	const templateReselect = useEffect(() => {
+	useEffect(() => {
 		if (!addDeleteTemplate)
 			return
 		setSelectedTemplate("")
 		setAddDeleteTemplate(false)
-
 	}, [addDeleteTemplate]);
 
+	const updateTemplateDB = async () => {
+		setNewTemplateName(undefined);
+		setTemplates((prevState) => {
+			var newState = {
+				...prevState
+			}
+			for (let i=0;i<templateList.length;i++) {
+				const template = templateList[i]
+				const name = template.nameNew
+				const nameBack = template.nameBack
+
+				if (name === undefined || nameBack === undefined)
+					continue
+				// if template has been renamed, delete old entry, make sure to reselect 
+				// current entry after
+				if (name != nameBack) {
+					newState[name] = prevState[nameBack]
+					delete newState[nameBack]
+				}
+
+				// if no changes, skip
+				if (newState[name] == prevState[name])
+					continue
+
+				newState[name] = {
+					"sysPre": template.affixes.sysPre,
+					"sysSuf": template.affixes.sysSuf,
+					"instPre": template.affixes.instPre,
+					"instSuf": template.affixes.instSuf,
+				}
+			}
+			return { ...newState }
+		})
+	}
+	useEffect(() => {
+		updateTemplateDB()
+	}, [isOpen, selectedTemplate]);
 
 	const exportTemplates = () => {
 		exportText(`instruct_templates.json`, JSON.stringify(templates));
@@ -3413,8 +3451,6 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 	const sessionReconnectTimer = useRef();
 	const useScrollSmoothing = useRef(true);
 	const [templates, setTemplates] = useDBTemplates(defaultPresets.instructTemplates);
-	const [newTemplateName, setNewTemplateName] = useState(undefined);
-	const [addDeleteTemplate, setAddDeleteTemplate] = useState(false);
 	const [templatesImport, setTemplatesImport] = useState(false);
 	const [selectedTemplate, setSelectedTemplate] = useSessionState('template', "Llama 3");
 	const [chatMode, setChatMode] = useSessionState('chatMode', false);
@@ -3483,7 +3519,6 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 	}
 
 
-
 	const insertTemplate = (sysInst) => {
 		// most of this function is shamelessly stolen from culturedniichan's deleted pull
 		// request for a similar implementation of instruct templates:
@@ -3525,44 +3560,6 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 		elem.setSelectionRange(0, 2);
 		onInput({ target: elem });
 	}
-
-	const updateTemplateDB = async () => {
-		setNewTemplateName(undefined);
-		setTemplates((prevState) => {
-			var newState = {
-				...prevState
-			}
-			for (let i=0;i<templateList.length;i++) {
-				const template = templateList[i]
-				const name = template.nameNew
-				const nameBack = template.nameBack
-
-				if (name === undefined || nameBack === undefined)
-					continue
-				// if template has been renamed, delete old entry, make sure to reselect 
-				// current entry after
-				if (name != nameBack) {
-					newState[name] = prevState[nameBack]
-					delete newState[nameBack]
-				}
-
-				// if no changes, skip
-				if (newState[name] == prevState[name])
-					continue
-
-				newState[name] = {
-					"sysPre": template.affixes.sysPre,
-					"sysSuf": template.affixes.sysSuf,
-					"instPre": template.affixes.instPre,
-					"instSuf": template.affixes.instSuf,
-				}
-			}
-			return { ...newState }
-		})
-	}
-	const updateTemplateDBCaller = useEffect(() => {
-		updateTemplateDB()
-	}, [modalState["instruct"],selectedTemplate]);
 
 
 	const toggleModal = (modalKey) => {
@@ -4502,7 +4499,7 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 					<${SelectBoxTemplate}
 						label="Instruct Template"
 						disabled=${!!cancel}
-						value=${newTemplateName ?? selectedTemplate}
+						value=${selectedTemplate}
 						onValueChange=${setSelectedTemplate}
 						options=${templateList}/>
 					<button
@@ -4803,18 +4800,12 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 			closeModal=${() => closeModal("instruct")}
 			templateList=${templateList}
 			setTemplateList=${setTemplateList}
-			newTemplateName=${newTemplateName}
-			setNewTemplateName=${setNewTemplateName}
 			selectedTemplate=${selectedTemplate}
 			setSelectedTemplate=${setSelectedTemplate}
 			templatesImport=${templatesImport}
-			setTemplatesImport=${setTemplatesImport}
 			templates=${templates}
 			setTemplates=${setTemplates}
-			updateTemplateDB=${updateTemplateDB}
-			addDeleteTemplate=${addDeleteTemplate}
-			setAddDeleteTemplate=${setAddDeleteTemplate}
-			sessionStorage=${sessionStorage} endpoint=${endpoint} endpointAPI=${endpointAPI} endpointAPIKey=${endpointAPIKey} isMikupadEndpoint=${isMikupadEndpoint}
+			sessionStorage=${sessionStorage}
 			cancel=${cancel}/>
 
 		${sessionEndpointError && html`
