@@ -3882,8 +3882,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 
 	const promptText = useMemo(() => joinPrompt(promptChunks), [promptChunks]);
 
-	// compute separately as I imagine this can get expensive
-	const assembledWorldInfo = useMemo(() => {
+	const assembleWorldInfo = (promptText) => {
 		// assemble non-empty wi
 		const validWorldInfo = !Array.isArray(worldInfo.entries) ? [] : worldInfo.entries.filter(entry =>
 			entry.keys.length > 0 && !(entry.keys.length == 1 && entry.keys[0] == "") && entry.text !== "");
@@ -3918,16 +3917,19 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			});
 		});
 
-		const assembledWorldInfo = activeWorldInfo.length > 0
+		return activeWorldInfo.length > 0
 			? activeWorldInfo.map(entry => entry.text).join("\n")
 			: "";
+	};
 
-		return assembledWorldInfo
+	// compute separately as I imagine this can get expensive
+	const assembledWorldInfo = useMemo(() => {
+		return assembleWorldInfo(promptText);
 	}, [worldInfo]);
 
-	const additionalContextPrompt = useMemo(() => {
-		// add world info to memory for easier assembly
-		memoryTokens["worldInfo"] = assembledWorldInfo;
+	const assembleAdditionalContext = (assembledWorldInfo, promptText) => {
+		if ("worldInfo" in memoryTokens)
+			delete memoryTokens["worldInfo"];
 
 		const order = ["prefix","text","suffix"]
 		const assembledAuthorNote = authorNoteTokens.text && authorNoteTokens.text !== ""
@@ -3936,19 +3938,19 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 
 		// replacements for the contextOrder string
 		const contextReplacements = {
-			"{wiPrefix}": memoryTokens.worldInfo && memoryTokens.worldInfo !== ""
+			"{wiPrefix}": assembledWorldInfo && assembledWorldInfo !== ""
 				? worldInfo.prefix
 				: "", // wi prefix and suffix will be added whenever wi isn't empty
-			"{wiText}": memoryTokens.worldInfo,
-			"{wiSuffix}": memoryTokens.worldInfo && memoryTokens.worldInfo !== ""
+			"{wiText}": assembledWorldInfo,
+			"{wiSuffix}": assembledWorldInfo && assembledWorldInfo !== ""
 				? worldInfo.suffix
 				: "",
 
-			"{memPrefix}": memoryTokens.text && memoryTokens.text !== "" || memoryTokens.worldInfo !== ""
+			"{memPrefix}": memoryTokens.text && memoryTokens.text !== "" || assembledWorldInfo !== ""
 				? memoryTokens.prefix
 				: "", // memory prefix and suffix will be added whenever memory or wi aren't empty
 			"{memText}": memoryTokens.text,
-			"{memSuffix}": memoryTokens.text && memoryTokens.text !== "" || memoryTokens.worldInfo !== ""
+			"{memSuffix}": memoryTokens.text && memoryTokens.text !== "" || assembledWorldInfo !== ""
 				? memoryTokens.suffix
 				: "",
 		}
@@ -3993,13 +3995,79 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		}).join("\n").replace(/\\n/g, '\n');
 
 		return permContextPrompt;
+	};
+
+	const additionalContextPrompt = useMemo(() => {
+		return assembleAdditionalContext(assembledWorldInfo, promptText);
 	}, [contextLength, promptText, memoryTokens, authorNoteTokens, authorNoteDepth, assembledWorldInfo, worldInfo.prefix, worldInfo.suffix]);
 
 	const modifiedPrompt = useMemo(() => {
-		return replacePlaceholders(additionalContextPrompt,templateReplacements);
+		return replacePlaceholders(additionalContextPrompt, templateReplacements);
 	}, [additionalContextPrompt, templates, selectedTemplate]);
 
-	async function predict(prompt = modifiedPrompt, chunkCount = promptChunks.length) {
+	// predict all {fill} placeholders
+	async function fillsPredict() {
+		const fillPlaceholder = "{fill}";
+
+		let leftPromptChunks = [];
+		let rightPromptChunks = [];
+		let fillIdx = undefined;
+
+		for (let i = 0; i < promptChunks.length; i++) {
+			const chunk = promptChunks[i];
+			if (chunk.content.includes(fillPlaceholder)) {
+				// split the chunk in 2
+				const left = { content: chunk.content.substring(0, chunk.content.indexOf(fillPlaceholder)), type: "user" };
+				const right = { content: chunk.content.substring(chunk.content.indexOf(fillPlaceholder) + fillPlaceholder.length), type: "user" };
+				fillIdx = i + 1;
+				leftPromptChunks = [
+					...promptChunks.slice(0, Math.max(0, i - 1)),
+					...[left]
+				];
+				rightPromptChunks = [
+					...[right],
+					...promptChunks.slice(i + 1, promptChunks.length - 1),
+				];
+				break;
+			}
+		}
+
+		if (!fillIdx)
+			return;
+
+		const promptText = joinPrompt(leftPromptChunks);
+		const assembledWorldInfo = assembleWorldInfo(promptText);
+		const additionalContextPrompt = assembleAdditionalContext(assembledWorldInfo, promptText);
+		const finalPrompt = assembleFinalPrompt(additionalContextPrompt, templateReplacements);
+		
+		predict(finalPrompt, leftPromptChunks.length, (chunk) => {
+			console.log(chunk);
+			if (rightPromptChunks[0]) {
+				if (chunk.content.trim().startsWith(rightPromptChunks[0].content[0])) {
+					if (chunk.content[0] == ' ' && rightPromptChunks[0].content[0] != ' ') {
+						rightPromptChunks[0].content = ' ' + rightPromptChunks[0].content;
+						setPromptChunks(p => [
+							...leftPromptChunks,
+							...rightPromptChunks
+						]);
+					}
+					return false;
+				}
+			}
+			leftPromptChunks = [
+				...leftPromptChunks,
+				chunk
+			];
+			setPromptChunks(p => [
+				...leftPromptChunks,
+				...rightPromptChunks
+			]);
+			setTokens(t => t + (chunk?.completion_probabilities?.length ?? 1));
+			return true;
+		});
+	}
+
+	async function predict(prompt = modifiedPrompt, chunkCount = promptChunks.length, callback = undefined) {
 		if (cancel) {
 			cancel?.();
 
@@ -4009,7 +4077,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			setCancel(() => () => cancelled = true);
 			await new Promise(resolve => setTimeout(resolve, 500));
 			if (cancelled)
-				return;
+				return false;
 		}
 
 		const ac = new AbortController();
@@ -4029,34 +4097,36 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			// so let's set the predictStartTokens beforehand.
 			setPredictStartTokens(tokens);
 
-			const tokenCount = await getTokenCount({
-				endpoint,
-				endpointAPI,
-				...(endpointAPI == 3 || endpointAPI == 0 ? { endpointAPIKey } : {}),
-				content: prompt,
-				signal: ac.signal,
-				...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {})
-			});
-			setTokens(tokenCount);
-			setPredictStartTokens(tokenCount);
+			if (!callback) {
+				const tokenCount = await getTokenCount({
+					endpoint,
+					endpointAPI,
+					...(endpointAPI == 3 || endpointAPI == 0 ? { endpointAPIKey } : {}),
+					content: prompt,
+					signal: ac.signal,
+					...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {})
+				});
+				setTokens(tokenCount);
+				setPredictStartTokens(tokenCount);
 
-			// Chat Mode
-			if (chatMode && !restartedPredict && templates[selectedTemplate]) {
-				// add user EOT template (instruct suffix) if not switch completion
-				const { instSuf, instPre } = replaceNewlines(templates[selectedTemplate]);
-				const instSufIndex = instSuf ? prompt.lastIndexOf(instSuf) : -1;
-				const instPreIndex = instPre ? prompt.lastIndexOf(instPre) : -1;
-				if (instSufIndex <= instPreIndex) {
-					setPromptChunks(p => [...p, { type: 'user', content: instSuf }])
-					prompt += instSuf;
+				// Chat Mode
+				if (chatMode && !restartedPredict && templates[selectedTemplate]) {
+					// add user EOT template (instruct suffix) if not switch completion
+					const { instSuf, instPre } = replaceNewlines(templates[selectedTemplate]);
+					const instSufIndex = instSuf ? prompt.lastIndexOf(instSuf) : -1;
+					const instPreIndex = instPre ? prompt.lastIndexOf(instPre) : -1;
+					if (instSufIndex <= instPreIndex) {
+						setPromptChunks(p => [...p, { type: 'user', content: instSuf }])
+						prompt += instSuf;
+					}
 				}
-			}
-			setRestartedPredict(false)
+				setRestartedPredict(false)
 
-			while (undoStack.current.at(-1) >= chunkCount)
-				undoStack.current.pop();
-			undoStack.current.push(chunkCount);
-			redoStack.current = [];
+				while (undoStack.current.at(-1) >= chunkCount)
+					undoStack.current.pop();
+				undoStack.current.push(chunkCount);
+				redoStack.current = [];
+			}
 			setUndoHovered(false);
 			setRejectedAPIKey(false);
 			promptArea.current.scrollTarget = undefined;
@@ -4109,8 +4179,13 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 					chunk.content = chunk.stopping_word;
 				if (!chunk.content)
 					continue;
-				setPromptChunks(p => [...p, chunk]);
-				setTokens(t => t + (chunk?.completion_probabilities?.length ?? 1));
+				if (callback) {
+					if (!callback(chunk))
+						break;
+				} else {
+					setPromptChunks(p => [...p, chunk]);
+					setTokens(t => t + (chunk?.completion_probabilities?.length ?? 1));
+				}
 				chunkCount += 1;
 			}
 		} catch (e) {
@@ -4129,16 +4204,21 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			return false;
 		} finally {
 			setCancel(c => c === cancelThis ? null : c);
-			if (undoStack.current.at(-1) === chunkCount)
-				undoStack.current.pop();
+			if (!callback) {
+				if (undoStack.current.at(-1) === chunkCount)
+					undoStack.current.pop();
+			}
 		}
+
 		// Chat Mode
-		if (chatMode) {
+		if (!callback && chatMode) {
 			// add bot EOT template (instruct prefix)
 			const eotBot = templates[selectedTemplate]?.instPre.replace(/\\n/g, '\n')
 			setPromptChunks(p => [...p, { type: 'user', content: eotBot }])
 			prompt += `${eotBot}`
 		}
+		
+		return true;
 	}
 
 	function undo() {
@@ -4366,7 +4446,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			switch (`${altKey}:${ctrlKey}:${shiftKey}:${key}`) {
 			case 'false:false:true:Enter':
 			case 'false:true:false:Enter':
-				predict();
+				fillsPredict();//predict();
 				break;
 			case 'false:false:false:Escape':
 				cancel();
@@ -4513,28 +4593,50 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 				newValue = newValue.slice(0, -chunk.content.length);
 			}
 
+			// Merge chunks if they're from the user
+			let mergeUserChunks = (chunks, newContent) => {
+				let lastChunk = chunks[chunks.length - 1];
+				while (lastChunk && lastChunk.type === 'user') {
+					lastChunk.content += newContent;
+					if (chunks[chunks.length - 2] && chunks[chunks.length - 2].type === 'user') {
+						newContent = lastChunk.content;
+						lastChunk = chunks[chunks.length - 2];
+						chunks.splice(chunks.length - 1, 1);
+					} else {
+						return chunks;
+					}
+				}
+				return [...chunks, { type: 'user', content: newContent }];
+			};
+
+			let newPrompt = [...start];
+			if (newValue) {
+				newPrompt = mergeUserChunks(newPrompt, newValue);
+			}
+			if (end.length && end[0].type === 'user') {
+				newPrompt = mergeUserChunks(newPrompt, end.shift().content);
+			}
+			newPrompt.push(...end);
+
 			// Remove all undo positions within the modified range.
-			undoStack.current = undoStack.current.filter(pos => start.length < pos);
+			undoStack.current = undoStack.current.filter(pos => pos > start.length && pos < newPrompt.length);
 			if (!undoStack.current.length)
 				setUndoHovered(false);
 
-			// Update all undo positions.
-			if (start.length + end.length + (+!!newValue) !== oldPromptLength) {
-				// Reset redo stack if a new chunk is added/removed at the end.
-				if (!end.length)
-					redoStack.current = [];
+			// Adjust undo/redo stacks.
+			const chunkDifference = oldPromptLength - newPrompt.length;
+			undoStack.current = undoStack.current.map(pos => {
+				if (pos >= start.length) {
+					return pos - chunkDifference;
+				}
+				return pos;
+			});
 
-				if (!oldPrompt.length)
-					undoStack.current = undoStack.current.map(pos => pos + 1);
-				else
-					undoStack.current = undoStack.current.map(pos => pos - oldPrompt.length);
+			// Reset redo stack if a new chunk is added/removed at the end.
+			if (chunkDifference < 0 && !end.length) {
+				redoStack.current = [];
 			}
 
-			const newPrompt = [
-				...start,
-				...(newValue ? [{ type: 'user', content: newValue }] : []),
-				...end,
-			];
 			return newPrompt;
 		});
 	}
