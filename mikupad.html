@@ -1006,17 +1006,20 @@ html.monospace-dark .eye-button {
 #button-settings {
 	display: none;
 }
-
 .hide {
 	display: none;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
 	#prompt-container {
     	font-size: 1.35rem;
 		height: 96.9vh; /* There's a better way to this */
 	}
-	html.monospace-dark #sidebar {
+	#prompt-container {
+		width: 100%;
+		max-width: 100%;
+	}
+	#sidebar {
 		width: 100%;
 		position: fixed;
 		bottom: 0%;
