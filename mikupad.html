@@ -989,6 +989,12 @@ html.monospace-dark .horz-separator {
 	width: 1.891rem;
 	height: 1.625rem;
 }
+html.monospace-dark .eye-button {
+	position: relative;
+	margin-top: auto;
+	width: 1.891rem;
+	height: 1.725rem;
+}
 .eye-button > svg {
 	position: absolute;
 	top: 50%;
@@ -3190,7 +3196,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 				endpoint,
 				endpointAPI,
 				...(endpointAPI == 3 || endpointAPI == 0 ? { endpointAPIKey } : {}),
-				content: ` ${prompt}`,
+				content: prompt,
 				signal: ac.signal,
 				...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {})
 			});
@@ -3450,7 +3456,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 					endpoint,
 					endpointAPI,
 					...(endpointAPI == 3 || endpointAPI == 0 ? { endpointAPIKey } : {}),
-					content: ` ${modifiedPrompt}`,
+					content: modifiedPrompt,
 					signal: ac.signal,
 					...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {})
 				});
