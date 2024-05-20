@@ -2803,82 +2803,34 @@ function InstructModal({ isOpen, closeModal, sessionStorage, selectedTemplate, s
 		</${Modal}>`;
 }
 
-class SessionStorage extends EventTarget {
+class IndexedDBAdapter {
 	constructor() {
-		super();
 		this.dbName = 'MikuPad';
-		this.storeNames = ['Sessions','Templates'];
-		this.nextId = undefined;
-		this.saveQueue = [];
-		this.saveTimer = undefined;
-		this.sessions = {};
-		this.templates = {};
-		this.selectedSession = undefined;
-	}
-
-	dispatchChangeEvent() {
-		this.dispatchEvent(new CustomEvent('change'));
-	}
-
-	dispatchSessionChangeEvent() {
-		this.dispatchEvent(new CustomEvent('sessionchange'));
-	}
-
-	dispatchErrorEvent(detail) {
-		this.dispatchEvent(new CustomEvent('error', { detail }));
 	}
 
 	async init() {
-		const db = await this.openDatabase();
-		this.nextId = (await this.loadFromDatabase(db, 'nextSessionId')) || 0;
-		this.selectedSession = (await this.loadFromDatabase(db, 'selectedSessionId')) || 0;
-		await this.loadSessions(db);
-		await this.loadTemplates(db);
-		this.saveTimer = setInterval(async () => await this.saveTimerHandler(), 500);
 	}
 
 	async openDatabase() {
 		return new Promise((resolve, reject) => {
 			const openRequest = indexedDB.open(this.dbName, 2);
 
-			openRequest.onerror = () => {
-				this.dispatchErrorEvent(openRequest.error);
-				reject(openRequest.error);
-			};
+			openRequest.onerror = () => reject(openRequest.error);
 			openRequest.onsuccess = () => resolve(openRequest.result);
 
 			openRequest.onupgradeneeded = (event) => {
 				const db = event.target.result;
-				this.storeNames.forEach(storeName => {
+				for (const storeName of ["Sessions", "Templates"]) {
 					if (!db.objectStoreNames.contains(storeName)) {
 						db.createObjectStore(storeName);
 					}
-				});
+				}
 			};
 			openRequest.onblocked = () => console.warn('Request was blocked');
 		});
 	}
 
-	async getNewId() {
-		this.nextId += 1;
-		await this.saveToDatabase('nextSessionId', this.nextId);
-		return this.nextId - 1;
-	}
-
-	async saveTimerHandler() {
-		const sessions = [];
-		while (this.saveQueue.length) {
-			sessions.push(this.saveQueue.pop());
-		}
-
-		for (const sessionId of sessions) {
-			if (!this.sessions[sessionId])
-				continue;
-			await this.saveToDatabase(sessionId, this.sessions[sessionId]);
-		}
-	}
-
-	async loadFromDatabase(db, key, storeName = this.storeNames[0]) {
+	async loadFromDatabase(db, storeName, key) {
 		return new Promise((resolve, reject) => {
 			const tx = db.transaction(storeName, 'readonly');
 			const store = tx.objectStore(storeName);
@@ -2889,8 +2841,28 @@ class SessionStorage extends EventTarget {
 		});
 	}
 
-	async saveToDatabase(key, data, storeName = this.storeNames[0]) {
-		const db = await this.openDatabase();
+	async loadAllFromDatabase(db, storeName) {
+		return new Promise((resolve, reject) => {
+			const tx = db.transaction(storeName, 'readonly');
+			const store = tx.objectStore(storeName);
+			const request = store.openCursor();
+
+			let allTables = {};
+
+			request.onsuccess = async (event) => {
+				const cursor = event.target.result;
+				if (cursor) {
+					allTables[cursor.key] = cursor.value;
+					cursor.continue();
+				} else {
+					resolve(allTables);
+				}
+			};
+			request.onerror = () => reject(request.error);
+		});
+	}
+
+	async saveToDatabase(db, storeName, key, data) {
 		return new Promise((resolve, reject) => {
 			const tx = db.transaction(storeName, 'readwrite');
 			const store = tx.objectStore(storeName);
@@ -2900,41 +2872,263 @@ class SessionStorage extends EventTarget {
 			request.onerror = () => reject(request.error);
 		});
 	}
+
+	async deleteFromDatabase(db, storeName, key) {
+		return new Promise((resolve, reject) => {
+			const tx = db.transaction(storeName, 'readwrite');
+			const store = tx.objectStore(storeName);
+			const request = store.delete(key);
+
+			request.onsuccess = () => resolve();
+			request.onerror = () => reject(request.error);
+		});
+	}
+}
+
+class ServerDBAdapter {
+	constructor(sessionEndpoint) {
+		this.sessionEndpoint = sessionEndpoint;
+	}
+
+	async init() {
+		// Test connection
+		const db = await this.openDatabase();
+		await this.loadFromDatabase(db, "Sessions", "selectedSessionId");
+	}
+
+	async openDatabase() {
+		return async (route, options) => {
+			try {
+				return await fetch(new URL(route, this.sessionEndpoint), {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json',
+					},
+					body: JSON.stringify(options),
+				});
+			} catch (e) {
+				reportError(e);
+				return { ok: false, status: e.toString() };
+			}
+		};
+	}
+
+	async loadFromDatabase(db, storeName, key) {
+		return new Promise(async (resolve, reject) => {
+			const res = await db("/load", { storeName, key });
+			if (!res.ok) {
+				if (res.status == 404) {
+					resolve(undefined);
+				} else {
+					reject(res.status);
+				}
+				return;
+			}
+			const { result } = await res.json();
+			resolve(result);
+		});
+	}
+
+	async loadAllFromDatabase(db, storeName) {
+		return new Promise(async (resolve, reject) => {
+			const res = await db("/all", { storeName });
+			if (!res.ok) {
+				reject(res.status);
+				return;
+			}
+			const { result } = await res.json();
+			resolve(result);
+		});
+	}
+
+	async saveToDatabase(db, storeName, key, data) {
+		return new Promise(async (resolve, reject) => {
+			const res = await db("/save", { storeName, key, data });
+			if (!res.ok) {
+				reject(res.status);
+				return;
+			}
+			const { result } = await res.json();
+			resolve(result);
+		});
+	}
+
+	async deleteFromDatabase(db, storeName, key) {
+		return new Promise(async (resolve, reject) => {
+			const res = await db("/delete", { storeName, key });
+			if (!res.ok) {
+				reject(res.status);
+				return;
+			}
+			resolve();
+		});
+	}
+}
+
+class AbstractStorage extends EventTarget {
+	constructor(storeName, dbAdapter) {
+		super();
+		this.storeName = storeName;
+		this.dbAdapter = dbAdapter;
+		this.saveQueue = [];
+		this.saveTimer = undefined;
+	}
+
+	dispatchChangeEvent() {
+		this.dispatchEvent(new CustomEvent('change'));
+	}
+
+	dispatchErrorEvent(detail) {
+		this.dispatchEvent(new CustomEvent('error', { detail }));
+	}
+
+	startSaveTimer(saveCallback) {
+		this.saveTimer = setInterval(async () => await this.saveTimerHandler(saveCallback), 500);
+	}
+
+	async saveTimerHandler(saveCallback) {
+		const keys = [];
+		while (this.saveQueue.length) {
+			keys.push(this.saveQueue.pop());
+		}
+
+		for (const key of keys) {
+			await saveCallback(key);
+		}
+	}
+
+	enqueueSave(key) {
+		if (!this.saveQueue.includes(key))
+			this.saveQueue.push(key);
+	}
+
+	async openDatabase() {
+		try {
+			return await this.dbAdapter.openDatabase();
+		} catch (e) {
+			this.dispatchErrorEvent(e);
+			throw e;
+		}
+	}
+
+	async loadFromDatabase(db, key) {
+		try {
+			return await this.dbAdapter.loadFromDatabase(db, this.storeName, key);
+		} catch (e) {
+			this.dispatchErrorEvent(e);
+			throw e;
+		}
+	}
+
+	async loadAllFromDatabase(db) {
+		try {
+			return await this.dbAdapter.loadAllFromDatabase(db, this.storeName);
+		} catch (e) {
+			this.dispatchErrorEvent(e);
+			throw e;
+		}
+	}
+
+	async saveToDatabase(db, key, data) {
+		try {
+			return await this.dbAdapter.saveToDatabase(db, this.storeName, key, data);
+		} catch (e) {
+			this.dispatchErrorEvent(e);
+			throw e;
+		}
+	}
+
+	async deleteFromDatabase(db, key) {
+		try {
+			return await this.dbAdapter.deleteFromDatabase(db, this.storeName, key);
+		} catch (e) {
+			this.dispatchErrorEvent(e);
+			throw e;
+		}
+	}
+}
+
+class TemplateStorage extends AbstractStorage {
+	constructor(dbAdapter) {
+		super('Templates', dbAdapter);
+		this.templates = {};
+	}
+
+	async init() {
+		const db = await this.openDatabase();
+		await this.loadTemplates(db);
+	}
+
 	async saveTemplates(newTemplates,writeOnly=false) {
 		const db = await this.openDatabase();
-		return new Promise((resolve, reject) => {
-			const tx = db.transaction('Templates', 'readwrite');
-			const store = tx.objectStore('Templates');
 
-			const request = store.getAllKeys();
-			request.onsuccess = function(event) {
-			const DBkeys = event.target.result;
-
-			// Check if the keys exists in input, if not, delete
-			DBkeys.forEach(key => {
-				if ( !(Object.keys(newTemplates).includes(key)) ) {
-					if (writeOnly)
-						return
-					// If the key not in input, delete it
-					const deleteRequest = store.delete(key);
-					deleteRequest.onsuccess = function(event) {
-						console.warn('Deleted key:', key);
-					}
-					deleteRequest.onerror = function(event) {
-						console.error('Error deleting key:', key);
-					}
-				}
-			});
-
-			// put input keys
-			for (const [key, value] of Object.entries(newTemplates)) {
-				const request = store.put(value, key);
-				request.onsuccess = () => resolve();
-				request.onerror = () => reject(request.error);
+		// Check if the keys exists in input, if not, delete
+		for (const key of Object.keys(this.templates)) {
+			if (Object.keys(newTemplates).includes(key))
+				continue;
+			if (writeOnly)
+				continue;
+			try {
+				// If the key not in input, delete it
+				await this.deleteFromDatabase(db, key);
+				console.warn('Deleted key:', key);
+			} catch {
+				console.error('Error deleting key:', key);
 			}
-
 		}
-		});
+
+		// put input keys
+		for (const [key, value] of Object.entries(newTemplates)) {
+			if (JSON.stringify(value) === JSON.stringify(this.templates[key]))
+				continue;
+			await this.saveToDatabase(db, key, value);
+		}
+
+		this.templates = newTemplates;
+	}
+
+	async loadTemplates(db) {
+		this.templates = await this.loadAllFromDatabase(db);
+	}
+}
+
+class SessionStorage extends AbstractStorage {
+	constructor(dbAdapter) {
+		super('Sessions', dbAdapter);
+		this.nextId = undefined;
+		this.sessions = {};
+		this.selectedSession = undefined;
+
+		if (dbAdapter.sessionEndpoint) {
+			this.sessionEndpoint = dbAdapter.sessionEndpoint;
+			this.proxyEndpoint = `${dbAdapter.sessionEndpoint}/proxy`;
+		}
+	}
+
+	dispatchSessionChangeEvent() {
+		this.dispatchEvent(new CustomEvent('sessionchange'));
+	}
+
+	async init() {
+		const db = await this.openDatabase();
+		this.nextId = (await this.loadFromDatabase(db, 'nextSessionId')) || 0;
+		this.selectedSession = (await this.loadFromDatabase(db, 'selectedSessionId')) || 0;
+		await this.loadSessions(db);
+		this.startSaveTimer((sessionId) => this.saveSessionToDB(sessionId));
+	}
+
+	async saveSessionToDB(sessionId) {
+		if (!this.sessions[sessionId])
+			return;
+		const db = await this.openDatabase();
+		await this.saveToDatabase(db, sessionId, this.sessions[sessionId]);
+	}
+
+	async getNewId() {
+		const db = await this.openDatabase();
+		await this.saveToDatabase(db, 'nextSessionId', this.nextId + 1);
+		this.nextId += 1;
+		return this.nextId - 1;
 	}
 
 	// We leave the localStorage content untouched for now,
@@ -2960,57 +3154,28 @@ class SessionStorage extends EventTarget {
 				this.sessions[sessionId][propertyName] = value;
 			}
 		};
-		await this.saveToDatabase('nextSessionId', this.nextId);
-		await this.saveToDatabase('selectedSessionId', this.selectedSession);
+		const db = await this.openDatabase();
+		await this.saveToDatabase(db, 'nextSessionId', this.nextId);
+		await this.saveToDatabase(db, 'selectedSessionId', this.selectedSession);
 		for (const sessionId of Object.keys(this.sessions)) {
-			await this.saveToDatabase(+sessionId, this.sessions[sessionId]);
+			await this.saveToDatabase(db, +sessionId, this.sessions[sessionId]);
 		}
 		return true;
 	}
 
 	async loadSessions(db) {
-		return new Promise((resolve, reject) => {
-			const tx = db.transaction(this.storeNames[0], 'readonly');
-			const store = tx.objectStore(this.storeNames[0]);
-			const request = store.openCursor();
-
-			request.onsuccess = async (event) => {
-				const cursor = event.target.result;
-				if (cursor) {
-					if (cursor.key !== 'nextSessionId' && cursor.key !== 'selectedSessionId') {
-						this.sessions[cursor.key] = cursor.value;
-					}
-					cursor.continue();
-				} else {
-					if (Object.keys(this.sessions).length === 0) {
-						if (!await this.migrateSessions()) {
-							await this.createSession('MikuPad #1');
-						}
-					}
-					await this.switchSession(this.selectedSession);
-					resolve();
-				}
-			};
-			request.onerror = () => reject(request.error);
-		});
-	}
-	async loadTemplates(db) {
-		return new Promise((resolve, reject) => {
-			const tx = db.transaction(this.storeNames[1], 'readonly');
-			const store = tx.objectStore(this.storeNames[1]);
-			const request = store.openCursor();
-
-			request.onsuccess = async (event) => {
-				const cursor = event.target.result;
-				if (cursor) {
-					this.templates[cursor.key] = cursor.value;
-					cursor.continue();
-				} else {
-					resolve();
-				}
-			};
-			request.onerror = () => reject(request.error);
-		});
+		const sessions = await this.loadAllFromDatabase(db);
+		for (const [key, value] of Object.entries(sessions)) {
+			if (key !== 'nextSessionId' && key !== 'selectedSessionId') {
+				this.sessions[key] = value;
+			}
+		}
+		if (Object.keys(this.sessions).length === 0) {
+			if (!await this.migrateSessions()) {
+				await this.createSession('MikuPad #1');
+			}
+		}
+		await this.switchSession(this.selectedSession);
 	}
 
 	getProperty(propertyName) {
@@ -3021,15 +3186,17 @@ class SessionStorage extends EventTarget {
 		if (!this.sessions[this.selectedSession])
 			return;
 		this.sessions[this.selectedSession][propertyName] = value;
-		if (!this.saveQueue.includes(this.selectedSession))
-			this.saveQueue.push(this.selectedSession);
+		this.enqueueSave(this.selectedSession);
 	}
 
 	async switchSession(sessionId) {
 		if (!this.sessions[sessionId])
 			return;
+		
+		const db = await this.openDatabase();
+		await this.saveToDatabase(db, 'selectedSessionId', +sessionId);
+
 		this.selectedSession = +sessionId;
-		await this.saveToDatabase('selectedSessionId', this.selectedSession);
 
 		this.dispatchChangeEvent();
 		this.dispatchSessionChangeEvent();
@@ -3037,7 +3204,9 @@ class SessionStorage extends EventTarget {
 
 	async renameSession(sessionId, renameSessionName) {
 		this.sessions[sessionId]['name'] = renameSessionName;
-		await this.saveToDatabase(sessionId, this.sessions[sessionId]);
+
+		const db = await this.openDatabase();
+		await this.saveToDatabase(db, sessionId, this.sessions[sessionId]);
 
 		this.dispatchChangeEvent();
 	}
@@ -3047,33 +3216,28 @@ class SessionStorage extends EventTarget {
 			return;
 		if (!window.confirm("Are you sure you want to delete this session? This action can't be undone."))
 			return;
+
 		const db = await this.openDatabase();
-		return new Promise((resolve, reject) => {
-			const tx = db.transaction(this.storeNames[0], 'readwrite');
-			const store = tx.objectStore(this.storeNames[0]);
-			const request = store.delete(sessionId);
+		await this.deleteFromDatabase(db, sessionId);
 
-			request.onsuccess = async () => {
-				// Select another session if the current was deleted
-				if (sessionId == this.selectedSession) {
-					const sessionIds = Object.keys(this.sessions).map(x => +x);
-					const sessionIdx = sessionIds.indexOf(sessionId);
-					const newSessionId = sessionIds[sessionIdx - 1] ?? sessionIds[sessionIdx + 1];
-					await this.switchSession(+newSessionId)
-				}
+		// Select another session if the current was deleted
+		if (sessionId == this.selectedSession) {
+			const sessionIds = Object.keys(this.sessions).map(x => +x);
+			const sessionIdx = sessionIds.indexOf(sessionId);
+			const newSessionId = sessionIds[sessionIdx - 1] ?? sessionIds[sessionIdx + 1];
+			await this.switchSession(+newSessionId)
+		}
 
-				delete this.sessions[sessionId];
-				this.dispatchChangeEvent();
-				resolve();
-			};
-			request.onerror = () => reject(request.error);
-		});
+		delete this.sessions[sessionId];
+		this.dispatchChangeEvent();
 	}
 
 	async createSession(newSessionName) {
 		const newId = await this.getNewId();
 		this.sessions[newId] = { name: newSessionName };
-		await this.saveToDatabase(newId, this.sessions[newId]);
+		
+		const db = await this.openDatabase();
+		await this.saveToDatabase(db, newId, this.sessions[newId]);
 
 		onchange?.();
 		return newId;
@@ -3096,136 +3260,11 @@ class SessionStorage extends EventTarget {
 			this.sessions[newId]['name'] = `Cloned ${this.sessions[newId]['name']}`;
 		}
 
-		await this.saveToDatabase(newId, this.sessions[newId]);
+		const db = await this.openDatabase();
+		await this.saveToDatabase(db, newId, this.sessions[newId]);
 
 		onchange?.();
 		return newId;
-	}
-}
-
-class WebSessionStorage extends SessionStorage {
-	constructor(sessionEndpoint) {
-		super();
-		this.sessionEndpoint = sessionEndpoint;
-		this.proxyEndpoint = `${sessionEndpoint}/proxy`;
-	}
-
-	async openDatabase() {
-		return async (route, options) => {
-			try {
-				return await fetch(new URL(route, this.sessionEndpoint), {
-					method: 'POST',
-					headers: {
-						'Content-Type': 'application/json',
-					},
-					body: JSON.stringify(options),
-				});
-			} catch (e) {
-				this.dispatchErrorEvent(e);
-				reportError(e);
-				return { ok: false, status: e.toString() };
-			}
-		};
-	}
-
-	async loadFromDatabase(db, key) {
-		return new Promise(async (resolve, reject) => {
-			const res = await db("/load", { key });
-			if (!res.ok) {
-				if (res.status == 404) {
-					resolve(undefined);
-				} else {
-					reject(res.status);
-				}
-				return;
-			}
-			const { result } = await res.json();
-			resolve(result);
-		});
-	}
-
-	async saveToDatabase(key, data) {
-		const db = await this.openDatabase();
-		return new Promise(async (resolve, reject) => {
-			const res = await db("/save", { data, key });
-			if (!res.ok) {
-				reject(res.status);
-				return;
-			}
-			const { result } = await res.json();
-			resolve(result);
-		});
-	}
-
-	async loadSessions(db) {
-		return new Promise(async (resolve, reject) => {
-			const res = await db("/sessions");
-			if (!res.ok) {
-				reject(res.status);
-				return;
-			}
-			const { result } = await res.json();
-			const sessions = result;
-
-			for (const [key, value] of Object.entries(sessions)) {
-				if (key !== 'nextSessionId' && key !== 'selectedSessionId') {
-					this.sessions[key] = value;
-				}
-			}
-
-			if (Object.keys(this.sessions).length === 0) {
-				if (!await this.migrateSessions()) {
-					await this.createSession('MikuPad #1');
-				}
-			}
-
-			await this.switchSession(this.selectedSession);
-			resolve();
-		});
-	}
-	async loadTemplates(db) {
-		return new Promise(async (resolve, reject) => {
-			const res = await db("/templates");
-			if (!res.ok) {
-				reject(res.status);
-				return;
-			}
-			const { result } = await res.json();
-			const sessions = result;
-
-			for (const [key, value] of Object.entries(templates)) {
-				this.templates[key] = value;
-			}
-
-			resolve();
-		});
-	}
-
-	async deleteSession(sessionId) {
-		if (Object.keys(this.sessions).length === 1)
-			return;
-		if (!window.confirm("Are you sure you want to delete this session? This action can't be undone."))
-			return;
-		const db = await this.openDatabase();
-		return new Promise(async (resolve, reject) => {
-			const res = await db("/delete", { sessionId });
-			if (!res.ok) {
-				reject(res.status);
-				return;
-			}
-
-			// Select another session if the current was deleted
-			if (sessionId == this.selectedSession) {
-				const sessionIds = Object.keys(this.sessions).map(x => +x);
-				const sessionIdx = sessionIds.indexOf(sessionId);
-				const newSessionId = sessionIds[sessionIdx - 1] ?? sessionIds[sessionIdx + 1];
-				await this.switchSession(+newSessionId)
-			}
-
-			delete this.sessions[sessionId];
-			this.dispatchChangeEvent();
-			resolve();
-		});
 	}
 }
 
@@ -3394,23 +3433,15 @@ function useSessionState(sessionStorage, name, initialState) {
 	return [value, updateState];
 }
 
-function useDBTemplates(sessionStorage,initialState) {
-	const savedState = useMemo(() => {
-		try {
-			return sessionStorage.templates;
-		} catch (e) {
-			reportError(e);
-			return null;
-		}
-	}, []);
+function useDBTemplates(templateStorage, initialState) {
+	const savedState = useMemo(() => templateStorage.templates, []);
 
 	const [value, setValue] = useState(Object.keys(savedState).length === 0 ? initialState : savedState);
 
 	const updateState = (newValue) => {
 		setValue((prevValue) => {
 			const updatedValue = typeof newValue === 'function' ? newValue(prevValue) : newValue;
-			sessionStorage.templates = updatedValue;
-			sessionStorage.saveTemplates(updatedValue)
+			templateStorage.saveTemplates(updatedValue)
 			return updatedValue;
 		});
 	};
@@ -4380,7 +4411,7 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 			if (!sessionReconnectTimer.current) {
 				sessionReconnectTimer.current = setInterval(async () => {
 					try {
-						await sessionStorage.saveToDatabase('selectedSessionId', sessionStorage.selectedSession);
+						await sessionStorage.dbAdapter.init();
 						setSessionEndpointError(undefined);
 						clearTimeout(sessionReconnectTimer.current);
 						sessionReconnectTimer.current = undefined;
@@ -4820,30 +4851,31 @@ export function App({ sessionStorage, useSessionState, useDBTemplates, isMikupad
 }
 
 async function main() {
-	let sessionStorage = null;
+	let dbAdapter = new IndexedDBAdapter();
 	let isMikupadEndpoint = false;
 
 	if (window.location.protocol != 'file:' && window.location.pathname == '/') {
-		sessionStorage = new WebSessionStorage(window.location.protocol + '//' + window.location.host);
+		let serverAdapter = new ServerDBAdapter(window.location.protocol + '//' + window.location.host);
 		try {
-			await sessionStorage.init();
+			await serverAdapter.init();
+			dbAdapter = serverAdapter;
 			isMikupadEndpoint = true;
 		} catch (e) {
-			sessionStorage = null;
 			reportError(e);
 		}
 	}
 
-	if (sessionStorage == null) {
-		sessionStorage = new SessionStorage();
-		await sessionStorage.init();
-	}
+	const sessionStorage = new SessionStorage(dbAdapter);
+	await sessionStorage.init();
+
+	const templateStorage = new TemplateStorage(dbAdapter);
+	await templateStorage.init();
 
 	createRoot(document.body).render(html`
 		<${App}
 			sessionStorage=${sessionStorage}
 			useSessionState=${(name, initialState) => useSessionState(sessionStorage, name, initialState)}
-			useDBTemplates=${(initialState => useDBTemplates(sessionStorage,initialState))}
+			useDBTemplates=${(initialState => useDBTemplates(templateStorage, initialState))}
 			isMikupadEndpoint=${isMikupadEndpoint}/>`);
 }
 
