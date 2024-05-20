@@ -485,6 +485,19 @@ html.nockoffAI .wi-entry-name input {
 	margin-bottom:4px;
 }
 
+.symbol-button {
+	position: relative;
+	margin-top: auto;
+	width: 2.182rem;
+	height: 1.625rem;
+}
+.symbol-button > svg {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+} 
+
 /* logit bias */
 .hbox-button {
 	margin-top: auto;
@@ -572,6 +585,13 @@ html.nockoffAI .wi-entry-name input {
 	display: grid;
 	grid-template-columns: 1fr 1fr;
 	gap: 8px;
+}
+
+#instructmodal-name {
+	size:110%;
+}
+.instructmodal-edits .hbox {
+	margin-top:8px;
 }
 
 
@@ -822,6 +842,19 @@ button.completing {
 	height: 100%;
 }
 
+.instructTemplatesImportExport{
+	width: fit-content;
+	margin: auto;
+	display: flex;
+	gap: 8px;
+}
+.instructTemplateSidebar > .SelectBox {
+	width: 100%;
+}
+.instructTemplateSidebar > .hbox-button {
+	min-width: max-content;
+}
+
 .collapsible-group {
 	border: none;
 	outline: none;
@@ -1043,14 +1076,14 @@ function exportText(filename, text) {
 function normalizeEndpoint(endpoint, endpointAPI) {
 	const url = new URL(endpoint.trim());
 	url.pathname = url.pathname.replace(/\/+/g, "/"); // normalize consecutive slashes
-	
+
 	let urlString = url.toString();
 	if (endpointAPI == 3) // openai
 		urlString = urlString.replace(/\/v1\/?$/, ""); // remove "/v1" from the end of the string
 	if (endpointAPI == 2) // koboldcpp
 		urlString = urlString.replace(/\/api\/?$/, ""); // remove "/api" from the end of the string
 	urlString = urlString.replace(/\/$/, ""); // remove "/" from the end of the string
-	
+
 	return urlString;
 }
 
@@ -1301,7 +1334,7 @@ async function koboldCppTokenize({ endpoint, proxyEndpoint, signal, ...options }
 	const { ids } = await res.json();
 	ids.shift() // kobold automatically adds a token, so we need to remove it
 	return {ids:ids,str:""};
-	
+
 }
 
 function koboldCppConvertOptions(options) {
@@ -1457,7 +1490,7 @@ async function openaiTokenize({ endpoint, endpointAPIKey, proxyEndpoint, signal,
 			strings.push(string);
 		};
 		return {ids:tokens,str:strings};
-		
+
 	} catch (e) {
 		reportError(e);
 		return -1;
@@ -1635,9 +1668,23 @@ function SelectBox({ label, value, onValueChange, options, ...props }) {
 				value=${value}
 				onChange=${({ target }) => onValueChange(JSON.parse(target.value))}
 				...${props}>
-				${options.map(o => html`<option
+				${(options = typeof options === 'function' ? options() : options).map(o => html`<option
 					key=${JSON.stringify(o.value)}
 					value=${JSON.stringify(o.value)}>${o.name}</option>`)}
+			</select>
+		</label>`;
+}
+function SelectBoxTemplate({ label, value, onValueChange, options, ...props }) {
+	return html`
+		<label className="SelectBox">
+			${label}
+			<select
+				value=${value}
+				onChange=${({ target }) => onValueChange(JSON.parse(JSON.stringify(target.value)))}
+				...${props}>
+				${(options = typeof options === 'function' ? options() : options).map(o => html`<option
+					key=${JSON.stringify(o.value)}
+					value=${o.nameNew}>${o.nameNew}</option>`)}
 			</select>
 		</label>`;
 }
@@ -2175,7 +2222,7 @@ function LogitBiasModal({ isOpen, closeModal, logitBias, setLogitBias, logitBias
 	const [logitBiasTemp, setLogitBiasTemp] = useState([]);
 	const [logitBiasSorted, setLogitBiasSorted] = useState([]);
 	const [logitBiasInput, setLogitBiasInput] = useState({power:"0",string:""});
-	
+
 	const handleLogitBiasInput = (key,value) => {
 		setLogitBiasInput((prevLogitBiasInput) => {
 			return {
@@ -2198,7 +2245,7 @@ function LogitBiasModal({ isOpen, closeModal, logitBias, setLogitBias, logitBias
 		biasPower = Number(biasPower);
 
 		const modBias = logitBias.bias;
-		
+
 		// delete entry if power 0 or empty
 		if (biasPower == 0) {	
 			if (!logitBias.bias[biasString]) {
@@ -2372,7 +2419,7 @@ function LogitBiasModal({ isOpen, closeModal, logitBias, setLogitBias, logitBias
 		setLogitBiasTemp((prevLogitBiasTemp) => {
 			const rest = { ...prevLogitBiasTemp };
 			const updatedTemp = [ ...prevLogitBiasTemp[posneg] ];
-			 
+
 			updatedTemp[index] = {
 				...updatedTemp[index],
 				[key]: value,
@@ -2430,7 +2477,9 @@ function LogitBiasModal({ isOpen, closeModal, logitBias, setLogitBias, logitBias
 							onValueChange=${() => {} }
 							onInput=${(e) => {handleLogitBiasInput("string",e.target.value)} }
 							/>
-						<button disabled=${!!cancel} class="hbox-button" onClick=${() => logitBiasAdd(logitBiasInput.power,logitBiasInput.string)}>+</button>
+						<button disabled=${!!cancel} class="hbox-button" onClick=${() => logitBiasAdd(logitBiasInput.power,logitBiasInput.string)}>
+							+
+						</button>
 					</div>
 					${!!lastBiasError && html`
 						<div style=${{"margin":"8px auto"}} className="error-text">${lastBiasError}</div>`}
@@ -2461,13 +2510,12 @@ function LogitBiasModal({ isOpen, closeModal, logitBias, setLogitBias, logitBias
 												${endpointAPI == 0 && bias.strings != ""
 													? "["+bias.strings.join("|")+"] "
 													: "["+bias.tokens+"]" } 
-												
+
 											</div>
 											<button
 												disabled=${!!cancel}
 												class="hbox-button lb-modal-button lb-modal-button-add"
-												onClick=${() => logitBiasAdd(bias.power, bias.value, bias.valueBack)}
-												>
+												onClick=${() => logitBiasAdd(bias.power, bias.value, bias.valueBack)}>
 												+
 											</button>
 											<button
@@ -2484,78 +2532,332 @@ function LogitBiasModal({ isOpen, closeModal, logitBias, setLogitBias, logitBias
 			</${Modal}>`;
 }
 
-class SessionStorage extends EventTarget {
+function InstructModal({ isOpen, closeModal, templateStorage, selectedTemplate, setSelectedTemplate, templateList, setTemplateList, templates, templatesImport, setTemplates, cancel }) {
+	const [addDeleteTemplate, setAddDeleteTemplate] = useState(false);
+	const [newTemplateName, setNewTemplateName] = useState(undefined);
+
+	function getArrObjByName(array,name,getIndex=false) {
+		const index = array.findIndex(obj => obj.name === name)
+		if (getIndex)
+			return index
+		return array[index == -1 ? 0 : index];
+	}
+
+	function handleInstructTemplateChange(templateName,key,value,back="") {
+		const templateListMod = templateList
+		const tempIndex = templateListMod.findIndex(obj => obj.name === templateName);
+		const index = tempIndex < 0 ? 0 : tempIndex;
+
+		if (key == "name") { 
+			templateListMod[index].nameNew = value
+			setNewTemplateName(value)
+		} else {
+			templateListMod[index].affixes[key] = value
+		}
+		setTemplateList((prevState) => ([
+			...templateListMod
+		]))
+	}
+
+	async function handleInstructTemplateAdd() {
+		await updateTemplateDB()
+		setTemplates((prevState) => {
+			var newState = {
+				...prevState
+			}
+			newState[""] = {
+				"sysPre": "",
+				"sysSuf": "",
+				"instPre": "",
+				"instSuf": "",
+			}
+			return { ...newState }
+		})
+		setAddDeleteTemplate(true)
+	}
+
+	async function handleInstructTemplateDelete(name) {
+		if (Object.keys(templates).length < 2)
+			return
+		if (!window.confirm("Are you sure you want to delete this template? This action can't be undone."))
+			return;
+
+		console.warn("Deleting Template",name,":",templates[name])
+		setTemplates((prevState) => {
+			var newState = {
+				...prevState
+			}
+			delete newState[name]
+			return { ...newState }
+		})
+		setAddDeleteTemplate(true)
+	}
+
+	useEffect(() => {
+		const index = templateList.findIndex(obj => obj.name === selectedTemplate)
+		const reselectTemplate = templateList[index == -1 ? 0 : index]?.nameNew
+		const list = []
+		let i = 0;
+		for (const key in templates) {
+			list.push({
+				name: key,
+				nameNew:key,
+				value: key,
+				nameBack: key,
+				affixes: templates[key]
+			})
+		}
+		list.sort((a, b) => {
+			var nameA = a.name.toLowerCase();
+			var nameB = b.name.toLowerCase();
+			return (nameA < nameB) ? -1 : (nameA > nameB) ? 1 : 0;
+		});
+		setTemplateList(list)
+		if (reselectTemplate)
+			setSelectedTemplate(reselectTemplate)
+	}, [templates,selectedTemplate,templatesImport]);
+	useEffect(() => {
+		if (!addDeleteTemplate)
+			return
+		setSelectedTemplate("")
+		setAddDeleteTemplate(false)
+	}, [addDeleteTemplate]);
+
+	const updateTemplateDB = async () => {
+		setNewTemplateName(undefined);
+		setTemplates((prevState) => {
+			var newState = {
+				...prevState
+			}
+			for (let i=0;i<templateList.length;i++) {
+				const template = templateList[i]
+				const name = template.nameNew
+				const nameBack = template.nameBack
+
+				if (name === undefined || nameBack === undefined)
+					continue
+				// if template has been renamed, delete old entry, make sure to reselect 
+				// current entry after
+				if (name != nameBack) {
+					newState[name] = prevState[nameBack]
+					delete newState[nameBack]
+				}
+
+				// if no changes, skip
+				if (newState[name] == prevState[name])
+					continue
+
+				newState[name] = {
+					"sysPre": template.affixes.sysPre,
+					"sysSuf": template.affixes.sysSuf,
+					"instPre": template.affixes.instPre,
+					"instSuf": template.affixes.instSuf,
+				}
+			}
+			return { ...newState }
+		})
+	}
+	useEffect(() => {
+		updateTemplateDB()
+	}, [isOpen, selectedTemplate]);
+
+	const exportTemplates = () => {
+		exportText(`instruct_templates.json`, JSON.stringify(templates));
+	};
+	const importTemplates = async (importDefaults=false) => {
+		if (importDefaults) {
+			if (!window.confirm("This will add all default templates, and overwrite any changes you made to the default templates. This action cannot be undone. Do you wish to continue?"))
+				return;
+			await templateStorage.saveTemplates(defaultPresets.instructTemplates,true)
+			window.location.reload()
+			// a little dirty, but updateTemplateList isn't cooperating
+			return
+		}
+		const fileInput = document.createElement("input");
+		fileInput.type = 'file';
+		fileInput.style.display = 'none';
+		fileInput.onchange = (e) => {
+			const file = e.target.files[0];
+			if (!file)
+				return;
+			const reader = new FileReader();
+			reader.onload = (e) => {
+				const contents = e.target.result;
+				fileInput.func(contents);
+			}
+			reader.readAsText(file);
+		}
+		fileInput.func = async (text) => {
+			await templateStorage.saveTemplates(JSON.parse(text),true)
+			window.location.reload()
+			// a little dirty, but updateTemplateList isn't cooperating
+		};
+		document.body.appendChild(fileInput);
+		fileInput.click();
+		document.body.removeChild(fileInput);
+	};
+
+	return getArrObjByName(templateList,selectedTemplate) && html`
+		<${Modal} isOpen=${isOpen} onClose=${closeModal}
+			title="Instruct Templates"
+			description="Use placeholders to insert the selected prompt template formats when sending your prompt to the model.
+			Placeholders are listed below. You can insert newlines with '\\n'.
+			When Chat Mode is active, the 'Instruct Suffix' field of the current template will be added at the end of your prompt, before it is processed by the model. Similarly, the 'Instruct Prefix' field will be added at the end of the model's response.">
+			<div id="advancedContextPlaceholders">
+				<table border="1" frame="void" rules="all">
+					<thead>
+					<tr>
+						<th></th>
+						<th>Prefix</th>
+						<th>Suffix</th>
+					</tr>
+					</thead>
+					<tbody>
+					<tr>
+						<th>System Prompt</th>
+						<td>{sys}</td>
+						<td>{/sys}</td>
+					</tr>
+					<tr>
+						<th>Instructions</th>
+						<td>{inst}</td>
+						<td>{/inst}</td>
+					</tr>
+					</tbody>
+				</table>
+			</div>
+			<hr/>
+			<div class="instructTemplatesImportExport">
+				<button
+					title="Import Instruct Templates"
+					disabled=${!!cancel}
+					onClick=${() => importTemplates()}>
+					Import
+				</button>
+				<button
+					title="Export Instruct Templates"
+					disabled=${!!cancel}
+					onClick=${() => exportTemplates()}>
+					Export
+				</button>
+				<button
+					title="Re-Add Default Instruct Templates"
+					disabled=${!!cancel}
+					onClick=${() => importTemplates(true)}>
+					Re-Add Defaults
+				</button>
+			</div>
+			<div className="buttons instructTemplateSidebar">
+				<${SelectBoxTemplate}
+					id="instructModalSelect"
+					label="Instruct Template"
+					disabled=${!!cancel}
+					value=${newTemplateName ?? selectedTemplate}
+					onValueChange=${setSelectedTemplate}
+					options=${templateList}/>
+				<button
+					title="Add Instruct Template"
+					disabled=${!!cancel}
+					class="hbox-button"
+					onClick=${() => handleInstructTemplateAdd()}>
+					New
+				</button>
+				<button
+					title="Delete Selected Instruct Template"
+					disabled=${!!cancel}
+					class="hbox-button"
+					onClick=${() => handleInstructTemplateDelete(selectedTemplate)}>
+					Delete
+				</button>
+			</div>
+			<hr/>
+			<div class="instructmodal-edits">
+				<${InputBox} label="Name"
+						placeholder="Name of This Template"
+						id="instructmodal-name"
+						className=""
+						tooltip=""
+						readOnly=${!!cancel}
+						value=${getArrObjByName(templateList,selectedTemplate).nameNew}
+						onInput=${e => handleInstructTemplateChange(selectedTemplate,"name",e.target.value,getArrObjByName(templateList,selectedTemplate).nameBack)}
+						onValueChange=${() => {}}/>
+
+				<div className="hbox">
+					<${InputBox} label="Instruct Prefix {inst}"
+						placeholder="[INST]"
+						className=""
+						tooltip=""
+						readOnly=${!!cancel}
+						value=${getArrObjByName(templateList,selectedTemplate)?.affixes.instPre || ""}
+						onInput=${e => handleInstructTemplateChange(selectedTemplate,"instPre",e.target.value)}
+						onValueChange=${() => {}}/>
+
+						<${InputBox} label="Instruct Suffix {/inst}"
+						placeholder="[/INST]"
+						className=""
+						tooltip=""
+						readOnly=${!!cancel}
+						value=${getArrObjByName(templateList,selectedTemplate)?.affixes.instSuf || ""}
+						onInput=${e => handleInstructTemplateChange(selectedTemplate,"instSuf",e.target.value)}
+						onValueChange=${() => {}}/>
+				</div>
+
+				<div className="hbox">
+					<${InputBox} label="System Prompt Prefix {sys}"
+						placeholder="<<SYS>>\n"
+						className=""
+						tooltip=""
+						readOnly=${!!cancel}
+						value=${getArrObjByName(templateList,selectedTemplate)?.affixes.sysPre || ""}
+						onInput=${e => handleInstructTemplateChange(selectedTemplate,"sysPre",e.target.value)}
+						onValueChange=${() => {}}/>
+
+						<${InputBox} label="System Prompt Suffix {/sys}"
+						placeholder="<</SYS>>\n\n"
+						className=""
+						tooltip=""
+						readOnly=${!!cancel}
+						value=${getArrObjByName(templateList,selectedTemplate)?.affixes.sysSuf || ""}
+						onInput=${e => handleInstructTemplateChange(selectedTemplate,"sysSuf",e.target.value)}
+						onValueChange=${() => {}}/>
+				</div>
+			</div>
+
+
+		</${Modal}>`;
+}
+
+class IndexedDBAdapter {
 	constructor() {
-		super();
 		this.dbName = 'MikuPad';
-		this.storeName = 'Sessions';
-		this.nextId = undefined;
-		this.saveQueue = [];
-		this.saveTimer = undefined;
-		this.sessions = {};
-		this.selectedSession = undefined;
-	}
-
-	dispatchChangeEvent() {
-		this.dispatchEvent(new CustomEvent('change'));
-	}
-
-	dispatchSessionChangeEvent() {
-		this.dispatchEvent(new CustomEvent('sessionchange'));
-	}
-
-	dispatchErrorEvent(detail) {
-		this.dispatchEvent(new CustomEvent('error', { detail }));
 	}
 
 	async init() {
-		const db = await this.openDatabase();
-		this.nextId = (await this.loadFromDatabase(db, 'nextSessionId')) || 0;
-		this.selectedSession = (await this.loadFromDatabase(db, 'selectedSessionId')) || 0;
-		await this.loadSessions(db);
-		this.saveTimer = setInterval(async () => await this.saveTimerHandler(), 500);
 	}
 
 	async openDatabase() {
 		return new Promise((resolve, reject) => {
-			const openRequest = indexedDB.open(this.dbName);
+			const openRequest = indexedDB.open(this.dbName, 2);
 
-			openRequest.onerror = () => {
-				this.dispatchErrorEvent(openRequest.error);
-				reject(openRequest.error);
-			};
+			openRequest.onerror = () => reject(openRequest.error);
 			openRequest.onsuccess = () => resolve(openRequest.result);
+
 			openRequest.onupgradeneeded = (event) => {
 				const db = event.target.result;
-				db.createObjectStore(this.storeName);
+				for (const storeName of ["Sessions", "Templates"]) {
+					if (!db.objectStoreNames.contains(storeName)) {
+						db.createObjectStore(storeName);
+					}
+				}
 			};
 			openRequest.onblocked = () => console.warn('Request was blocked');
 		});
 	}
 
-	async getNewId() {
-		this.nextId += 1;
-		await this.saveToDatabase('nextSessionId', this.nextId);
-		return this.nextId - 1;
-	}
-
-	async saveTimerHandler() {
-		const sessions = [];
-		while (this.saveQueue.length) {
-			sessions.push(this.saveQueue.pop());
-		}
-
-		for (const sessionId of sessions) {
-			if (!this.sessions[sessionId])
-				continue;
-			await this.saveToDatabase(sessionId, this.sessions[sessionId]);
-		}
-	}
-
-	async loadFromDatabase(db, key) {
+	async loadFromDatabase(db, storeName, key) {
 		return new Promise((resolve, reject) => {
-			const tx = db.transaction(this.storeName, 'readonly');
-			const store = tx.objectStore(this.storeName);
+			const tx = db.transaction(storeName, 'readonly');
+			const store = tx.objectStore(storeName);
 			const request = store.get(key);
 
 			request.onsuccess = () => resolve(request.result);
@@ -2563,16 +2865,294 @@ class SessionStorage extends EventTarget {
 		});
 	}
 
-	async saveToDatabase(key, data) {
-		const db = await this.openDatabase();
+	async loadAllFromDatabase(db, storeName) {
 		return new Promise((resolve, reject) => {
-			const tx = db.transaction(this.storeName, 'readwrite');
-			const store = tx.objectStore(this.storeName);
+			const tx = db.transaction(storeName, 'readonly');
+			const store = tx.objectStore(storeName);
+			const request = store.openCursor();
+
+			let allTables = {};
+
+			request.onsuccess = async (event) => {
+				const cursor = event.target.result;
+				if (cursor) {
+					allTables[cursor.key] = cursor.value;
+					cursor.continue();
+				} else {
+					resolve(allTables);
+				}
+			};
+			request.onerror = () => reject(request.error);
+		});
+	}
+
+	async saveToDatabase(db, storeName, key, data) {
+		return new Promise((resolve, reject) => {
+			const tx = db.transaction(storeName, 'readwrite');
+			const store = tx.objectStore(storeName);
 			const request = store.put(data, key);
 
 			request.onsuccess = () => resolve();
 			request.onerror = () => reject(request.error);
 		});
+	}
+
+	async deleteFromDatabase(db, storeName, key) {
+		return new Promise((resolve, reject) => {
+			const tx = db.transaction(storeName, 'readwrite');
+			const store = tx.objectStore(storeName);
+			const request = store.delete(key);
+
+			request.onsuccess = () => resolve();
+			request.onerror = () => reject(request.error);
+		});
+	}
+}
+
+class ServerDBAdapter {
+	constructor(sessionEndpoint) {
+		this.sessionEndpoint = sessionEndpoint;
+	}
+
+	async init() {
+		// Test connection
+		const db = await this.openDatabase();
+		await this.loadFromDatabase(db, "Sessions", "selectedSessionId");
+	}
+
+	async openDatabase() {
+		return async (route, options) => {
+			try {
+				return await fetch(new URL(route, this.sessionEndpoint), {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json',
+					},
+					body: JSON.stringify(options),
+				});
+			} catch (e) {
+				reportError(e);
+				return { ok: false, status: e.toString() };
+			}
+		};
+	}
+
+	async loadFromDatabase(db, storeName, key) {
+		return new Promise(async (resolve, reject) => {
+			const res = await db("/load", { storeName, key });
+			if (!res.ok) {
+				if (res.status == 404) {
+					resolve(undefined);
+				} else {
+					reject(res.status);
+				}
+				return;
+			}
+			const { result } = await res.json();
+			resolve(result);
+		});
+	}
+
+	async loadAllFromDatabase(db, storeName) {
+		return new Promise(async (resolve, reject) => {
+			const res = await db("/all", { storeName });
+			if (!res.ok) {
+				reject(res.status);
+				return;
+			}
+			const { result } = await res.json();
+			resolve(result);
+		});
+	}
+
+	async saveToDatabase(db, storeName, key, data) {
+		return new Promise(async (resolve, reject) => {
+			const res = await db("/save", { storeName, key, data });
+			if (!res.ok) {
+				reject(res.status);
+				return;
+			}
+			const { result } = await res.json();
+			resolve(result);
+		});
+	}
+
+	async deleteFromDatabase(db, storeName, key) {
+		return new Promise(async (resolve, reject) => {
+			const res = await db("/delete", { storeName, key });
+			if (!res.ok) {
+				reject(res.status);
+				return;
+			}
+			resolve();
+		});
+	}
+}
+
+class AbstractStorage extends EventTarget {
+	constructor(storeName, dbAdapter) {
+		super();
+		this.storeName = storeName;
+		this.dbAdapter = dbAdapter;
+		this.saveQueue = [];
+		this.saveTimer = undefined;
+	}
+
+	dispatchChangeEvent() {
+		this.dispatchEvent(new CustomEvent('change'));
+	}
+
+	dispatchErrorEvent(detail) {
+		this.dispatchEvent(new CustomEvent('error', { detail }));
+	}
+
+	startSaveTimer(saveCallback) {
+		this.saveTimer = setInterval(async () => await this.saveTimerHandler(saveCallback), 500);
+	}
+
+	async saveTimerHandler(saveCallback) {
+		const keys = [];
+		while (this.saveQueue.length) {
+			keys.push(this.saveQueue.pop());
+		}
+
+		for (const key of keys) {
+			await saveCallback(key);
+		}
+	}
+
+	enqueueSave(key) {
+		if (!this.saveQueue.includes(key))
+			this.saveQueue.push(key);
+	}
+
+	async openDatabase() {
+		try {
+			return await this.dbAdapter.openDatabase();
+		} catch (e) {
+			this.dispatchErrorEvent(e);
+			throw e;
+		}
+	}
+
+	async loadFromDatabase(db, key) {
+		try {
+			return await this.dbAdapter.loadFromDatabase(db, this.storeName, key);
+		} catch (e) {
+			this.dispatchErrorEvent(e);
+			throw e;
+		}
+	}
+
+	async loadAllFromDatabase(db) {
+		try {
+			return await this.dbAdapter.loadAllFromDatabase(db, this.storeName);
+		} catch (e) {
+			this.dispatchErrorEvent(e);
+			throw e;
+		}
+	}
+
+	async saveToDatabase(db, key, data) {
+		try {
+			return await this.dbAdapter.saveToDatabase(db, this.storeName, key, data);
+		} catch (e) {
+			this.dispatchErrorEvent(e);
+			throw e;
+		}
+	}
+
+	async deleteFromDatabase(db, key) {
+		try {
+			return await this.dbAdapter.deleteFromDatabase(db, this.storeName, key);
+		} catch (e) {
+			this.dispatchErrorEvent(e);
+			throw e;
+		}
+	}
+}
+
+class TemplateStorage extends AbstractStorage {
+	constructor(dbAdapter) {
+		super('Templates', dbAdapter);
+		this.templates = {};
+	}
+
+	async init() {
+		const db = await this.openDatabase();
+		await this.loadTemplates(db);
+	}
+
+	async saveTemplates(newTemplates,writeOnly=false) {
+		const db = await this.openDatabase();
+
+		// Check if the keys exists in input, if not, delete
+		for (const key of Object.keys(this.templates)) {
+			if (Object.keys(newTemplates).includes(key))
+				continue;
+			if (writeOnly)
+				continue;
+			try {
+				// If the key not in input, delete it
+				await this.deleteFromDatabase(db, key);
+				console.warn('Deleted key:', key);
+			} catch {
+				console.error('Error deleting key:', key);
+			}
+		}
+
+		// put input keys
+		for (const [key, value] of Object.entries(newTemplates)) {
+			if (JSON.stringify(value) === JSON.stringify(this.templates[key]))
+				continue;
+			await this.saveToDatabase(db, key, value);
+		}
+
+		this.templates = newTemplates;
+	}
+
+	async loadTemplates(db) {
+		this.templates = await this.loadAllFromDatabase(db);
+	}
+}
+
+class SessionStorage extends AbstractStorage {
+	constructor(dbAdapter) {
+		super('Sessions', dbAdapter);
+		this.nextId = undefined;
+		this.sessions = {};
+		this.selectedSession = undefined;
+
+		if (dbAdapter.sessionEndpoint) {
+			this.sessionEndpoint = dbAdapter.sessionEndpoint;
+			this.proxyEndpoint = `${dbAdapter.sessionEndpoint}/proxy`;
+		}
+	}
+
+	dispatchSessionChangeEvent() {
+		this.dispatchEvent(new CustomEvent('sessionchange'));
+	}
+
+	async init() {
+		const db = await this.openDatabase();
+		this.nextId = (await this.loadFromDatabase(db, 'nextSessionId')) || 0;
+		this.selectedSession = (await this.loadFromDatabase(db, 'selectedSessionId')) || 0;
+		await this.loadSessions(db);
+		this.startSaveTimer((sessionId) => this.saveSessionToDB(sessionId));
+	}
+
+	async saveSessionToDB(sessionId) {
+		if (!this.sessions[sessionId])
+			return;
+		const db = await this.openDatabase();
+		await this.saveToDatabase(db, sessionId, this.sessions[sessionId]);
+	}
+
+	async getNewId() {
+		const db = await this.openDatabase();
+		await this.saveToDatabase(db, 'nextSessionId', this.nextId + 1);
+		this.nextId += 1;
+		return this.nextId - 1;
 	}
 
 	// We leave the localStorage content untouched for now,
@@ -2598,39 +3178,28 @@ class SessionStorage extends EventTarget {
 				this.sessions[sessionId][propertyName] = value;
 			}
 		};
-		await this.saveToDatabase('nextSessionId', this.nextId);
-		await this.saveToDatabase('selectedSessionId', this.selectedSession);
+		const db = await this.openDatabase();
+		await this.saveToDatabase(db, 'nextSessionId', this.nextId);
+		await this.saveToDatabase(db, 'selectedSessionId', this.selectedSession);
 		for (const sessionId of Object.keys(this.sessions)) {
-			await this.saveToDatabase(+sessionId, this.sessions[sessionId]);
+			await this.saveToDatabase(db, +sessionId, this.sessions[sessionId]);
 		}
 		return true;
 	}
 
 	async loadSessions(db) {
-		return new Promise((resolve, reject) => {
-			const tx = db.transaction(this.storeName, 'readonly');
-			const store = tx.objectStore(this.storeName);
-			const request = store.openCursor();
-
-			request.onsuccess = async (event) => {
-				const cursor = event.target.result;
-				if (cursor) {
-					if (cursor.key !== 'nextSessionId' && cursor.key !== 'selectedSessionId') {
-						this.sessions[cursor.key] = cursor.value;
-					}
-					cursor.continue();
-				} else {
-					if (Object.keys(this.sessions).length === 0) {
-						if (!await this.migrateSessions()) {
-							await this.createSession('MikuPad #1');
-						}
-					}
-					await this.switchSession(this.selectedSession);
-					resolve();
-				}
-			};
-			request.onerror = () => reject(request.error);
-		});
+		const sessions = await this.loadAllFromDatabase(db);
+		for (const [key, value] of Object.entries(sessions)) {
+			if (key !== 'nextSessionId' && key !== 'selectedSessionId') {
+				this.sessions[key] = value;
+			}
+		}
+		if (Object.keys(this.sessions).length === 0) {
+			if (!await this.migrateSessions()) {
+				await this.createSession('MikuPad #1');
+			}
+		}
+		await this.switchSession(this.selectedSession);
 	}
 
 	getProperty(propertyName) {
@@ -2641,15 +3210,17 @@ class SessionStorage extends EventTarget {
 		if (!this.sessions[this.selectedSession])
 			return;
 		this.sessions[this.selectedSession][propertyName] = value;
-		if (!this.saveQueue.includes(this.selectedSession))
-			this.saveQueue.push(this.selectedSession);
+		this.enqueueSave(this.selectedSession);
 	}
 
 	async switchSession(sessionId) {
 		if (!this.sessions[sessionId])
 			return;
+		
+		const db = await this.openDatabase();
+		await this.saveToDatabase(db, 'selectedSessionId', +sessionId);
+
 		this.selectedSession = +sessionId;
-		await this.saveToDatabase('selectedSessionId', this.selectedSession);
 
 		this.dispatchChangeEvent();
 		this.dispatchSessionChangeEvent();
@@ -2657,7 +3228,9 @@ class SessionStorage extends EventTarget {
 
 	async renameSession(sessionId, renameSessionName) {
 		this.sessions[sessionId]['name'] = renameSessionName;
-		await this.saveToDatabase(sessionId, this.sessions[sessionId]);
+
+		const db = await this.openDatabase();
+		await this.saveToDatabase(db, sessionId, this.sessions[sessionId]);
 
 		this.dispatchChangeEvent();
 	}
@@ -2667,33 +3240,28 @@ class SessionStorage extends EventTarget {
 			return;
 		if (!window.confirm("Are you sure you want to delete this session? This action can't be undone."))
 			return;
+
 		const db = await this.openDatabase();
-		return new Promise((resolve, reject) => {
-			const tx = db.transaction(this.storeName, 'readwrite');
-			const store = tx.objectStore(this.storeName);
-			const request = store.delete(sessionId);
+		await this.deleteFromDatabase(db, sessionId);
 
-			request.onsuccess = async () => {
-				// Select another session if the current was deleted
-				if (sessionId == this.selectedSession) {
-					const sessionIds = Object.keys(this.sessions).map(x => +x);
-					const sessionIdx = sessionIds.indexOf(sessionId);
-					const newSessionId = sessionIds[sessionIdx - 1] ?? sessionIds[sessionIdx + 1];
-					await this.switchSession(+newSessionId)
-				}
+		// Select another session if the current was deleted
+		if (sessionId == this.selectedSession) {
+			const sessionIds = Object.keys(this.sessions).map(x => +x);
+			const sessionIdx = sessionIds.indexOf(sessionId);
+			const newSessionId = sessionIds[sessionIdx - 1] ?? sessionIds[sessionIdx + 1];
+			await this.switchSession(+newSessionId)
+		}
 
-				delete this.sessions[sessionId];
-				this.dispatchChangeEvent();
-				resolve();
-			};
-			request.onerror = () => reject(request.error);
-		});
+		delete this.sessions[sessionId];
+		this.dispatchChangeEvent();
 	}
 
 	async createSession(newSessionName) {
 		const newId = await this.getNewId();
 		this.sessions[newId] = { name: newSessionName };
-		await this.saveToDatabase(newId, this.sessions[newId]);
+		
+		const db = await this.openDatabase();
+		await this.saveToDatabase(db, newId, this.sessions[newId]);
 
 		onchange?.();
 		return newId;
@@ -2716,119 +3284,11 @@ class SessionStorage extends EventTarget {
 			this.sessions[newId]['name'] = `Cloned ${this.sessions[newId]['name']}`;
 		}
 
-		await this.saveToDatabase(newId, this.sessions[newId]);
+		const db = await this.openDatabase();
+		await this.saveToDatabase(db, newId, this.sessions[newId]);
 
 		onchange?.();
 		return newId;
-	}
-}
-
-class WebSessionStorage extends SessionStorage {
-	constructor(sessionEndpoint) {
-		super();
-		this.sessionEndpoint = sessionEndpoint;
-		this.proxyEndpoint = `${sessionEndpoint}/proxy`;
-	}
-
-	async openDatabase() {
-		return async (route, options) => {
-			try {
-				return await fetch(new URL(route, this.sessionEndpoint), {
-					method: 'POST',
-					headers: {
-						'Content-Type': 'application/json',
-					},
-					body: JSON.stringify(options),
-				});
-			} catch (e) {
-				this.dispatchErrorEvent(e);
-				reportError(e);
-				return { ok: false, status: e.toString() };
-			}
-		};
-	}
-
-	async loadFromDatabase(db, key) {
-		return new Promise(async (resolve, reject) => {
-			const res = await db("/load", { key });
-			if (!res.ok) {
-				if (res.status == 404) {
-					resolve(undefined);
-				} else {
-					reject(res.status);
-				}
-				return;
-			}
-			const { result } = await res.json();
-			resolve(result);
-		});
-	}
-
-	async saveToDatabase(key, data) {
-		const db = await this.openDatabase();
-		return new Promise(async (resolve, reject) => {
-			const res = await db("/save", { data, key });
-			if (!res.ok) {
-				reject(res.status);
-				return;
-			}
-			const { result } = await res.json();
-			resolve(result);
-		});
-	}
-
-	async loadSessions(db) {
-		return new Promise(async (resolve, reject) => {
-			const res = await db("/sessions");
-			if (!res.ok) {
-				reject(res.status);
-				return;
-			}
-			const { result } = await res.json();
-			const sessions = result;
-
-			for (const [key, value] of Object.entries(sessions)) {
-				if (key !== 'nextSessionId' && key !== 'selectedSessionId') {
-					this.sessions[key] = value;
-				}
-			}
-
-			if (Object.keys(this.sessions).length === 0) {
-				if (!await this.migrateSessions()) {
-					await this.createSession('MikuPad #1');
-				}
-			}
-
-			await this.switchSession(this.selectedSession);
-			resolve();
-		});
-	}
-
-	async deleteSession(sessionId) {
-		if (Object.keys(this.sessions).length === 1)
-			return;
-		if (!window.confirm("Are you sure you want to delete this session? This action can't be undone."))
-			return;
-		const db = await this.openDatabase();
-		return new Promise(async (resolve, reject) => {
-			const res = await db("/delete", { sessionId });
-			if (!res.ok) {
-				reject(res.status);
-				return;
-			}
-			
-			// Select another session if the current was deleted
-			if (sessionId == this.selectedSession) {
-				const sessionIds = Object.keys(this.sessions).map(x => +x);
-				const sessionIdx = sessionIds.indexOf(sessionId);
-				const newSessionId = sessionIds[sessionIdx - 1] ?? sessionIds[sessionIdx + 1];
-				await this.switchSession(+newSessionId)
-			}
-
-			delete this.sessions[sessionId];
-			this.dispatchChangeEvent();
-			resolve();
-		});
 	}
 }
 
@@ -2880,6 +3340,68 @@ const defaultPresets = {
 		"suffix": ""
 	}),
 	logitBias:{ bias:{},model:"none" },
+	instructTemplates:{
+		'Alpaca': {
+			'sysPre' : '### System:\\n',
+			'sysSuf' : '',
+			'instPre': '\\n\\n### Instruction:\\n',
+			'instSuf': '\\n\\n### Response:',
+		},
+		'Mistral': {
+			'sysPre' : '<<SYS>>\\n',
+			'sysSuf' : '<</SYS>>\\n\\n',
+			'instPre': '[INST]',
+			'instSuf': '[/INST]',
+		},
+		'ChatML': {
+			'sysPre' : '<|im_start|>system\\n',
+			'sysSuf' : '',
+			'instPre': '<|im_end|>\\n<|im_start|>user\\n',
+			'instSuf': '<|im_end|>\\n<|im_start|>assistant\\n',
+		},
+		'Llama 3': {
+			'sysPre' : '<|start_header_id|>system<|end_header_id|>\\n\\n',
+			'sysSuf' : '',
+			'instPre': '<|eot_id|><|start_header_id|>user<|end_header_id|>\\n\\n',
+			'instSuf': '<|eot_id|><|start_header_id|>assistant<|end_header_id|>\\n\\n',
+		},
+		'Phi 2': {
+			'sysPre' : '',
+			'sysSuf' : '',
+			'instPre': '\\nInstruct: ',
+			'instSuf': '\\nOutput: ',
+		},
+		'Phi 3': {
+			'sysPre' : '<|system|>\\n',
+			'sysSuf' : '',
+			'instPre': '<|end|>\\n<|user|>\\n',
+			'instSuf': '<|end|>\\n<|assistant|>\\n',
+		},
+		'Command-R': {
+			'sysPre' : '<|START_OF_TURN_TOKEN|><|SYSTEM_TOKEN|>',
+			'sysSuf' : '',
+			'instPre': '<|END_OF_TURN_TOKEN|><|START_OF_TURN_TOKEN|><|USER_TOKEN|>',
+			'instSuf': '<|END_OF_TURN_TOKEN|><|START_OF_TURN_TOKEN|><|CHATBOT_TOKEN|>',
+		},
+		'Metharme': {
+			'sysPre' : '<|system|>',
+			'sysSuf' : '',
+			'instPre': '<|user|>',
+			'instSuf': '<|model|>',
+		},
+		'Vicuna': {
+			'sysPre' : '',
+			'sysSuf' : '\\n\\n',
+			'instPre': '\\nUSER: ',
+			'instSuf': '\\nASSISTANT: ',
+		},
+		'Gemma': {
+			'sysPre' : '',
+			'sysSuf' : '',
+			'instPre': '\\n<end_of_turn><start_of_turn>user\\n',
+			'instSuf': '\\n<end_of_turn><start_of_turn>model\\n',
+		},
+	},
 	scrollTop: 0
 };
 
@@ -2935,6 +3457,22 @@ function useSessionState(sessionStorage, name, initialState) {
 	return [value, updateState];
 }
 
+function useDBTemplates(templateStorage, initialState) {
+	const savedState = useMemo(() => templateStorage.templates, []);
+
+	const [value, setValue] = useState(Object.keys(savedState).length === 0 ? initialState : savedState);
+
+	const updateState = (newValue) => {
+		setValue((prevValue) => {
+			const updatedValue = typeof newValue === 'function' ? newValue(prevValue) : newValue;
+			templateStorage.saveTemplates(updatedValue)
+			return updatedValue;
+		});
+	};
+
+	return [value, updateState];
+}
+
 function usePersistentState(name, initialState) {
 	const savedState = useMemo(() => {
 		try {
@@ -2958,7 +3496,7 @@ function usePersistentState(name, initialState) {
 	return [value, updateState];
 }
 
-export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
+export function App({ sessionStorage, templateStorage, useSessionState, useDBTemplates, isMikupadEndpoint }) {
 	const promptArea = useRef();
 	const promptOverlay = useRef();
 	const undoStack = useRef([]);
@@ -2967,6 +3505,11 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 	const keyState = useRef({});
 	const sessionReconnectTimer = useRef();
 	const useScrollSmoothing = useRef(true);
+	const [templates, setTemplates] = useDBTemplates(defaultPresets.instructTemplates);
+	const [templatesImport, setTemplatesImport] = useState(false);
+	const [selectedTemplate, setSelectedTemplate] = useSessionState('template', "Llama 3");
+	const [chatMode, setChatMode] = useSessionState('chatMode', false);
+	const [templateList, setTemplateList] = useState([]);
 	const [currentPromptChunk, setCurrentPromptChunk] = useState(undefined);
 	const [undoHovered, setUndoHovered] = useState(false);
 	const [showProbs, setShowProbs] = useState(true);
@@ -3030,7 +3573,51 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 	function handleMemoryTokensChange(key,value) {
 		setMemoryTokens((prevMemoryTokens) => ({ ...prevMemoryTokens, [key]: value }));
 	}
-	
+
+
+	const insertTemplate = (sysInst) => {
+		// most of this function is shamelessly stolen from culturedniichan's deleted pull
+		// request for a similar implementation of instruct templates:
+		// https://github.com/lmg-anon/mikupad/pull/31
+
+		const [prefix,suffix] = sysInst == "sys"
+		? [templates[selectedTemplate]?.sysPre  || "", templates[selectedTemplate]?.sysSuf  || ""]
+		: [templates[selectedTemplate]?.instPre || "", templates[selectedTemplate]?.instSuf || ""];
+		if (!(prefix || suffix))
+			return;
+
+		const elem = promptArea.current;
+		if (!elem)
+			return;
+
+		const startPos = elem.selectionStart;
+		const endPos = elem.selectionEnd;
+		const textBefore = elem.value.substring(0, startPos) || "";
+		const textAfter = elem.value.substring(endPos);
+		const selectedText = elem.value.substring(startPos, endPos);
+
+		const finalText = textBefore 
+						+ prefix.replace(/\\n/g,'\n')
+						+ selectedText 
+						+ suffix.replace(/\\n/g,'\n')
+						+ textAfter;
+
+		elem.value = finalText;
+
+		let newCursorPos;
+		if (selectedText.length === 0) {
+			newCursorPos = startPos + prefix.length;
+		} else {
+			newCursorPos = startPos 
+				+ prefix.length
+				+ selectedText.length 
+				+ suffix.length;
+		}
+		elem.setSelectionRange(0, 2);
+		onInput({ target: elem });
+	}
+
+
 	const toggleModal = (modalKey) => {
 		setModalState((prevState) => ({
 			...prevState,
@@ -3043,6 +3630,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 			[modalKey]: false,
 		}));
 	};
+
 
 	const promptText = useMemo(() => joinPrompt(promptChunks), [promptChunks]);
 
@@ -3089,7 +3677,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 		return assembledWorldInfo
 	}, [worldInfo]);
 
-	const modifiedPrompt = useMemo(() => {
+	const additionalContextPrompt = useMemo(() => {
 		// add world info to memory for easier assembly
 		memoryTokens["worldInfo"] = assembledWorldInfo;
 
@@ -3099,7 +3687,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 			: "";
 
 		// replacements for the contextOrder string
-		const replacements = {
+		const contextReplacements = {
 			"{wiPrefix}": memoryTokens.worldInfo && memoryTokens.worldInfo !== ""
 				? worldInfo.prefix
 				: "", // wi prefix and suffix will be added whenever wi isn't empty
@@ -3118,7 +3706,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 		}
 
 		// prompt length estimation
-		const additionalContext = (Object.values(replacements)
+		const additionalContext = (Object.values(contextReplacements)
 			.filter(value => typeof value === 'string').join('')).length;
 		const estimatedContextStart = Math.round(
 			promptText.length - contextLength * defaultPresets.tokenRatio + additionalContext) + 1;
@@ -3140,27 +3728,53 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 			: truncPrompt;
 
 		// add the final replacement
-		replacements["{prompt}"] = authorNotePrompt
+		contextReplacements["{prompt}"] = authorNotePrompt
 
 		const workingContextOrder = memoryTokens.contextOrder && memoryTokens.contextOrder !== ""
 			? memoryTokens.contextOrder
 			: defaultPresets.memoryTokens.contextOrder;
 
 		// assemble context in order:
-		// the context is (1) split by line, (2) all placeholders get replaced,
-		// (3) non-empty lines are joined back together.
-				const permContextPrompt = workingContextOrder.split("\n").map(function (line) {
-				return line.replace(/\{[^}]+\}/g, function (placeholder) {
-		return replacements.hasOwnProperty(placeholder)
-			? replacements[placeholder]
-			: placeholder;
-				});
+		// the context is (1) split by line, (2) persistent context placeholders are 
+		// replaced, (3) instruct template placeholders are replaced (4) non-empty
+		// lines are joined back together.
+		const permContextPrompt = workingContextOrder.split("\n").map(function (line) {
+			return line.replace(/\{[^}]+\}/g, function (placeholder) {
+				return contextReplacements.hasOwnProperty(placeholder)
+					? contextReplacements[placeholder]
+					: placeholder;
+			});
 		}).filter(function (line) {
-				return line.trim() !== "";
+			return line.trim() !== "";
 		}).join("\n").replace(/\\n/g, '\n');
 
 		return permContextPrompt;
 	}, [contextLength, promptText, memoryTokens, authorNoteTokens, authorNoteDepth, assembledWorldInfo, worldInfo.prefix, worldInfo.suffix]);
+
+	const modifiedPrompt = useMemo(() => {
+		const templateReplacements = {
+			"{inst}": templates[selectedTemplate]?.instPre && templates[selectedTemplate]?.instPre !== ""
+				? templates[selectedTemplate]?.instPre
+				: "",
+			"{/inst}": templates[selectedTemplate]?.instSuf && templates[selectedTemplate]?.instSuf !== ""
+				? templates[selectedTemplate]?.instSuf
+				: "",
+			"{sys}": templates[selectedTemplate]?.sysPre && templates[selectedTemplate]?.sysPre !== ""
+				? templates[selectedTemplate]?.sysPre
+				: "",
+			"{/sys}": templates[selectedTemplate]?.sysSuf && templates[selectedTemplate]?.sysSuf !== ""
+				? templates[selectedTemplate]?.sysSuf
+				: "",
+		}
+		const finalPrompt = additionalContextPrompt
+			.replace(/\{[^}]+\}/g, function (placeholder) {
+				return templateReplacements.hasOwnProperty(placeholder)
+					? templateReplacements[placeholder]
+					: placeholder;
+			}).replace(/\\n/g, '\n');
+
+		return finalPrompt;
+	}, [additionalContextPrompt, templates, selectedTemplate]);
 
 	async function predict(prompt = modifiedPrompt, chunkCount = promptChunks.length) {
 		if (cancel) {
@@ -3202,6 +3816,15 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 			});
 			setTokens(tokenCount);
 			setPredictStartTokens(tokenCount);
+
+			// Chat Mode
+			if (chatMode && !restartedPredict) {
+				// add user EOT template (instruct suffix) if not switch completion
+				const eotUser = templates[selectedTemplate]?.instSuf.replace(/\\n/g, '\n')
+				setPromptChunks(p => [...p, { type: 'user', content: eotUser }])
+				prompt += `${eotUser}`
+			}
+			setRestartedPredict(false)
 
 			while (undoStack.current.at(-1) >= chunkCount)
 				undoStack.current.pop();
@@ -3282,6 +3905,13 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 			if (undoStack.current.at(-1) === chunkCount)
 				undoStack.current.pop();
 		}
+		// Chat Mode
+		if (chatMode) {
+			// add bot EOT template (instruct prefix)
+			const eotBot = templates[selectedTemplate]?.instPre.replace(/\\n/g, '\n')
+			setPromptChunks(p => [...p, { type: 'user', content: eotBot }])
+			prompt += `${eotBot}`
+		}
 	}
 
 	function undo() {
@@ -3302,6 +3932,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 	}
 
 	const [triggerPredict, setTriggerPredict] = useState(false);
+	const [restartedPredict, setRestartedPredict] = useState(false);
 
 	function undoAndPredict() {
 		if (!undoStack.current.length) return;
@@ -3416,7 +4047,8 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 			const oldHeight = elem.scrollHeight;
 			const atBottom = (elem.scrollTarget ?? elem.scrollTop) + elem.clientHeight + 1 > oldHeight;
 			const oldLen = elem.value.length;
-			if (!isTextSelected && !preserveCursorPosition) {
+			// disable preserveCursorPosition in chatMode
+			if ( (!isTextSelected && !preserveCursorPosition) || chatMode) {
 				elem.value = promptText;
 			} else {
 				elem.setRangeText(promptText.slice(oldLen), oldLen, oldLen, 'preserve');
@@ -3601,7 +4233,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 					container.style.borderLeft = '2px dotted transparent';
 					break;
 			}
-			
+
 			if (!isDragging) return;
 
 			// reset selection
@@ -3752,6 +4384,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 		];
 		setPromptChunks(newPrompt);
 		setTriggerPredict(true);
+		setRestartedPredict(true);
 	}
 
 	function switchEndpointAPI(value) {
@@ -3803,7 +4436,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 			if (!sessionReconnectTimer.current) {
 				sessionReconnectTimer.current = setInterval(async () => {
 					try {
-						await sessionStorage.saveToDatabase('selectedSessionId', sessionStorage.selectedSession);
+						await sessionStorage.dbAdapter.init();
 						setSessionEndpointError(undefined);
 						clearTimeout(sessionReconnectTimer.current);
 						sessionReconnectTimer.current = undefined;
@@ -3927,6 +4560,45 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 						readOnly=${!!cancel}
 						value=${endpointModel}
 						onValueChange=${setEndpointModel}/>`}
+				<div className="buttons instructTemplateSidebar">
+					<${SelectBoxTemplate}
+						label="Instruct Template"
+						disabled=${!!cancel}
+						value=${selectedTemplate}
+						onValueChange=${setSelectedTemplate}
+						options=${templateList}/>
+					<button
+						title="Edit Instruct Templates"
+						disabled=${!!cancel}
+						class="symbol-button"
+						onClick=${() => toggleModal("instruct")}>
+						<svg style=${{ 'width':'.95em','transform':'translate(-50%, -45%)' }} xmlns="http://www.w3.org/2000/svg"  viewBox="-1 -5 8 7"><path d="M0 0 3-3C3-4 3-5 5-5L4-4 5-3 6-4C6-2 5-2 4-2L1 1C0 2-1 1 0 0" fill="var(--color-light)"/></svg>
+					</button>
+					<button
+						title="Insert System Prompt Template"
+						disabled=${!!cancel}
+						class="symbol-button"
+						onClick=${() => insertTemplate("sys")}>
+						<svg style=${{ 'width':'.9em' }} xmlns="http://www.w3.org/2000/svg"  viewBox="0 -10 10 10"><path d="M 0 -2 L 1 -1 L 5 -5 L 1 -9 L 0 -8 L 3 -5 L 0 -2 M 4 -1 L 10 -1 L 10 -2.4 L 4 -2.4" fill="var(--color-light)"/></svg>
+					</button>
+					<button
+						title="Insert Instruct Template"
+						disabled=${!!cancel}
+						class="symbol-button"
+						onClick=${() => insertTemplate("inst")}>
+						<svg style=${{ 'height':'1.05em','transform':'translate(-50%, -60%)' }} xmlns="http://www.w3.org/2000/svg"  viewBox="0 -10 5 10"><path d="M 2.5 -6 A 0.75 0.75 90 0 0 3.25 -6.75 A 0.75 0.75 90 0 0 2.5 -7.5 A 0.75 0.75 90 0 0 1.75 -6.75 A 0.75 0.75 90 0 0 2.5 -6 M 1 0 L 4 0 L 4 -1 L 3 -1 L 3 -5 L 1 -5 L 1 -4 L 2 -4 L 2 -1 L 1 -1 Z" fill="var(--color-light)"/></svg>
+					</button>
+					<button
+						title="Toggle Chat Mode ${ chatMode ? "Off" : "On"}"
+						disabled=${!!cancel}
+						class="symbol-button"
+						onClick=${() => setChatMode( (prevState) => !prevState)}>
+						${ chatMode ? 
+						  html`<svg style=${{ 'width':'.9em' }} xmlns="http://www.w3.org/2000/svg"  viewBox="0 0 10 10"><path d="M 2 10 L 2 7 Q 0 7 0 5 L 0 2 Q 0 0 2 0 L 8 0 Q 10 0 10 2 Q 10 2 10 3 L 10 5 Q 10 7 8 7 L 6 7 Z" fill="var(--color-light)"/></svg>`
+						: html`<svg style=${{ 'width':'.9em' }} xmlns="http://www.w3.org/2000/svg"  viewBox="0 0 31 31"><path d="M 0 32 L 3 23 L 26 0 L 32 6 L 9 29 Z M 22 4 L 28 10 L 29 9 L 23 3 M 3 23 L 9 29 L 10 28 L 4 22 Z" fill="var(--color-light)"/></svg>`
+						}
+					</button>
+				</div>
 				<${InputBox} label="Seed (-1 = random)" type="text" inputmode="numeric"
 					readOnly=${!!cancel} value=${seed} onValueChange=${setSeed}/>
 				<${InputBox} tooltip="Currently not accurate to the token count, it will be used as an estimate." label="Max Context Length" type="text" inputmode="numeric"
@@ -4126,7 +4798,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 				value=${attachSidebar} onValueChange=${setAttachSidebar}/>
 			<${Checkbox} label="Highlight generated tokens"
 				value=${highlightGenTokens} onValueChange=${setHighlightGenTokens}/>
-			<${Checkbox} label="Preserve cursor position after prediction"
+			<${Checkbox} label="Preserve cursor position after prediction (disabled in Chat Mode)"
 				value=${preserveCursorPosition} onValueChange=${setPreserveCursorPosition}/>
 			<${SelectBox}
 				label="Token probabilities"
@@ -4187,6 +4859,20 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 			sessionStorage=${sessionStorage} endpoint=${endpoint} endpointAPI=${endpointAPI} endpointAPIKey=${endpointAPIKey} isMikupadEndpoint=${isMikupadEndpoint}
 			cancel=${cancel}/>
 
+		<!-- Sorry. -->
+		<${InstructModal}
+			isOpen=${modalState.instruct}
+			closeModal=${() => closeModal("instruct")}
+			templateList=${templateList}
+			setTemplateList=${setTemplateList}
+			selectedTemplate=${selectedTemplate}
+			setSelectedTemplate=${setSelectedTemplate}
+			templatesImport=${templatesImport}
+			templates=${templates}
+			setTemplates=${setTemplates}
+			templateStorage=${templateStorage}
+			cancel=${cancel}/>
+
 		${sessionEndpointError && html`
 			<div className="modal-overlay">
 				<div id="error-bar">
@@ -4199,29 +4885,32 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 }
 
 async function main() {
-	let sessionStorage = null;
+	let dbAdapter = new IndexedDBAdapter();
 	let isMikupadEndpoint = false;
 
 	if (window.location.protocol != 'file:' && window.location.pathname == '/') {
-		sessionStorage = new WebSessionStorage(window.location.protocol + '//' + window.location.host);
+		let serverAdapter = new ServerDBAdapter(window.location.protocol + '//' + window.location.host);
 		try {
-			await sessionStorage.init();
+			await serverAdapter.init();
+			dbAdapter = serverAdapter;
 			isMikupadEndpoint = true;
 		} catch (e) {
-			sessionStorage = null;
 			reportError(e);
 		}
 	}
-	
-	if (sessionStorage == null) {
-		sessionStorage = new SessionStorage();
-		await sessionStorage.init();
-	}
+
+	const sessionStorage = new SessionStorage(dbAdapter);
+	await sessionStorage.init();
+
+	const templateStorage = new TemplateStorage(dbAdapter);
+	await templateStorage.init();
 
 	createRoot(document.body).render(html`
 		<${App}
 			sessionStorage=${sessionStorage}
+			templateStorage=${templateStorage}
 			useSessionState=${(name, initialState) => useSessionState(sessionStorage, name, initialState)}
+			useDBTemplates=${(initialState => useDBTemplates(templateStorage, initialState))}
 			isMikupadEndpoint=${isMikupadEndpoint}/>`);
 }
 
