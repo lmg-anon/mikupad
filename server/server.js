@@ -50,6 +50,10 @@ const db = new sqlite3.Database('./web-session-storage.db', (err) => {
             key TEXT PRIMARY KEY,
             data TEXT
         )`);
+        db.run(`CREATE TABLE IF NOT EXISTS templates (
+            key TEXT PRIMARY KEY,
+            data TEXT
+        )`);
     }
 });
 
@@ -143,10 +147,15 @@ app.get('/proxy/*', async (req, res) => {
     }
 });
 
+const normalizeStoreName = (storeName) => {
+    return storeName.split(' ')[0].toLowerCase();
+};
+
 // POST route to load data
 app.post('/load', (req, res) => {
-    const { key } = req.body;
-    db.get('SELECT data FROM sessions WHERE key = ?', [key], (err, row) => {
+    const { storeName, key } = req.body;
+    const normStoreName = normalizeStoreName(storeName);
+    db.get(`SELECT data FROM ${normStoreName} WHERE key = ?`, [key], (err, row) => {
         if (err) {
             res.status(500).json({ ok: false, message: 'Error querying the database' });
         } else if (row) {
@@ -159,8 +168,9 @@ app.post('/load', (req, res) => {
 
 // POST route to save data
 app.post('/save', (req, res) => {
-    const { key, data } = req.body;
-    db.run('INSERT OR REPLACE INTO sessions (key, data) VALUES (?, ?)', [key, JSON.stringify(data)], (err) => {
+    const { storeName, key, data } = req.body;
+    const normStoreName = normalizeStoreName(storeName);
+    db.run(`INSERT OR REPLACE INTO ${normStoreName} (key, data) VALUES (?, ?)`, [key, JSON.stringify(data)], (err) => {
         if (err) {
             res.status(500).json({ ok: false, message: 'Error writing to the database' });
         } else {
@@ -169,25 +179,28 @@ app.post('/save', (req, res) => {
     });
 });
 
-// POST route to get all sessions
-app.post('/sessions', (req, res) => {
-    db.all('SELECT key, data FROM sessions', [], (err, rows) => {
+// POST route to get all rows from a table
+app.post('/all', (req, res) => {
+    const { storeName } = req.body;
+    const normStoreName = normalizeStoreName(storeName);
+    db.all(`SELECT key, data FROM ${normStoreName}`, [], (err, rows) => {
         if (err) {
             res.status(500).json({ ok: false, message: 'Error querying the database' });
         } else {
-            const sessions = {};
+            const all = {};
             rows.forEach((row) => {
-                sessions[row.key] = JSON.parse(row.data);
+                all[row.key] = JSON.parse(row.data);
             });
-            res.json({ ok: true, result: sessions });
+            res.json({ ok: true, result: all });
         }
     });
 });
 
 // POST route to delete a session
 app.post('/delete', (req, res) => {
-    const { sessionId } = req.body;
-    db.run('DELETE FROM sessions WHERE key = ?', [sessionId], (err) => {
+    const { storeName, key } = req.body;
+    const normStoreName = normalizeStoreName(storeName);
+    db.run(`DELETE FROM ${normStoreName} WHERE key = ?`, [key], (err) => {
         if (err) {
             res.status(500).json({ ok: false, message: 'Error deleting from the database' });
         } else {
