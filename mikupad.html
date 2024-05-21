@@ -3868,12 +3868,14 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 			collapseGroup.style.display = modalState.settings ? "none" : "block";
 	}
 	function updateSize() {
+		// Show sidebar on desktop if it was hidden just before
 		if (window.innerWidth > 767.98 && !modalState.settings) {
 			toggleSettings();
 		}
 	}
 	let timeout = false;
 	window.addEventListener('resize', () => {
+		// Without this delay, the cpu usage is high and would lag for some reason
 		clearTimeout(timeout);
 		timeout = setTimeout(updateSize, 100);
 	});
