@@ -3875,7 +3875,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 	}
 	let timeout = false;
 	window.addEventListener('resize', () => {
-		// Without this delay, the cpu usage is high and would lag for some reason
+		// Without this delay, the cpu usage is high when resizing window and would lag for some reason (useful for debugging)
 		clearTimeout(timeout);
 		timeout = setTimeout(updateSize, 100);
 	});
