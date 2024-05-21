@@ -1554,6 +1554,14 @@ export async function* completion({ endpoint, endpointAPI, endpointAPIKey, signa
 	}
 }
 
+export async function* chatCompletion({ endpoint, endpointAPI, endpointAPIKey, signal, ...options }) {
+	endpoint = normalizeEndpoint(endpoint, endpointAPI);
+	switch (endpointAPI) {
+		case 3: // openai
+			return yield* await openaiChatCompletion({ endpoint, endpointAPIKey, signal, ...options });
+	}
+}
+
 export async function abortCompletion({ endpoint, endpointAPI, ...options }) {
 	endpoint = normalizeEndpoint(endpoint, endpointAPI);
 	switch (endpointAPI) {
@@ -2097,6 +2105,35 @@ async function* openaiCompletion({ endpoint, endpointAPIKey, proxyEndpoint, sign
 					probs
 				}]
 			} : {})
+		};
+	}
+}
+
+async function* openaiChatCompletion({ endpoint, endpointAPIKey, proxyEndpoint, signal, ...options }) {
+	const res = await fetch(`${proxyEndpoint ?? endpoint}/v1/chat/completions`, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+			'Authorization': `Bearer ${endpointAPIKey}`,
+			...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
+		},
+		body: JSON.stringify({
+			...openaiConvertOptions(options, endpoint),
+			stream: true,
+		}),
+		signal,
+	});
+	if (!res.ok)
+		throw new Error(`HTTP ${res.status}`);
+	for await (const chunk of parseEventStream(res.body)) {
+		const logprobs = Object.entries(chunk.choices[0].logprobs?.top_logprobs?.[0] ?? {});
+		const probs = logprobs.map(([tok, logprob]) => ({ tok_str: tok, prob: Math.exp(logprob) }));
+		yield {
+			content: chunk.choices[0].delta.content,
+			completion_probabilities: [{
+				content: chunk.choices[0].delta.content,
+				probs
+			}]
 		};
 	}
 }
@@ -5906,6 +5943,59 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 
 		return true;
 	}
+	
+	function convertChatToJSON(chatString, template) {
+
+		function extractMessage(text, prefix, suffixes, role) {
+			if (prefix && text.startsWith(prefix)) {
+				text = text.substring(prefix.length);
+				let endIndex = suffixes[0] ? text.indexOf(suffixes[0]) : -1;
+				if (endIndex === -1) {
+					if (suffixes.length > 1) {
+						const indices = suffixes.splice(1).map(sufix => sufix ? text.indexOf(sufix) : -1).filter(index => index !== -1);
+						endIndex = indices.length > 0 ? Math.min(...indices) : text.length;
+					}  else {
+						endIndex = text.length;
+					}
+				}
+				let content = text.substring(0, endIndex);
+				content = endIndex !== text.length ? content.trim() : content.trimLeft();
+				return {
+					message: { role, content },
+					remainingString: text.substring(endIndex)
+				};
+			}
+			return null;
+		}
+
+		function skipToNextKnownPrefix(text, ...prefixes) {
+			const indices = prefixes.map(prefix => prefix ? text.indexOf(prefix) : -1).filter(index => index !== -1);
+			const minIndex = indices.length > 0 ? Math.min(...indices) : text.length;
+			return text.substring(minIndex);
+		}
+		
+		const messages = [];
+		const { sysPre, sysSuf, instPre, instSuf } = replaceNewlines(template);
+
+		let remainingString = chatString;
+
+		while (remainingString.length > 0) {
+			let extracted = extractMessage(remainingString, sysPre, [sysSuf, instPre, instSuf], 'system');
+			if (!extracted) {
+				extracted = extractMessage(remainingString, instPre, [instSuf], 'user');
+			}
+			if (!extracted) {
+				extracted = extractMessage(remainingString, instSuf, [instPre], 'assistant');
+			}
+			if (!extracted) {
+				remainingString = skipToNextKnownPrefix(remainingString, sysPre, instPre, instSuf);
+				continue;
+			}
+			messages.push(extracted.message);
+			remainingString = extracted.remainingString;
+		}
+		return messages;
+	}
 
 	async function predict(prompt = finalPromptText, chunkCount = promptChunks.length, callback = undefined) {
 		if (cancel) {
@@ -5983,15 +6073,15 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 
 			let startTime = 0;
 			setTokensPerSec(0.0);
-
-			for await (const chunk of completion({
+			
+			for await (const chunk of (chatMode ? chatCompletion : completion)({
 				endpoint,
 				endpointAPI,
 				...(endpointAPI == API_OPENAI_COMPAT || endpointAPI == API_LLAMA_CPP || endpointAPI == API_AI_HORDE ? {
 					endpointAPIKey,
 					model: endpointModel
 				} : {}),
-				prompt,
+				...(chatMode ? { messages: convertChatToJSON(prompt, templates[selectedTemplate]) } : { prompt }),
 				...(seed != -1 ? { seed } : {}),
 				...(enabledSamplers.includes('temperature') ? {
 					temperature
