@@ -3818,11 +3818,16 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			setPredictStartTokens(tokenCount);
 
 			// Chat Mode
-			if (chatMode && !restartedPredict) {
+			if (chatMode && !restartedPredict && templates[selectedTemplate]) {
 				// add user EOT template (instruct suffix) if not switch completion
-				const eotUser = templates[selectedTemplate]?.instSuf.replace(/\\n/g, '\n')
-				setPromptChunks(p => [...p, { type: 'user', content: eotUser }])
-				prompt += `${eotUser}`
+				const { instSuf, instPre } = templates[selectedTemplate];
+				const instSufIndex = instSuf ? prompt.lastIndexOf(instSuf) : -1;
+				const instPreIndex = instPre ? prompt.lastIndexOf(instPre) : -1;
+				if (instSufIndex <= instPreIndex) {
+					const eotUser = instSuf.replace(/\\n/g, '\n')
+					setPromptChunks(p => [...p, { type: 'user', content: eotUser }])
+					prompt += eotUser;
+				}
 			}
 			setRestartedPredict(false)
 
