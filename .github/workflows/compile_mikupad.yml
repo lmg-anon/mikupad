@@ -18,19 +18,8 @@ jobs:
       with:
         node-version: '20'
 
-    - name: Copy mikupad.html to project directory
-      run: cp -f mikupad.html project
-
-    - name: Install dependencies
-      run: npm install
-      working-directory: ./project
-
-    - name: Build the project
-      run: npm run build
-      working-directory: ./project
-
-    - name: Copy built mikupad.html to root directory
-      run: cp -f ./project/dist/mikupad.html ./mikupad_compiled.html
+    - name: run compile.sh
+      run: chmod +x compile.sh; ./compile.sh
 
     - name: Commit and push changes
       env:
