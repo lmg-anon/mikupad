@@ -64,7 +64,7 @@ jobs:
           echo "Generating changelog with $NEW_COMMITS commits starting from $OLD_COMMIT"
           
           # echo changelog
-          echo "Generated $(date +'%Y-%m-%d %T %Z %z')" >> CHANGELOG.txt
+          echo "Generated $(date +'%Y-%m-%d %T %Z%z')" >> CHANGELOG.txt
           echo "\`\`\`" >> CHANGELOG.txt
           echo "$(git log --graph -n $NEW_COMMITS --oneline)" >> CHANGELOG.txt
           echo "\`\`\`" >> CHANGELOG.txt
