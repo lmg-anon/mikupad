@@ -1033,6 +1033,12 @@ html.monospace-dark .eye-button {
 	}
 }
 
+@media (min-width: 767.98px) {
+	.SelectBox, .horz-separator, .collapsible-group {
+		display: block !important;
+	}
+}
+
 </style>
 <script type="module">
 
@@ -3867,18 +3873,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 		for (const collapseGroup of document.getElementsByClassName("collapsible-group"))
 			collapseGroup.style.display = modalState.settings ? "none" : "block";
 	}
-	function updateSize() {
-		// Show sidebar on desktop if it was hidden just before
-		if (window.innerWidth > 767.98 && !modalState.settings) {
-			toggleSettings();
-		}
-	}
-	let timeout = false;
-	window.addEventListener('resize', () => {
-		// Without this delay, the cpu usage is high when resizing window and would lag for some reason (useful for debugging)
-		clearTimeout(timeout);
-		timeout = setTimeout(updateSize, 100);
-	});
+
 	return html`
 		<div id="prompt-container" onMouseMove=${onPromptMouseMove}>
 			<button
