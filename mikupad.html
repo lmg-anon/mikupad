@@ -3876,7 +3876,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 		});
 		observer.observe(sidebar.current);
 		return () => observer.disconnect();
-	});
+	}, []);
 
 	return html`
 		<div id="prompt-container" onMouseMove=${onPromptMouseMove} style=${{ 'margin-bottom': isMobile ? height + 'px' : 0 }}>
