@@ -2025,7 +2025,7 @@ async function openaiModels({ endpoint, endpointAPIKey, proxyEndpoint, signal, .
 	return data.map(item => item.id);
 }
 
-function openaiConvertOptions(options, endpoint){
+function openaiConvertOptions(options, endpoint, isChat) {
 	const isOpenAI = endpoint.toLowerCase().includes("openai.com");
 	const isTogetherAI = endpoint.toLowerCase().includes("together.xyz");
 	const isOpenRouter = endpoint.toLowerCase().includes("openrouter.ai");
@@ -2056,7 +2056,12 @@ function openaiConvertOptions(options, endpoint){
 	}
 	swapOption("n_ctx", "max_context_length");
 	swapOption("n_predict", "max_tokens");
-	swapOption("n_probs", "logprobs");
+	if (isChat) {
+		options.logprobs = true;
+		swapOption("n_probs", "top_logprobs");
+	} else {
+		swapOption("n_probs", "logprobs");
+	}
 	swapOption("repeat_penalty", "repetition_penalty");
 	swapOption("repeat_last_n", "repetition_penalty_range");
 	swapOption("tfs_z", "tfs");
@@ -2118,7 +2123,7 @@ async function* openaiChatCompletion({ endpoint, endpointAPIKey, proxyEndpoint, 
 			...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
 		},
 		body: JSON.stringify({
-			...openaiConvertOptions(options, endpoint),
+			...openaiConvertOptions(options, endpoint, true),
 			stream: true,
 		}),
 		signal,
