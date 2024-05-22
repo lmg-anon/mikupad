@@ -3866,7 +3866,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 		[promptChunks, currentPromptChunk, showProbs]);
 
 	const sidebar = useRef(null);
-	const [height, setHeight] = useState(100);
+	const [height, setHeight] = useState(0);
 	useEffect(() => {
 		setHeight(sidebar.current.scrollHeight);
 		const observer = new SVResizeObserver(() => {
