@@ -1014,7 +1014,6 @@ html.monospace-dark .eye-button {
 	#prompt-container {
 		width: 100%;
 		max-width: 100%;
-		margin-bottom: 28px;
 		border: none !important; /* put this here because for some reason, something adds "border-right: 2px dotted transparent;border-left: 2px dotted transparent;" to prompt-container whenever this element is clicked*/
 	}
 	#sidebar, html.monospace-dark #sidebar, html.nockoffAI #sidebar {
@@ -3866,8 +3865,20 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 		showProbs && promptChunks[currentPromptChunk?.index]?.completion_probabilities?.[0]?.probs,
 		[promptChunks, currentPromptChunk, showProbs]);
 
+	const sidebar = useRef(null);
+	const [height, setHeight] = useState(100);
+	useEffect(() => {
+		setHeight(sidebar.current.scrollHeight);
+		const observer = new SVResizeObserver(() => {
+			setHeight(sidebar.current.scrollHeight);
+			console.log(sidebar.current.scrollHeight);
+		});
+		observer.observe(sidebar.current);
+		return () => observer.disconnect();
+	});
+
 	return html`
-		<div id="prompt-container" onMouseMove=${onPromptMouseMove}>
+		<div id="prompt-container" onMouseMove=${onPromptMouseMove} style=${{ 'margin-bottom': height + 'px' }}>
 			<button
 				className="textAreaSettings"
 				onClick=${() => toggleModal("prompt")}>
@@ -3908,7 +3919,7 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 						<div className="prob">${(prob.prob * 100).toFixed(2)}%</div>
 					</button>`)}
 			</div>` : null}
-		<div id="sidebar">
+		<div id="sidebar" ref=${sidebar} style=${{ 'max-height': ''}}>
 			<${SelectBox}
 				label="Theme"
 				value=${theme}
