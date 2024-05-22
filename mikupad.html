@@ -5947,8 +5947,10 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	function convertChatToJSON(chatString, template) {
 
 		function extractMessage(text, prefix, suffixes, role) {
-			if (prefix && text.startsWith(prefix)) {
-				text = text.substring(prefix.length);
+			const prefixRegex = "^" + prefix.replaceAll('\n', '\n?').replace(' ', ' ?');
+			const matches = text.match(prefixRegex);
+			if (matches && matches.length) {
+				text = text.substring(matches[0].length);
 				let endIndex = suffixes[0] ? text.indexOf(suffixes[0]) : -1;
 				if (endIndex === -1) {
 					if (suffixes.length > 1) {
@@ -5971,6 +5973,10 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		function skipToNextKnownPrefix(text, ...prefixes) {
 			const indices = prefixes.map(prefix => prefix ? text.indexOf(prefix) : -1).filter(index => index !== -1);
 			const minIndex = indices.length > 0 ? Math.min(...indices) : text.length;
+			if (minIndex == 0) {
+				console.warn("Something went wrong!");
+				return "";
+			}
 			return text.substring(minIndex);
 		}
 		
@@ -5980,11 +5986,14 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		let remainingString = chatString;
 
 		while (remainingString.length > 0) {
-			let extracted = extractMessage(remainingString, sysPre, [sysSuf, instPre, instSuf], 'system');
-			if (!extracted) {
+			let extracted = null;
+			if (sysPre) {
+				extracted = extractMessage(remainingString, sysPre, [sysSuf, instPre, instSuf], 'system');
+			}
+			if (instPre && !extracted) {
 				extracted = extractMessage(remainingString, instPre, [instSuf], 'user');
 			}
-			if (!extracted) {
+			if (instSuf && !extracted) {
 				extracted = extractMessage(remainingString, instSuf, [instPre], 'assistant');
 			}
 			if (!extracted) {
