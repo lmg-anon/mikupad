@@ -2915,9 +2915,17 @@ class ServerDBAdapter {
 	}
 
 	async init() {
-		// Test connection
-		const db = await this.openDatabase();
-		await this.loadFromDatabase(db, "Sessions", "selectedSessionId");
+		const res = await fetch(new URL('/version', this.sessionEndpoint), {
+			method: 'GET',
+			headers: {
+				'Content-Type': 'application/json'
+			}
+		});
+		if (!res.ok)
+			throw new Error("Not a mikupad server or version mismatch.");
+		const { version } = await res.json();
+		if (version !== 2)
+			throw new Error("Mikupad server version mismatch.");
 	}
 
 	async openDatabase() {
