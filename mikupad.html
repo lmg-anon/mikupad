@@ -5952,7 +5952,13 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	function convertChatToJSON(chatString, template) {
 
 		function extractMessage(text, prefix, suffixes, role) {
-			const prefixRegex = "^" + prefix.replaceAll('\n', '\n?').replace(' ', ' ?');
+			const escapeRegExp = (string) => {
+				return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+			};
+			const makeWhiteSpaceLenient = (string) => {
+				return string.replaceAll('\n', '\n?').replaceAll(' ', ' ?');
+			};
+			const prefixRegex = "^" + makeWhiteSpaceLenient(escapeRegExp(prefix));
 			const matches = text.match(prefixRegex);
 			if (matches && matches.length) {
 				text = text.substring(matches[0].length);
