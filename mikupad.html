@@ -3866,20 +3866,20 @@ export function App({ sessionStorage, useSessionState, isMikupadEndpoint }) {
 		[promptChunks, currentPromptChunk, showProbs]);
 
 	const sidebar = useRef(null);
-	const [height, setHeight] = useState(0);
+	const [sidebarHeight, setSidebarHeight] = useState(0);
 	const [isMobile, setIsMobile] = useState(false);
 	useEffect(() => {
-		setHeight(sidebar.current.scrollHeight);
+		setSidebarHeight(sidebar.current.scrollHeight);
 		const observer = new SVResizeObserver(() => {
 			setIsMobile(window.innerWidth < 767.8);
-			setHeight(sidebar.current.scrollHeight);
+			setSidebarHeight(sidebar.current.scrollHeight);
 		});
 		observer.observe(sidebar.current);
 		return () => observer.disconnect();
-	}, []);
+	});
 
 	return html`
-		<div id="prompt-container" onMouseMove=${onPromptMouseMove} style=${{ 'margin-bottom': isMobile ? height + 'px' : 0 }}>
+		<div id="prompt-container" onMouseMove=${onPromptMouseMove} style=${{ 'margin-bottom': isMobile ? sidebarHeight + 'px' : 0 }}>
 			<button
 				className="textAreaSettings"
 				onClick=${() => toggleModal("prompt")}>
