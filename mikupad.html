@@ -3557,6 +3557,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	const sessionReconnectTimer = useRef();
 	const useScrollSmoothing = useRef(true);
 	const [templates, setTemplates] = useDBTemplates(defaultPresets.instructTemplates);
+	const [templateReplacements, setTemplateReplacements] = useState(false);
 	const [templatesImport, setTemplatesImport] = useState(false);
 	const [selectedTemplate, setSelectedTemplate] = useSessionState('template', "Llama 3");
 	const [chatMode, setChatMode] = useSessionState('chatMode', false);
@@ -3618,6 +3619,31 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	const [authorNoteTokens, setAuthorNoteTokens] = useSessionState('authorNoteTokens', defaultPresets.authorNoteTokens);
 	const [authorNoteDepth, setAuthorNoteDepth] = useSessionState('authorNoteDepth', defaultPresets.authorNoteDepth);
 	const [worldInfo, setWorldInfo] = useSessionState('worldInfo', defaultPresets.worldInfo);
+
+
+	function replacePlaceholders(string,placeholders) {
+		return string.replace(/\{[^}]+\}/g, function (placeholder) {
+			return placeholders.hasOwnProperty(placeholder)
+				? placeholders[placeholder]
+				: placeholder;
+		}).replace(/\\n/g, '\n')
+	};
+	useMemo(() => {
+		setTemplateReplacements({
+			"{inst}": templates[selectedTemplate]?.instPre && templates[selectedTemplate]?.instPre !== ""
+				? templates[selectedTemplate]?.instPre
+				: "",
+			"{/inst}": templates[selectedTemplate]?.instSuf && templates[selectedTemplate]?.instSuf !== ""
+				? templates[selectedTemplate]?.instSuf
+				: "",
+			"{sys}": templates[selectedTemplate]?.sysPre && templates[selectedTemplate]?.sysPre !== ""
+				? templates[selectedTemplate]?.sysPre
+				: "",
+			"{/sys}": templates[selectedTemplate]?.sysSuf && templates[selectedTemplate]?.sysSuf !== ""
+				? templates[selectedTemplate]?.sysSuf
+				: "",
+		})
+	}, [selectedTemplate,templates])
 
 	// AN and Memory
 	function handleauthorNoteTokensChange(key,value) {
