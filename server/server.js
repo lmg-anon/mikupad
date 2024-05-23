@@ -62,6 +62,11 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, '..', 'mikupad.html'));
 });
 
+// GET route to get the server version
+app.get('/version', (req, res) => {
+    res.json({ version: 2 });
+});
+
 // Dynamic POST proxy route
 app.post('/proxy/*', async (req, res) => {
     // Capture the part of the URL after '/proxy'
@@ -148,6 +153,8 @@ app.get('/proxy/*', async (req, res) => {
 });
 
 const normalizeStoreName = (storeName) => {
+    if (!storeName)
+        return "Sessions";
     return storeName.split(' ')[0].toLowerCase();
 };
 

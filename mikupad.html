@@ -10,6 +10,7 @@
   -- work.  If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
   -->
 <title>mikupad</title>
+<meta name="viewport" content="width=device-width, height=device-height, initial-scale=1.0">
 <script type="importmap">
 {
 	"imports": {
@@ -1049,6 +1050,41 @@ html.monospace-dark .eye-button {
 	left: 50%;
 	transform: translate(-50%, -50%);
 } 
+
+#button-settings {
+	display: none;
+}
+
+@media (max-width: 767.98px) {
+	body {
+		flex-direction: column;
+	}
+	#prompt-container {
+		width: 100%;
+		max-width: 100%;
+		border: none !important; /* put this here because for some reason, something adds "border-right: 2px dotted transparent;border-left: 2px dotted transparent;" to prompt-container whenever this element is clicked*/
+	}
+	#sidebar, html.monospace-dark #sidebar, html.nockoffAI #sidebar {
+		width: auto;
+		max-height: calc(93vh - 8px);
+		position: fixed;
+		left: 0;
+		right: 0;
+		bottom: 0;
+	}
+	#sidebar .SelectBox:first-child, .horz-separator, .collapsible-group {
+		display: none;
+	}
+	#button-settings {
+		display: block;
+	}
+}
+
+@media (min-width: 767.98px) {
+	#sidebar .SelectBox:first-child, .horz-separator, .collapsible-group {
+		display: block !important;
+	}
+}
 
 </style>
 <script type="module">
@@ -2966,9 +3002,17 @@ class ServerDBAdapter {
 	}
 
 	async init() {
-		// Test connection
-		const db = await this.openDatabase();
-		await this.loadFromDatabase(db, "Sessions", "selectedSessionId");
+		const res = await fetch(new URL('/version', this.sessionEndpoint), {
+			method: 'GET',
+			headers: {
+				'Content-Type': 'application/json'
+			}
+		});
+		if (!res.ok)
+			throw new Error("Not a mikupad server or version mismatch.");
+		const { version } = await res.json();
+		if (version !== 2)
+			throw new Error("Mikupad server version mismatch.");
 	}
 
 	async openDatabase() {
@@ -3471,6 +3515,12 @@ function replaceUnprintableBytes(inputString) {
 	});
 
 	return replacedString;
+}
+
+function replaceNewlines(template) {
+	return Object.fromEntries(
+		Object.entries(template).map(([key, value]) => [key, value.replaceAll("\\n", "\n")])
+	);
 }
 
 function useSessionState(sessionStorage, name, initialState) {
@@ -4033,13 +4083,12 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			// Chat Mode
 			if (chatMode && !restartedPredict && templates[selectedTemplate]) {
 				// add user EOT template (instruct suffix) if not switch completion
-				const { instSuf, instPre } = templates[selectedTemplate];
+				const { instSuf, instPre } = replaceNewlines(templates[selectedTemplate]);
 				const instSufIndex = instSuf ? prompt.lastIndexOf(instSuf) : -1;
 				const instPreIndex = instPre ? prompt.lastIndexOf(instPre) : -1;
 				if (instSufIndex <= instPreIndex) {
-					const eotUser = instSuf.replace(/\\n/g, '\n')
-					setPromptChunks(p => [...p, { type: 'user', content: eotUser }])
-					prompt += eotUser;
+					setPromptChunks(p => [...p, { type: 'user', content: instSuf }])
+					prompt += instSuf;
 				}
 			}
 			setRestartedPredict(false)
@@ -4683,8 +4732,21 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		showProbs && promptChunks[currentPromptChunk?.index]?.completion_probabilities?.[0]?.probs,
 		[promptChunks, currentPromptChunk, showProbs]);
 
+	const sidebar = useRef(null);
+	const [sidebarHeight, setSidebarHeight] = useState(0);
+	const [isMobile, setIsMobile] = useState(false);
+	useEffect(() => {
+		setSidebarHeight(sidebar.current.scrollHeight);
+		const observer = new SVResizeObserver(() => {
+			setIsMobile(window.innerWidth < 767.8);
+			setSidebarHeight(sidebar.current.scrollHeight);
+		});
+		observer.observe(sidebar.current);
+		return () => observer.disconnect();
+	}, []);
+
 	return html`
-		<div id="prompt-container" onMouseMove=${onPromptMouseMove}>
+		<div id="prompt-container" onMouseMove=${onPromptMouseMove} style=${{ 'margin-bottom': isMobile ? sidebarHeight + 'px' : 0 }}>
 			<button
 				className="textAreaSettings"
 				onClick=${() => toggleModal("prompt")}>
@@ -4725,7 +4787,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 						<div className="prob">${(prob.prob * 100).toFixed(2)}%</div>
 					</button>`)}
 			</div>` : null}
-		<div id="sidebar">
+		<div id="sidebar" ref=${sidebar} style=${{ 'max-height': ''}}>
 			<${SelectBox}
 				label="Theme"
 				value=${theme}
@@ -5004,6 +5066,17 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 						<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24"><path d="M6.974 22.957c-10.957-11.421 2.326-20.865 10.384-13.309l-2.464 2.352h9.106v-8.947l-2.232 2.229c-14.794-13.203-31.51 7.051-14.794 17.675z" fill="var(--color-light)"/></svg>
 					</button>
 				</div>
+				<button
+					id="button-settings"
+					onClick=${() => {
+						toggleModal("settings");
+						document.getElementsByClassName("SelectBox")[0].style.display = modalState.settings ? "none" : "block";
+						document.getElementsByClassName("horz-separator")[0].style.display = modalState.settings ? "none" : "block";
+						for (const collapseGroup of document.getElementsByClassName("collapsible-group"))
+							collapseGroup.style.display = modalState.settings ? "none" : "block";
+					}}>
+					<svg transform="translate(0, 2)" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 512 512"><path d="M495.9 166.6c3.2 8.7 .5 18.4-6.4 24.6l-43.3 39.4c1.1 8.3 1.7 16.8 1.7 25.4s-.6 17.1-1.7 25.4l43.3 39.4c6.9 6.2 9.6 15.9 6.4 24.6c-4.4 11.9-9.7 23.3-15.8 34.3l-4.7 8.1c-6.6 11-14 21.4-22.1 31.2c-5.9 7.2-15.7 9.6-24.5 6.8l-55.7-17.7c-13.4 10.3-28.2 18.9-44 25.4l-12.5 57.1c-2 9.1-9 16.3-18.2 17.8c-13.8 2.3-28 3.5-42.5 3.5s-28.7-1.2-42.5-3.5c-9.2-1.5-16.2-8.7-18.2-17.8l-12.5-57.1c-15.8-6.5-30.6-15.1-44-25.4L83.1 425.9c-8.8 2.8-18.6 .3-24.5-6.8c-8.1-9.8-15.5-20.2-22.1-31.2l-4.7-8.1c-6.1-11-11.4-22.4-15.8-34.3c-3.2-8.7-.5-18.4 6.4-24.6l43.3-39.4C64.6 273.1 64 264.6 64 256s.6-17.1 1.7-25.4L22.4 191.2c-6.9-6.2-9.6-15.9-6.4-24.6c4.4-11.9 9.7-23.3 15.8-34.3l4.7-8.1c6.6-11 14-21.4 22.1-31.2c5.9-7.2 15.7-9.6 24.5-6.8l55.7 17.7c13.4-10.3 28.2-18.9 44-25.4l12.5-57.1c2-9.1 9-16.3 18.2-17.8C227.3 1.2 241.5 0 256 0s28.7 1.2 42.5 3.5c9.2 1.5 16.2 8.7 18.2 17.8l12.5 57.1c15.8 6.5 30.6 15.1 44 25.4l55.7-17.7c8.8-2.8 18.6-.3 24.5 6.8c8.1 9.8 15.5 20.2 22.1 31.2l4.7 8.1c6.1 11 11.4 22.4 15.8 34.3zM256 336a80 80 0 1 0 0-160 80 80 0 1 0 0 160z" fill="var(--color-light)"/></svg>
+				</button>
 			</div>
 			${!!lastError && html`
 				<span className="error-text">${lastError}</span>`}
