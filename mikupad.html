@@ -3922,7 +3922,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		return assembledWorldInfo
 	}, [worldInfo]);
 
-	const [persistentContextTemp,promptRemainderTemp,rawPersistentContext] = useMemo(() => {
+	const [persistentContextTemp,promptRemainderTemp,rawNKeepContext] = useMemo(() => {
 		// add world info to memory for easier assembly
 		memoryTokens["worldInfo"] = assembledWorldInfo;
 
@@ -3987,7 +3987,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			splitContextOrder.slice(0, splitContextOrder.indexOf("{prompt}")).join(""),
 			splitContextOrder.slice(splitContextOrder.indexOf("{prompt}")).join("")
 		]
-		const rawPersistentContext = contextOrderList[0]
+		const rawNKeepContext = contextOrderList[0]
 		
 
 		const contextList = contextOrderList.map(function (line) {
@@ -3996,7 +3996,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		
 		// we split the prompt into stuff that comes before the prompt, and stuff that
 		// comes after
-		return [ contextList[0],contextList[1],rawPersistentContext ]
+		return [ contextList[0],contextList[1],rawNKeepContext ]
 	}, [contextLength, promptText, memoryTokens, authorNoteTokens, authorNoteDepth, assembledWorldInfo, worldInfo.prefix, worldInfo.suffix]);
 
 
@@ -4022,10 +4022,10 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		}
 		
 		var calc = 0
-		if (rawPersistentContext.includes("{memText}")) {
+		if (rawNKeepContext.includes("{memText}")) {
 			calc += (memoryTokens?.tokens||0)
 		}
-		if (rawPersistentContext.includes("{wiText}")) {
+		if (rawNKeepContext.includes("{wiText}")) {
 			calc += (memoryTokens?.tokensWI||0)
 		}
 		setNKeep(calc + 1)
