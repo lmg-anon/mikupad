@@ -4050,36 +4050,38 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 
 		predict(finalPrompt, leftPromptChunks.length, (chunk) => {
 			let stop = false;
+			let omitChunk = false;
+			
 			if (rightPromptChunks[0]) {
 				const trimmedChunk = chunk.content.replace(/^ +| +$/gm, "")
-				if (trimmedChunk.startsWith(rightPromptChunks[0].content[0])) {
+				if (trimmedChunk[0] == rightPromptChunks[0].content[0]) {
+					omitChunk = true;
 					if (chunk.content[0] == ' ' && rightPromptChunks[0].content[0] != ' ') {
 						rightPromptChunks[0].content = ' ' + rightPromptChunks[0].content;
-						chunk = null;
 					} else if (rightPromptChunks[0].type === 'user') {
 						if (rightPromptChunks[0].content === chunk.content) {
 							rightPromptChunks[0] = chunk;
-							chunk = null;
 						} else if (rightPromptChunks[0].content.startsWith(chunk.content)) {
 							rightPromptChunks[0].content = rightPromptChunks[0].content.substring(chunk.content.length);
+							omitChunk = false;
 						}
-					} else {
-						chunk = null;
 					}
 					stop = true;
 				}
 			}
-			leftPromptChunks = [
-				...leftPromptChunks,
-				...(chunk ? [chunk] : [])
-			];
+			
+			if (!omitChunk) {
+				setTokens(t => t + (chunk?.completion_probabilities?.length ?? 1));
+				leftPromptChunks.push(chunk);
+			}
 			setPromptChunks(p => [
 				...leftPromptChunks,
 				...rightPromptChunks
 			]);
-			setTokens(t => t + (chunk?.completion_probabilities?.length ?? 1));
+
 			return !stop;
 		});
+
 		return true;
 	}
 
