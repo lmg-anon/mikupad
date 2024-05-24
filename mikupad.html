@@ -4081,7 +4081,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		}
 
 		// predict the fill placeholder if it exists.
-		if (!callback && fillPredict())
+		if (!callback && await fillPredict())
 			return true;
 
 		const ac = new AbortController();
