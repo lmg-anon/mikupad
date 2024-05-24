@@ -4043,7 +4043,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	function undo() {
 		if (!undoStack.current.length)
 			return false;
-		let currentUndo = undoStack.current.pop();
+		const currentUndo = undoStack.current.pop();
 		if (currentUndo.action === 'add') {
 			setPromptChunks(p => [...p.slice(0, currentUndo.offset), ...p.slice(currentUndo.offset + currentUndo.chunks.length, p.length)]);
 		} else if (currentUndo.action === 'remove') {
@@ -4058,7 +4058,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	function redo() {
 		if (!redoStack.current.length)
 			return false;
-		let currentRedo = redoStack.current.pop();
+		const currentRedo = redoStack.current.pop();
 		if (currentRedo.action === 'add') {
 			setPromptChunks(p => [...p.slice(0, currentRedo.offset), ...currentRedo.chunks, ...p.slice(currentRedo.offset, p.length)]);
 		} else if (currentRedo.action === 'remove') {
@@ -4499,7 +4499,8 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 
 	async function switchCompletion(i, tok) {
 		removePromptChunks(i, promptChunks.length);
-		undoStack.current.push({ action: 'add', offset: i, chunks: [{ type: 'machine', content: tok }] });
+		undoStack.current.push({ action: 'add', offset: i, chunks: [] });
+		addPromptChunk({ ...promptChunks[i], content: tok });
 		setTriggerPredict(true);
 		setRestartedPredict(true);
 	}
@@ -4891,7 +4892,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 				<div className="shorts">
 					<button
 						title="Regenerate (Ctrl + R)"
-						disabled=${!undoStack.current.length || undoStack.current.at(-1)?.action !== 'add'}
+						disabled=${!undoStack.current.length || undoStack.current.at(-1)?.action !== 'add' || undoStack.current.at(-1)?.chunks.at(undoStack.current.at(-1)?.chunks.length > 1 ? -2 : -1)?.type === 'user'}
 						onClick=${() => undoAndPredict()}
 						onMouseEnter=${() => setUndoHovered(true)}
 						onMouseLeave=${() => setUndoHovered(false)}>
