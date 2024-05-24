@@ -4039,28 +4039,46 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		const additionalContextPrompt = assembleAdditionalContext(assembledWorldInfo, promptText);
 		const finalPrompt = assembleFinalPrompt(additionalContextPrompt, templateReplacements);
 
+		let isReplacing = false;
 		predict(finalPrompt, leftPromptChunks.length, (chunk) => {
 			let stop = false;
 			let omitChunk = false;
 			
+			let wasReplacing = isReplacing;
+			isReplacing = false;
+
 			if (rightPromptChunks[0]) {
-				const trimmedChunk = chunk.content.replace(/^ +| +$/gm, "")
-				if (trimmedChunk[0] == rightPromptChunks[0].content[0]) {
+				const trimmedChunk = chunk.content.replace(/^ /, "");
+				if (rightPromptChunks[0].content[0] === chunk.content[0] ||
+					rightPromptChunks[0].content[0] === trimmedChunk[0]
+				) {
 					omitChunk = true;
 					if (chunk.content[0] == ' ' && rightPromptChunks[0].content[0] != ' ') {
+						if (rightPromptChunks[0].type !== 'user')
+							console.warn("Predicted token changed, this shouldn't happen.");
 						rightPromptChunks[0].content = ' ' + rightPromptChunks[0].content;
-					} else if (rightPromptChunks[0].type === 'user') {
-						if (rightPromptChunks[0].content === chunk.content) {
-							rightPromptChunks[0] = chunk;
-						} else if (rightPromptChunks[0].content.startsWith(chunk.content)) {
+					}
+					if (rightPromptChunks[0].type === 'user') {
+						if (rightPromptChunks[0].content.startsWith(chunk.content)) {
 							rightPromptChunks[0].content = rightPromptChunks[0].content.substring(chunk.content.length);
+							if (!rightPromptChunks[0].content)
+								rightPromptChunks.shift();
 							omitChunk = false;
+							isReplacing = true;
 						}
 					}
 					stop = true;
 				}
 			}
-			
+
+			// When replacing, we continue until any mismatch.
+			if (wasReplacing && !isReplacing) {
+				if (rightPromptChunks.length !== 0)
+					return false;
+				// This means that the mismatch was caused by the end of the chunks to be replaced.
+				isReplacing = false;
+			}
+
 			if (!omitChunk) {
 				setTokens(t => t + (chunk?.completion_probabilities?.length ?? 1));
 				leftPromptChunks.push(chunk);
@@ -4070,7 +4088,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 				...rightPromptChunks
 			]);
 
-			return !stop;
+			return !stop || isReplacing;
 		});
 
 		return true;
