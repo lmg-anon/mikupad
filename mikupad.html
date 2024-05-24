@@ -4049,29 +4049,36 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		const finalPrompt = assembleFinalPrompt(additionalContextPrompt, templateReplacements);
 
 		predict(finalPrompt, leftPromptChunks.length, (chunk) => {
+			let stop = false;
 			if (rightPromptChunks[0]) {
 				const trimmedChunk = chunk.content.replace(/^ +| +$/gm, "")
 				if (trimmedChunk.startsWith(rightPromptChunks[0].content[0])) {
 					if (chunk.content[0] == ' ' && rightPromptChunks[0].content[0] != ' ') {
 						rightPromptChunks[0].content = ' ' + rightPromptChunks[0].content;
-						setPromptChunks(p => [
-							...leftPromptChunks,
-							...rightPromptChunks
-						]);
+						chunk = null;
+					} else if (rightPromptChunks[0].type === 'user') {
+						if (rightPromptChunks[0].content === chunk.content) {
+							rightPromptChunks[0] = chunk;
+							chunk = null;
+						} else if (rightPromptChunks[0].content.startsWith(chunk.content)) {
+							rightPromptChunks[0].content = rightPromptChunks[0].content.substring(chunk.content.length);
+						}
+					} else {
+						chunk = null;
 					}
-					return false;
+					stop = true;
 				}
 			}
 			leftPromptChunks = [
 				...leftPromptChunks,
-				chunk
+				...(chunk ? [chunk] : [])
 			];
 			setPromptChunks(p => [
 				...leftPromptChunks,
 				...rightPromptChunks
 			]);
 			setTokens(t => t + (chunk?.completion_probabilities?.length ?? 1));
-			return true;
+			return !stop;
 		});
 		return true;
 	}
