@@ -3701,8 +3701,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	}
 	// token counts for an
 	useEffect(() => {
-		setNKeepTimeout(false)
-		const order = ["prefix","text","suffix"]
+				const order = ["prefix","text","suffix"]
 		const assembled = authorNoteTokens.text && authorNoteTokens.text !== ""
 			? order.map(key => authorNoteTokens[key]).join("")
 			: "";	
@@ -3728,8 +3727,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			} catch (e) {
 				if (e.name !== 'AbortError'){
 					reportError(e);
-					setNKeepTimeout(true)
-					setAuthorNoteTokens((prevauthorNoteTokens) => ({ ...prevauthorNoteTokens, "tokens": 0 }))
+										setAuthorNoteTokens((prevauthorNoteTokens) => ({ ...prevauthorNoteTokens, "tokens": 0 }))
 				}	
 			}
 		}, 500);
@@ -3743,8 +3741,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	}
 	// token counts for memory
 	useEffect(() => {
-		setNKeepTimeout(false)
-		const order = ["prefix","text","suffix"]
+				const order = ["prefix","text","suffix"]
 		const assembled = memoryTokens.text && memoryTokens.text !== ""
 			? order.map(key => memoryTokens[key]).join("")
 			: "";	
@@ -3771,8 +3768,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			} catch (e) {
 				if (e.name !== 'AbortError'){
 					reportError(e);
-					setNKeepTimeout(true)
-					setMemoryTokens((prevMemoryTokens) => ({ ...prevMemoryTokens, "tokens": 0 }));
+										setMemoryTokens((prevMemoryTokens) => ({ ...prevMemoryTokens, "tokens": 0 }));
 				}
 			}
 		}, 500);
@@ -3782,8 +3778,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	},[modalState["context"],memoryTokens.text,memoryTokens.prefix,memoryTokens.suffix,cancel,endpoint,endpointAPI])
 	// token counts for wi
 	useEffect(() => {
-		setNKeepTimeout(false)
-		const assembled = memoryTokens.worldInfo && memoryTokens.worldInfo !== ""
+				const assembled = memoryTokens.worldInfo && memoryTokens.worldInfo !== ""
 			? [worldInfo.prefix,memoryTokens.worldInfo,worldInfo.suffix].join("")
 			: "";
 		if (assembled == "" || endpointAPI == 3){
@@ -3809,8 +3804,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			} catch (e) {
 				if (e.name !== 'AbortError'){
 					reportError(e);
-					setNKeepTimeout(true)
-					setMemoryTokens((prevMemoryTokens) => ({ ...prevMemoryTokens, "tokensWI": 0 }));
+										setMemoryTokens((prevMemoryTokens) => ({ ...prevMemoryTokens, "tokensWI": 0 }));
 				}
 			}
 		}, 500);
