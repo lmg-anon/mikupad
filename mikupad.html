@@ -382,6 +382,7 @@ html.nockoffAI .modal-title {
 	color:var(--color-text);
 }
 html.nockoffAI  #context-order-desc,
+html.nockoffAI  #contextTokensTable,
 html.nockoffAI .modal-desc {
 	color:var(--color-base-80);
 }
@@ -699,6 +700,9 @@ html.nockoffAI .horz-separator {
 html.nockoffAI .SelectBox > select:disabled {
 	background: var(--color-disabled);
 }
+.relative {
+	position: relative;
+}
 
 .Checkbox {
 	user-select: none;
@@ -795,6 +799,17 @@ button.textAreaSettings {
 button.textAreaSettings.textAreaSettings-bias {
 	top: 1.45em;
 	right: 5px;
+}
+.token-counter {
+	pointer-events: none;
+	position:absolute;
+	bottom:0;
+	right:0;
+	transform: translate(0%,-50%);
+	color: var(--color-base-50);
+	background: color-mix(in srgb, var(--color-base-30), transparent 50%);
+}.token-counter::after {
+	content:" Tokens";
 }
 button:hover {
 	background: var(--color-base-40);
@@ -2008,14 +2023,19 @@ function MemoryModal({ isOpen, closeModal, memoryTokens, handleMemoryTokensChang
 					<${InputBox} label="Suffix" type="text" placeholder="[/INST]"
 						readOnly=${!!cancel} value=${memoryTokens.suffix} onValueChange=${(value) => handleMemoryTokensChange("suffix", value)}/>
 				</div>
-				<textarea
-					readOnly=${!!cancel}
-					placeholder="Anything written here will be injected at the head of the prompt. Tokens here DO count towards the Context Limit."
-					defaultValue=${memoryTokens.text}
-					value=${memoryTokens.text}
-					onInput=${(e) => handleMemoryTokensChange("text", e.target.value) }
-					class="expanded-text-area-settings"
-					id="memory-area-settings"/>
+				<div class="relative">
+					<textarea
+						readOnly=${!!cancel}
+						placeholder="Anything written here will be injected at the head of the prompt. Tokens here DO count towards the Context Limit."
+						defaultValue=${memoryTokens.text}
+						value=${memoryTokens.text}
+						onInput=${(e) => handleMemoryTokensChange("text", e.target.value) }
+						class="expanded-text-area-settings"
+						id="memory-area-settings"/>
+					<div class="token-counter">
+						${memoryTokens.tokens}
+					</div>
+				</div>
 			</${Modal}>`;
 }
 
@@ -2037,22 +2057,53 @@ function AuthorNoteModal({ isOpen, closeModal, authorNoteTokens, handleauthorNot
 					<${InputBox} label="AN Injection Depth (0-N)" type="number" step="1"
 						readOnly=${!!cancel} value=${authorNoteDepth} onValueChange=${handleAuthorNoteDepthChange}/>
 				</div>
-				<textarea
-					readOnly=${!!cancel}
-					placeholder="Anything written here will be injected ${authorNoteDepth} newlines from bottom into context."
-					defaultValue=${authorNoteTokens.text}
-					value=${authorNoteTokens.text}
-					onInput=${(e) => handleauthorNoteTokensChange("text", e.target.value) }
-					class="expanded-text-area-settings"
-					id="expanded-an-settings"/>
+				<div class="relative">
+					<textarea
+						readOnly=${!!cancel}
+						placeholder="Anything written here will be injected ${authorNoteDepth} newlines from bottom into context."
+						defaultValue=${authorNoteTokens.text}
+						value=${authorNoteTokens.text}
+						onInput=${(e) => handleauthorNoteTokensChange("text", e.target.value) }
+						class="expanded-text-area-settings"
+						id="expanded-an-settings"/>
+					<div class="token-counter">
+						${authorNoteTokens.tokens}
+					</div>
+				</div>
 			</${Modal}>`;
 }
 
-function ContextModal({ isOpen, closeModal, memoryTokens, handleMemoryTokensChange, modifiedPrompt, defaultPresets, cancel }) {
+function ContextModal({ isOpen, closeModal, tokens, memoryTokens, authorNoteTokens, handleMemoryTokensChange, modifiedPrompt, defaultPresets, cancel }) {
 	return html`
 		<${Modal} isOpen=${isOpen} onClose=${closeModal}
 			title="Context"
 			description="This is the prompt being sent to your large language model.">
+			<div id="advancedContextPlaceholders">
+			<table id="contextTokensTable" border="1" frame="void" rules="all">
+				<thead>
+					<tr>
+						<th></th>
+						<th>Memory</th>
+						<th>World Info</th>
+						<th>Author's Note</th>
+						<th>Prompt</th>
+						<th></th>
+						<th>Total</th>
+					</tr>
+				</thead>
+				<tbody>
+					<tr>
+						<th>Tokens</th>
+						<td>${memoryTokens.tokens}</td>
+						<td>${memoryTokens.tokensWI}</td>
+						<td>${authorNoteTokens.tokens}</td>
+						<td>${tokens - authorNoteTokens.tokens - memoryTokens.tokensWI - memoryTokens.tokens}</td>
+						<td></td>
+						<td>${tokens}</td>
+					</tr>
+				</tbody>
+			</table>
+			</div>
 			<${CollapsibleGroup} label="Advanced Context Ordering">
 				<div id="context-order-desc">
 					You can use the following placeholders to order the context according to your needs:<br />
@@ -3556,6 +3607,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	const sessionReconnectTimer = useRef();
 	const useScrollSmoothing = useRef(true);
 	const [templates, setTemplates] = useDBTemplates(defaultPresets.instructTemplates);
+	const [templateReplacements, setTemplateReplacements] = useState(false);
 	const [templatesImport, setTemplatesImport] = useState(false);
 	const [selectedTemplate, setSelectedTemplate] = useSessionState('template', "Llama 3");
 	const [chatMode, setChatMode] = useSessionState('chatMode', false);
@@ -3616,13 +3668,151 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	const [authorNoteDepth, setAuthorNoteDepth] = useSessionState('authorNoteDepth', defaultPresets.authorNoteDepth);
 	const [worldInfo, setWorldInfo] = useSessionState('worldInfo', defaultPresets.worldInfo);
 
+
+	function replacePlaceholders(string,placeholders) {
+		// give placeholders as json object
+		// { "placeholder":"replacement" }
+		return string.replace(/\{[^}]+\}/g, function (placeholder) {
+			return placeholders.hasOwnProperty(placeholder)
+				? placeholders[placeholder]
+				: placeholder;
+		}).replace(/\\n/g, '\n')
+	};
+	useMemo(() => {
+		setTemplateReplacements({
+			"{inst}": templates[selectedTemplate]?.instPre && templates[selectedTemplate]?.instPre !== ""
+				? templates[selectedTemplate]?.instPre
+				: "",
+			"{/inst}": templates[selectedTemplate]?.instSuf && templates[selectedTemplate]?.instSuf !== ""
+				? templates[selectedTemplate]?.instSuf
+				: "",
+			"{sys}": templates[selectedTemplate]?.sysPre && templates[selectedTemplate]?.sysPre !== ""
+				? templates[selectedTemplate]?.sysPre
+				: "",
+			"{/sys}": templates[selectedTemplate]?.sysSuf && templates[selectedTemplate]?.sysSuf !== ""
+				? templates[selectedTemplate]?.sysSuf
+				: "",
+		})
+	}, [selectedTemplate,templates])
+
 	// AN and Memory
 	function handleauthorNoteTokensChange(key,value) {
 		setAuthorNoteTokens((prevauthorNoteTokens) => ({ ...prevauthorNoteTokens, [key]: value }));
 	}
+	// token counts for an
+	useEffect(() => {
+		const order = ["prefix","text","suffix"]
+		const assembled = authorNoteTokens.text && authorNoteTokens.text !== ""
+			? order.map(key => authorNoteTokens[key]).join("")
+			: "";	
+		if (assembled == "" || endpointAPI == 3) {
+			setAuthorNoteTokens((prevauthorNoteTokens) => ({ ...prevauthorNoteTokens, "tokens": 0 }))
+			return
+		}
+		const ac = new AbortController();
+		const to = setTimeout(async () => {
+			try {
+				const tokenCount = await getTokenCount({
+					endpoint,
+					endpointAPI,
+					...(endpointAPI == 3 || endpointAPI == 0 ? { endpointAPIKey } : {}),
+					content: `${replacePlaceholders(assembled,templateReplacements)}`,
+					signal: ac.signal,
+					...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {})
+				});
+				setAuthorNoteTokens((prevauthorNoteTokens) => ({
+					...prevauthorNoteTokens,
+					"tokens": tokenCount - 1 
+				}));
+			} catch (e) {
+				if (e.name !== 'AbortError'){
+					reportError(e);
+					setAuthorNoteTokens((prevauthorNoteTokens) => ({ ...prevauthorNoteTokens, "tokens": 0 }))
+				}	
+			}
+		}, 500);
+
+		ac.signal.addEventListener('abort', () => clearTimeout(to));
+		return () => ac.abort();
+	},[modalState["context"],authorNoteTokens.text,authorNoteTokens.prefix,authorNoteTokens.suffix,cancel,endpoint,endpointAPI])
+
 	function handleMemoryTokensChange(key,value) {
 		setMemoryTokens((prevMemoryTokens) => ({ ...prevMemoryTokens, [key]: value }));
 	}
+	// token counts for memory
+	useEffect(() => {
+		const order = ["prefix","text","suffix"]
+		const assembled = memoryTokens.text && memoryTokens.text !== ""
+			? order.map(key => memoryTokens[key]).join("")
+			: "";	
+		if (assembled == "" || endpointAPI == 3){
+			setMemoryTokens((prevMemoryTokens) => ({ ...prevMemoryTokens, "tokens": 0 }));
+			return
+		}
+
+		const ac = new AbortController();
+		const to = setTimeout(async () => {
+			try {
+				const tokenCount = await getTokenCount({
+					endpoint,
+					endpointAPI,
+					...(endpointAPI == 3 || endpointAPI == 0 ? { endpointAPIKey } : {}),
+					content: `${replacePlaceholders(assembled,templateReplacements)}`,
+					signal: ac.signal,
+					...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {})
+				});
+				setMemoryTokens((prevMemoryTokens) => ({
+					...prevMemoryTokens,
+					"tokens": tokenCount - 1 
+				}));
+			} catch (e) {
+				if (e.name !== 'AbortError'){
+					reportError(e);
+					setMemoryTokens((prevMemoryTokens) => ({ ...prevMemoryTokens, "tokens": 0 }));
+				}
+			}
+		}, 500);
+
+		ac.signal.addEventListener('abort', () => clearTimeout(to));
+		return () => ac.abort();
+	},[modalState["context"],memoryTokens.text,memoryTokens.prefix,memoryTokens.suffix,cancel,endpoint,endpointAPI])
+	// token counts for wi
+	useEffect(() => {
+		const assembled = memoryTokens.worldInfo && memoryTokens.worldInfo !== ""
+			? [worldInfo.prefix,memoryTokens.worldInfo,worldInfo.suffix].join("")
+			: "";
+		if (assembled == "" || endpointAPI == 3){
+			setMemoryTokens((prevMemoryTokens) => ({ ...prevMemoryTokens, "tokensWI": 0 }));
+			return
+		}
+
+		const ac = new AbortController();
+		const to = setTimeout(async () => {
+			try {
+				const tokenCount = await getTokenCount({
+					endpoint,
+					endpointAPI,
+					...(endpointAPI == 3 || endpointAPI == 0 ? { endpointAPIKey } : {}),
+					content: `${replacePlaceholders(assembled,templateReplacements)}`,
+					signal: ac.signal,
+					...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {})
+				});
+				setMemoryTokens((prevMemoryTokens) => ({
+					...prevMemoryTokens,
+					"tokensWI": tokenCount - 1 
+				}));
+			} catch (e) {
+				if (e.name !== 'AbortError'){
+					reportError(e);
+					setMemoryTokens((prevMemoryTokens) => ({ ...prevMemoryTokens, "tokensWI": 0 }));
+				}
+			}
+		}, 500);
+
+		ac.signal.addEventListener('abort', () => clearTimeout(to));
+		return () => ac.abort();
+	},[modalState["context"],worldInfo.prefix,memoryTokens.worldInfo,worldInfo.suffix,cancel,endpoint,endpointAPI])
+
 
 
 	const insertTemplate = (sysInst) => {
@@ -3666,7 +3856,6 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		elem.setSelectionRange(0, 2);
 		onInput({ target: elem });
 	}
-
 
 	const toggleModal = (modalKey) => {
 		setModalState((prevState) => ({
@@ -3789,11 +3978,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		// replaced, (3) instruct template placeholders are replaced (4) non-empty
 		// lines are joined back together.
 		const permContextPrompt = workingContextOrder.split("\n").map(function (line) {
-			return line.replace(/\{[^}]+\}/g, function (placeholder) {
-				return contextReplacements.hasOwnProperty(placeholder)
-					? contextReplacements[placeholder]
-					: placeholder;
-			});
+			return replacePlaceholders(line,contextReplacements)
 		}).filter(function (line) {
 			return line.trim() !== "";
 		}).join("\n").replace(/\\n/g, '\n');
@@ -3802,28 +3987,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	}, [contextLength, promptText, memoryTokens, authorNoteTokens, authorNoteDepth, assembledWorldInfo, worldInfo.prefix, worldInfo.suffix]);
 
 	const modifiedPrompt = useMemo(() => {
-		const templateReplacements = {
-			"{inst}": templates[selectedTemplate]?.instPre && templates[selectedTemplate]?.instPre !== ""
-				? templates[selectedTemplate]?.instPre
-				: "",
-			"{/inst}": templates[selectedTemplate]?.instSuf && templates[selectedTemplate]?.instSuf !== ""
-				? templates[selectedTemplate]?.instSuf
-				: "",
-			"{sys}": templates[selectedTemplate]?.sysPre && templates[selectedTemplate]?.sysPre !== ""
-				? templates[selectedTemplate]?.sysPre
-				: "",
-			"{/sys}": templates[selectedTemplate]?.sysSuf && templates[selectedTemplate]?.sysSuf !== ""
-				? templates[selectedTemplate]?.sysSuf
-				: "",
-		}
-		const finalPrompt = additionalContextPrompt
-			.replace(/\{[^}]+\}/g, function (placeholder) {
-				return templateReplacements.hasOwnProperty(placeholder)
-					? templateReplacements[placeholder]
-					: placeholder;
-			}).replace(/\\n/g, '\n');
-
-		return finalPrompt;
+		return replacePlaceholders(additionalContextPrompt,templateReplacements);
 	}, [additionalContextPrompt, templates, selectedTemplate]);
 
 	async function predict(prompt = modifiedPrompt, chunkCount = promptChunks.length) {
@@ -4154,7 +4318,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		}, 500);
 		ac.signal.addEventListener('abort', () => clearTimeout(to));
 		return () => ac.abort();
-	}, [promptText, cancel, endpoint, endpointAPI]);
+	}, [modalState["context"], promptText, cancel, endpoint, endpointAPI]);
 
 	useEffect(() => {
 		if (endpointAPI != 3)
@@ -4762,7 +4926,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			</${CollapsibleGroup}>
 			<${CollapsibleGroup} label="Persistent Context">
 				<label className="TextArea">
-					Memory
+					<div>Memory ${memoryTokens.tokens > 0 ? html`<small>(${memoryTokens.tokens} Tokens)</small>`:""}</div>
 					<textarea
 					readOnly=${!!cancel}
 					placeholder="Anything written here will be injected at the head of the prompt. Tokens here DO count towards the Context Limit."
@@ -4774,12 +4938,11 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 					className="textAreaSettings"
 					disabled=${!!cancel}
 					onClick=${() => toggleModal("memory")}>
-
 					<svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="-1 -5 8 7" xmlns="http://www.w3.org/2000/svg"><path d="M0 0 3-3C3-4 3-5 5-5L4-4 5-3 6-4C6-2 5-2 4-2L1 1C0 2-1 1 0 0"></path></svg>
 					</button>
 				</label>
 				<label className="TextArea">
-					Author's Note
+					<div>Author's Note ${authorNoteTokens.tokens > 0 ? html`<small>(${authorNoteTokens.tokens} Tokens)</small>`:""}</div>
 					<textarea
 					readOnly=${!!cancel}
 					placeholder="Anything written here will be injected ${authorNoteDepth} newlines from bottom into context."
@@ -4913,7 +5076,9 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		<${ContextModal}
 			isOpen=${modalState.context}
 			closeModal=${() => closeModal("context")}
+			tokens=${tokens}
 			memoryTokens=${memoryTokens}
+			authorNoteTokens=${authorNoteTokens}
 			handleMemoryTokensChange=${handleMemoryTokensChange}
 			modifiedPrompt=${modifiedPrompt}
 			defaultPresets=${defaultPresets}
