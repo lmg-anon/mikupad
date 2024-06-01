@@ -2631,19 +2631,31 @@ function InstructModal({ isOpen, closeModal, templateStorage, selectedTemplate, 
 	}
 
 	function handleInstructTemplateChange(templateName,key,value,back="") {
-		const templateListMod = templateList
-		const tempIndex = templateListMod.findIndex(obj => obj.name === templateName);
-		const index = tempIndex < 0 ? 0 : tempIndex;
+		if (key == "name")
+			setNewTemplateName(value);
 
-		if (key == "name") { 
-			templateListMod[index].nameNew = value
-			setNewTemplateName(value)
-		} else {
-			templateListMod[index].affixes[key] = value
-		}
-		setTemplateList((prevState) => ([
-			...templateListMod
-		]))
+		setTemplateList((prevState) => {
+			const newState = [
+				...prevState
+			];
+			const tempIndex = newState.findIndex(obj => obj.name === templateName);
+			const index = tempIndex < 0 ? 0 : tempIndex;
+			if (key == "name") { 
+				newState[index] = {
+					...newState[index],
+					'nameNew': value
+				}
+			} else {
+				newState[index] = {
+					...newState[index],
+					affixes: {
+						...newState[index].affixes,
+						[key]: value
+					}
+				}
+			}
+			return newState;
+		});
 	}
 
 	async function handleInstructTemplateAdd() {
@@ -2723,16 +2735,13 @@ function InstructModal({ isOpen, closeModal, templateStorage, selectedTemplate, 
 
 				if (name === undefined || nameBack === undefined)
 					continue
+				
 				// if template has been renamed, delete old entry, make sure to reselect 
 				// current entry after
 				if (name != nameBack) {
 					newState[name] = prevState[nameBack]
 					delete newState[nameBack]
 				}
-
-				// if no changes, skip
-				if (newState[name] == prevState[name])
-					continue
 
 				newState[name] = {
 					"sysPre": template.affixes.sysPre,
