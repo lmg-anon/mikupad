@@ -60,7 +60,7 @@ jobs:
         else
           OLD_COMMIT="${{ steps.last_release.outputs.tag }}"
           NUM_COMMITS="${{ steps.build_ids.outputs.number }}"
-          NEW_COMMITS="$(($NUM_COMMITS - $OLD_COMMIT + 1))"
+          NEW_COMMITS="$(($NUM_COMMITS - $OLD_COMMIT))"
           echo "Generating changelog with $NEW_COMMITS commits starting from $OLD_COMMIT"
           
           # echo changelog
