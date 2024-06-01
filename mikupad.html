@@ -4037,7 +4037,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		const promptText = joinPrompt(leftPromptChunks);
 		const assembledWorldInfo = assembleWorldInfo(promptText);
 		const additionalContextPrompt = assembleAdditionalContext(assembledWorldInfo, promptText);
-		const finalPrompt = assembleFinalPrompt(additionalContextPrompt, templateReplacements);
+		const finalPrompt = replacePlaceholders(additionalContextPrompt, templateReplacements);
 
 		let isReplacing = false;
 		predict(finalPrompt, leftPromptChunks.length, (chunk) => {
