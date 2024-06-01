@@ -3570,36 +3570,24 @@ function replaceNewlines(template) {
 	);
 }
 
-/**
- * Split a string with a RegExp separator an optionally limited number of times.
- * (https://stackoverflow.com/a/64296576)
- * @param {string} input
- * @param {RegExp} separator
- * @param {number} [limit] - If not included, splits the maximum times
- * @returns {[string[], string[]]}
- */
-function split(input, separator, limit) {
-	separator = new RegExp(separator, 'g');
-	limit = limit ?? -1;
-
-	const output = [];
-	const separators = [];
-	let finalIndex = 0;
-
-	while (limit--) {
-		const lastIndex = separator.lastIndex;
-		const search = separator.exec(input);
-		if (search === null) {
-			break;
-		}
-		finalIndex = separator.lastIndex;
-		output.push(input.slice(lastIndex, search.index));
-		separators.push(search[0]);
-	}
-
-	output.push(input.slice(finalIndex));
-
-	return [output, separators];
+function regexSplitString(str, separator, limit) {
+    const result = [];
+    const separators = [];
+    let lastIndex = 0;
+    let match;
+    const regex = new RegExp(separator, 'g');
+    
+    while ((match = regex.exec(str)) !== null) {
+        if (limit !== undefined && result.length >= limit) break;
+        
+        result.push(str.slice(lastIndex, match.index));
+        separators.push(match[0]);
+        lastIndex = match.index + match[0].length;
+    }
+    
+    result.push(str.slice(lastIndex)); // Add the remainder of the string
+    
+    return [result, separators];
 }
 
 function useSessionState(sessionStorage, name, initialState) {
@@ -4097,7 +4085,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			
 			if (chunk.content.includes(fillPlaceholder) || chunk.content.includes(predictPlaceholder)) {
 				// split the chunk in 2
-				let [sides, separators] = split(chunk.content, placeholderRegex, 1);
+				let [sides, separators] = regexSplitString(chunk.content, placeholderRegex, 1);
 				foundFillPlaceholder = separators[0] == fillPlaceholder;
 				foundPredictPlaceholder = separators[0] == predictPlaceholder;
 
@@ -4135,7 +4123,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		} else {
 			promptText = joinPrompt(leftPromptChunks);
 		}
-		
+
 		const assembledWorldInfo = assembleWorldInfo(promptText);
 		const additionalContextPrompt = assembleAdditionalContext(assembledWorldInfo, promptText);
 		const finalPrompt = replacePlaceholders(additionalContextPrompt, templateReplacements);
