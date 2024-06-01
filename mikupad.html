@@ -595,6 +595,9 @@ html.nockoffAI .wi-entry-name input {
 .instructmodal-edits .hbox {
 	margin-top:8px;
 }
+.instructmodal-edits .vbox {
+	margin-top:8px;
+}
 
 
 
@@ -2669,6 +2672,7 @@ function InstructModal({ isOpen, closeModal, templateStorage, selectedTemplate, 
 				"sysSuf": "",
 				"instPre": "",
 				"instSuf": "",
+				"fimTemplate": undefined,
 			}
 			return { ...newState }
 		})
@@ -2748,6 +2752,7 @@ function InstructModal({ isOpen, closeModal, templateStorage, selectedTemplate, 
 					"sysSuf": template.affixes.sysSuf,
 					"instPre": template.affixes.instPre,
 					"instSuf": template.affixes.instSuf,
+					"fimTemplate": template.affixes.fimTemplate,
 				}
 			}
 			return { ...newState }
@@ -2888,7 +2893,7 @@ function InstructModal({ isOpen, closeModal, templateStorage, selectedTemplate, 
 						onInput=${e => handleInstructTemplateChange(selectedTemplate,"instPre",e.target.value)}
 						onValueChange=${() => {}}/>
 
-						<${InputBox} label="Instruct Suffix {/inst}"
+					<${InputBox} label="Instruct Suffix {/inst}"
 						placeholder="[/INST]"
 						className=""
 						tooltip=""
@@ -2908,7 +2913,7 @@ function InstructModal({ isOpen, closeModal, templateStorage, selectedTemplate, 
 						onInput=${e => handleInstructTemplateChange(selectedTemplate,"sysPre",e.target.value)}
 						onValueChange=${() => {}}/>
 
-						<${InputBox} label="System Prompt Suffix {/sys}"
+					<${InputBox} label="System Prompt Suffix {/sys}"
 						placeholder="<</SYS>>\n\n"
 						className=""
 						tooltip=""
@@ -2916,6 +2921,32 @@ function InstructModal({ isOpen, closeModal, templateStorage, selectedTemplate, 
 						value=${getArrObjByName(templateList,selectedTemplate)?.affixes.sysSuf || ""}
 						onInput=${e => handleInstructTemplateChange(selectedTemplate,"sysSuf",e.target.value)}
 						onValueChange=${() => {}}/>
+				</div>
+
+				<div className="hbox">
+					<div className="vbox">
+						<${Checkbox} label="Supports Fill-In-The-Middle"
+									value=${getArrObjByName(templateList,selectedTemplate)?.affixes.fimTemplate !== undefined}
+									onValueChange=${(value) => handleInstructTemplateChange(selectedTemplate,"fimTemplate", value ? '' : undefined)}/>
+						${getArrObjByName(templateList,selectedTemplate)?.affixes.fimTemplate !== undefined && html`
+								<${InputBox} label="Fill-In-The-Middle Template"
+									placeholder="[SUFFIX]{suffix}[PREFIX]{prefix}"
+									className=""
+									tooltip=""
+									readOnly=${!!cancel}
+									value=${getArrObjByName(templateList,selectedTemplate)?.affixes.fimTemplate || ""}
+									onInput=${e => handleInstructTemplateChange(selectedTemplate,"fimTemplate",e.target.value)}
+									onValueChange=${() => {}}/>`}
+					</div>
+					<div id="advancedContextPlaceholders">
+						${getArrObjByName(templateList,selectedTemplate)?.affixes.fimTemplate !== undefined
+							? html`
+								<div>Use the <b>{fill}</b> placeholder to use the Fill-In-The-Middle template and start the prediction from that point.</div>
+								<div><b>{prefix}</b> represents the text before the placeholder, and <b>{suffix}</b> represents the text after it.</div>`
+							: html`
+								<div>This template doesn't have a Fill-In-The-Middle template.</div>
+								<div>You can use the <b>{predict}</b> placeholder to start the prediction from that point, but the model won't be aware of the text after the placeholder.</div>`}
+					</div>
 				</div>
 			</div>
 
@@ -3532,6 +3563,38 @@ function replaceNewlines(template) {
 	);
 }
 
+/**
+ * Split a string with a RegExp separator an optionally limited number of times.
+ * (https://stackoverflow.com/a/64296576)
+ * @param {string} input
+ * @param {RegExp} separator
+ * @param {number} [limit] - If not included, splits the maximum times
+ * @returns {[string[], string[]]}
+ */
+function split(input, separator, limit) {
+	separator = new RegExp(separator, 'g');
+	limit = limit ?? -1;
+
+	const output = [];
+	const separators = [];
+	let finalIndex = 0;
+
+	while (limit--) {
+		const lastIndex = separator.lastIndex;
+		const search = separator.exec(input);
+		if (search === null) {
+			break;
+		}
+		finalIndex = separator.lastIndex;
+		output.push(input.slice(lastIndex, search.index));
+		separators.push(search[0]);
+	}
+
+	output.push(input.slice(finalIndex));
+
+	return [output, separators];
+}
+
 function useSessionState(sessionStorage, name, initialState) {
 	const savedState = useMemo(() => {
 		try {
@@ -4008,20 +4071,30 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	// predicts one {fill} placeholder
 	async function fillPredict() {
 		const fillPlaceholder = "{fill}";
+		const predictPlaceholder = "{predict}";
 
-		let leftPromptChunks = [];
-		let rightPromptChunks = [];
+		let placeholderRegex = predictPlaceholder;
+		if (templates[selectedTemplate]?.fimTemplate !== undefined) {
+			placeholderRegex += `|${fillPlaceholder}`;
+		}
+
+		let leftPromptChunks = undefined;
+		let rightPromptChunks = undefined;
 		let foundFillPlaceholder = false;
+		let foundPredictPlaceholder = false;
 
 		for (let i = 0; i < promptChunks.length; i++) {
 			const chunk = promptChunks[i];
 			if (chunk.type !== 'user')
 				continue;
-			if (chunk.content.includes(fillPlaceholder)) {
+			
+			if (chunk.content.includes(fillPlaceholder) || chunk.content.includes(predictPlaceholder)) {
 				// split the chunk in 2
-				foundFillPlaceholder = true;
+				let [sides, separators] = split(chunk.content, placeholderRegex, 1);
+				foundFillPlaceholder = separators[0] == fillPlaceholder;
+				foundPredictPlaceholder = separators[0] == predictPlaceholder;
 
-				let left = chunk.content.substring(0, chunk.content.indexOf(fillPlaceholder));
+				let left = sides[0];
 				if ((left.at(-2) != ' ' || left.at(-2) != '\t') && left.at(-1) == ' ') {
 					// This is most likely an unintentional mistake by the user.
 					left = left.substring(0, left.length - 1);
@@ -4031,7 +4104,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 					...(left ? [{ type: 'user', content: left }] : [])
 				];
 
-				let right = chunk.content.substring(chunk.content.indexOf(fillPlaceholder) + fillPlaceholder.length);
+				let right = sides[1];
 				rightPromptChunks = [
 					...(right ? [{ type: 'user', content: right }] : []),
 					...promptChunks.slice(i + 1, promptChunks.length - 1),
@@ -4040,10 +4113,21 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			}
 		}
 
-		if (!foundFillPlaceholder)
+		if (!foundFillPlaceholder && !foundPredictPlaceholder)
 			return false;
 
-		const promptText = joinPrompt(leftPromptChunks);
+		let promptText;
+		if (foundFillPlaceholder) {
+			const prefix = joinPrompt(leftPromptChunks);
+			const suffix = joinPrompt(rightPromptChunks);
+
+			promptText = replacePlaceholders(templates[selectedTemplate].fimTemplate, {
+				'{prefix}': prefix,
+				'{suffix}': suffix
+			});
+		} else {
+			promptText = joinPrompt(leftPromptChunks);
+		}
 		const assembledWorldInfo = assembleWorldInfo(promptText);
 		const additionalContextPrompt = assembleAdditionalContext(assembledWorldInfo, promptText);
 		const finalPrompt = replacePlaceholders(additionalContextPrompt, templateReplacements);
@@ -4053,39 +4137,41 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			let stop = false;
 			let omitChunk = false;
 			
-			let wasReplacing = isReplacing;
-			isReplacing = false;
-
-			if (rightPromptChunks[0]) {
-				const trimmedChunk = chunk.content.replace(/^ /, "");
-				if (rightPromptChunks[0].content[0] === chunk.content[0] ||
-					rightPromptChunks[0].content[0] === trimmedChunk[0]
-				) {
-					omitChunk = true;
-					if (chunk.content[0] == ' ' && rightPromptChunks[0].content[0] != ' ') {
-						if (rightPromptChunks[0].type !== 'user')
-							console.warn("Predicted token changed, this shouldn't happen.");
-						rightPromptChunks[0].content = ' ' + rightPromptChunks[0].content;
-					}
-					if (rightPromptChunks[0].type === 'user') {
-						if (rightPromptChunks[0].content.startsWith(chunk.content)) {
-							rightPromptChunks[0].content = rightPromptChunks[0].content.substring(chunk.content.length);
-							if (!rightPromptChunks[0].content)
-								rightPromptChunks.shift();
-							omitChunk = false;
-							isReplacing = true;
-						}
-					}
-					stop = true;
-				}
-			}
-
-			// When replacing, we continue until any mismatch.
-			if (wasReplacing && !isReplacing) {
-				if (rightPromptChunks.length !== 0)
-					return false;
-				// This means that the mismatch was caused by the end of the chunks to be replaced.
+			if (!foundFillPlaceholder) {
+				let wasReplacing = isReplacing;
 				isReplacing = false;
+
+				if (rightPromptChunks[0]) {
+					const trimmedChunk = chunk.content.replace(/^ /, "");
+					if (rightPromptChunks[0].content[0] === chunk.content[0] ||
+						rightPromptChunks[0].content[0] === trimmedChunk[0]
+					) {
+						omitChunk = true;
+						if (chunk.content[0] == ' ' && rightPromptChunks[0].content[0] != ' ') {
+							if (rightPromptChunks[0].type !== 'user')
+								console.warn("Predicted token changed, this shouldn't happen.");
+							rightPromptChunks[0].content = ' ' + rightPromptChunks[0].content;
+						}
+						if (rightPromptChunks[0].type === 'user') {
+							if (rightPromptChunks[0].content.startsWith(chunk.content)) {
+								rightPromptChunks[0].content = rightPromptChunks[0].content.substring(chunk.content.length);
+								if (!rightPromptChunks[0].content)
+									rightPromptChunks.shift();
+								omitChunk = false;
+								isReplacing = true;
+							}
+						}
+						stop = true;
+					}
+				}
+
+				// When replacing, we continue until any mismatch.
+				if (wasReplacing && !isReplacing) {
+					if (rightPromptChunks.length !== 0)
+						return false;
+					// This means that the mismatch was caused by the end of the chunks to be replaced.
+					isReplacing = false;
+				}
 			}
 
 			if (!omitChunk) {
