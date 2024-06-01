@@ -4114,7 +4114,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 				let right = sides[1];
 				rightPromptChunks = [
 					...(right ? [{ type: 'user', content: right }] : []),
-					...promptChunks.slice(i + 1, promptChunks.length - 1),
+					...promptChunks.slice(i + 1, promptChunks.length),
 				];
 				break;
 			}
@@ -4135,62 +4135,19 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		} else {
 			promptText = joinPrompt(leftPromptChunks);
 		}
+		
 		const assembledWorldInfo = assembleWorldInfo(promptText);
 		const additionalContextPrompt = assembleAdditionalContext(assembledWorldInfo, promptText);
 		const finalPrompt = replacePlaceholders(additionalContextPrompt, templateReplacements);
 
-		let isReplacing = false;
 		predict(finalPrompt, leftPromptChunks.length, (chunk) => {
-			let stop = false;
-			let omitChunk = false;
-			
-			if (!foundFillPlaceholder) {
-				let wasReplacing = isReplacing;
-				isReplacing = false;
-
-				if (rightPromptChunks[0]) {
-					const trimmedChunk = chunk.content.replace(/^ /, "");
-					if (rightPromptChunks[0].content[0] === chunk.content[0] ||
-						rightPromptChunks[0].content[0] === trimmedChunk[0]
-					) {
-						omitChunk = true;
-						if (chunk.content[0] == ' ' && rightPromptChunks[0].content[0] != ' ') {
-							if (rightPromptChunks[0].type !== 'user')
-								console.warn("Predicted token changed, this shouldn't happen.");
-							rightPromptChunks[0].content = ' ' + rightPromptChunks[0].content;
-						}
-						if (rightPromptChunks[0].type === 'user') {
-							if (rightPromptChunks[0].content.startsWith(chunk.content)) {
-								rightPromptChunks[0].content = rightPromptChunks[0].content.substring(chunk.content.length);
-								if (!rightPromptChunks[0].content)
-									rightPromptChunks.shift();
-								omitChunk = false;
-								isReplacing = true;
-							}
-						}
-						stop = true;
-					}
-				}
-
-				// When replacing, we continue until any mismatch.
-				if (wasReplacing && !isReplacing) {
-					if (rightPromptChunks.length !== 0)
-						return false;
-					// This means that the mismatch was caused by the end of the chunks to be replaced.
-					isReplacing = false;
-				}
-			}
-
-			if (!omitChunk) {
-				setTokens(t => t + (chunk?.completion_probabilities?.length ?? 1));
-				leftPromptChunks.push(chunk);
-			}
+			leftPromptChunks.push(chunk);
 			setPromptChunks(p => [
 				...leftPromptChunks,
 				...rightPromptChunks
 			]);
-
-			return !stop || isReplacing;
+			setTokens(t => t + (chunk?.completion_probabilities?.length ?? 1));
+			return true;
 		});
 
 		return true;
