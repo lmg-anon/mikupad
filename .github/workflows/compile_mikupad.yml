@@ -1,0 +1,81 @@
+name: Release Mikupad
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        ref: main
+        
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: run compile.sh
+      run: chmod +x compile.sh; ./compile.sh
+
+    - name: Determine Tag and Build Names
+      id: build_ids
+      run: |
+        # use number of commits as build ID
+        
+        BUILD_NUMBER="$(git rev-list --count HEAD)"
+        echo "number=${BUILD_NUMBER}" >> $GITHUB_OUTPUT
+        
+        SHORT_HASH="$(git rev-parse --short=7 HEAD)"
+        echo "buildName=Mikupad #${BUILD_NUMBER} [${SHORT_HASH}]" >> $GITHUB_OUTPUT
+        
+        echo "Build: $BUILD_NUMBER $SHORT_HASH"
+      
+    - name: Get Last Release Tag
+      id: last_release
+      run: |
+        # find previous release to determine how many commits should be displayed in the changelog
+        TAG=$(git tag --list 'release*' --sort=-v:refname | head -n 1)
+        if [ -z "$TAG" ]; then
+          echo "No release tag found"
+          echo "tag=$(echo 'none')" >> $GITHUB_OUTPUT
+        else
+          TAG_NUMBER=$(echo $TAG | sed 's/release//')
+          echo "Found release tag: $TAG"
+          echo "tag=$TAG_NUMBER" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Generate Changelog
+      id: changelog
+      run: |
+        # if no previous release, don't dump the entire history
+        if [ "${{ steps.last_release.outputs.tag }}" = "none" ]; then
+          echo "mikudayo~" > CHANGELOG.txt
+        else
+          OLD_COMMIT="${{ steps.last_release.outputs.tag }}"
+          NUM_COMMITS="${{ steps.build_ids.outputs.number }}"
+          NEW_COMMITS="$(($NUM_COMMITS - $OLD_COMMIT))"
+          echo "Generating changelog with $NEW_COMMITS commits starting from $OLD_COMMIT"
+          
+          # echo changelog
+          echo "Generated $(date +'%Y-%m-%d %T %Z%z')" >> CHANGELOG.txt
+          echo "\`\`\`" >> CHANGELOG.txt
+          echo "$(git log --graph -n $NEW_COMMITS --oneline)" >> CHANGELOG.txt
+          echo "\`\`\`" >> CHANGELOG.txt
+        fi
+
+    - name: Release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: release${{ steps.build_ids.outputs.number }}
+        name: ${{ steps.build_ids.outputs.buildName }}
+        body_path: CHANGELOG.txt 
+        files: mikupad_compiled.html
+        token: ${{ secrets.GITHUB_TOKEN }}
+
