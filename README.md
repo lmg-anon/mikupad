@@ -13,6 +13,8 @@
 * **Prediction Undo/Redo**: It's possible to undo and redo predictions, making it easy to experiment and fine-tune your generated text until it's just right.
 * **Token Probability** *(llamacpp/openai backend)*: When you hover over a token in the generated text, a list will show at most 10 tokens with their probabilities. This information can be a valuable aid in refining your text. Moreover, you can click on another token's probability to restart text generation from that point.
   * If you're using oobabooga, make sure to use an _HF sampler for this feature to function properly.
+* **Logit Bias** *(llamacpp/koboldcpp backend)*: Adjust the likelihood of certain tokens being generated on the fly.
+* **Completion/Chat**: Let your model directly continue your prompt in Completion Mode, or toggle on Chat Mode to have your input be wrapped in user-defined instruct formats.
 * **Themes**: Customize your environment by choosing from a variety of themes.
 
 ## Getting Started
@@ -24,6 +26,7 @@ git clone https://github.com/lmg-anon/mikupad.git
 cd mikupad
 open mikupad.html
 ```
+To use **mikupad** fully offline, run the provided `compile` script or download the pre-compiled `mikupad_compiled.html` file from [Releases](https://github.com/lmg-anon/mikupad/releases/latest).
 
 You can also [try it on GitHub Pages](https://lmg-anon.github.io/mikupad/mikupad.html).
 
