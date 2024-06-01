@@ -293,6 +293,9 @@ html.nockoffAI .wi-textarea {
 	outline: 1px solid var(--color-base-50);
 	outline-offset: 1px;
 }
+#prompt-container #prompt-overlay > .user.erase {
+	background: color-mix(in srgb, #FF0000 10%, transparent);
+}
 
 #probs {
 	position: absolute;
@@ -3611,6 +3614,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	const promptOverlay = useRef();
 	const undoStack = useRef([]);
 	const redoStack = useRef([]);
+	const lastUndoAddTime = useRef();
 	const probsDelayTimer = useRef();
 	const keyState = useRef({});
 	const sessionReconnectTimer = useRef();
@@ -3879,6 +3883,75 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		}));
 	};
 
+	const pushUndoAction = (action, undo) => {
+		// redoStack is now invalid.
+		redoStack.current = [];
+
+		if (undoStack.current.length > 0) {
+			const currentUndo = undoStack.current.at(-1);
+			if (currentUndo.action == 'add' && action == 'remove' &&
+				currentUndo.offset == undo.offset
+			) {
+				if (joinPrompt(currentUndo.chunks) == joinPrompt(undo.chunks)) {
+					undoStack.current.pop();
+				}
+			}
+			else if (currentUndo.action == 'remove' && action == 'add' &&
+				currentUndo.offset == undo.offset
+			) {
+				if (joinPrompt(currentUndo.chunks) == joinPrompt(undo.chunks)) {
+					undoStack.current.pop();
+				}
+			}
+			else if (undo.offset == -1 || !lastUndoAddTime.current || Date.now() - lastUndoAddTime.current <= 350) {
+				// Try to merge undo actions
+				if (currentUndo.action == 'add' && action == 'add' &&
+					(undo.offset == -1 || currentUndo.offset == undo.offset - currentUndo.chunks.length)
+				) {
+					currentUndo.chunks.push(...undo.chunks);
+					lastUndoAddTime.current = Date.now();
+					return;
+				}
+				else if (currentUndo.action == 'remove' && action == 'remove' &&
+					currentUndo.offset == undo.offset + 1
+				) {
+					currentUndo.offset = undo.offset;
+					currentUndo.chunks.unshift(...undo.chunks);
+					lastUndoAddTime.current = Date.now();
+					return;
+				}
+				else if (currentUndo.action == 'change' && action == 'change' &&
+					currentUndo.offset == undo.offset
+				) {
+					currentUndo.newChunk = undo.newChunk;
+					lastUndoAddTime.current = Date.now();
+					return;
+				}
+			}
+		}
+
+		undoStack.current.push({ ...undo, action });
+		lastUndoAddTime.current = Date.now();
+	}
+
+	const addPromptChunk = (chunk, offset = -1) => {
+		pushUndoAction('add', { offset, chunks: [chunk] });
+		setPromptChunks(p => {
+			offset = offset === -1 ? p.length : offset;
+			return [...p.slice(0, offset), chunk, ...p.slice(offset, p.length)];
+		});
+	};
+
+	const changePromptChunk = (offset, newChunk) => {
+		pushUndoAction('change', { offset, oldChunk: promptChunks[offset], newChunk });
+		setPromptChunks(p => [...p.slice(0, offset), newChunk, ...p.slice(offset + 1, p.length)]);
+	};
+
+	const removePromptChunks = (start, end) => {
+		pushUndoAction('remove', { offset: start, chunks: promptChunks.slice(start, end) });
+		setPromptChunks(p => [...p.slice(0, start), ...p.slice(end, p.length)]);
+	};
+
 
 	const promptText = useMemo(() => joinPrompt(promptChunks), [promptChunks]);
 
@@ -4040,6 +4113,10 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			setTokens(tokenCount);
 			setPredictStartTokens(tokenCount);
 
+			if (!restartedPredict)
+				undoStack.current.push({ action: 'add', offset: chunkCount, chunks: [] });
+			redoStack.current = [];
+
 			// Chat Mode
 			if (chatMode && !restartedPredict && templates[selectedTemplate]) {
 				// add user EOT template (instruct suffix) if not switch completion
@@ -4047,16 +4124,12 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 				const instSufIndex = instSuf ? prompt.lastIndexOf(instSuf) : -1;
 				const instPreIndex = instPre ? prompt.lastIndexOf(instPre) : -1;
 				if (instSufIndex <= instPreIndex) {
-					setPromptChunks(p => [...p, { type: 'user', content: instSuf }])
+					addPromptChunk({ type: 'user', content: instSuf });
 					prompt += instSuf;
 				}
 			}
 			setRestartedPredict(false)
 
-			while (undoStack.current.at(-1) >= chunkCount)
-				undoStack.current.pop();
-			undoStack.current.push(chunkCount);
-			redoStack.current = [];
 			setUndoHovered(false);
 			setRejectedAPIKey(false);
 			promptArea.current.scrollTarget = undefined;
@@ -4109,9 +4182,8 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 					chunk.content = chunk.stopping_word;
 				if (!chunk.content)
 					continue;
-				setPromptChunks(p => [...p, chunk]);
+				addPromptChunk(chunk);
 				setTokens(t => t + (chunk?.completion_probabilities?.length ?? 1));
-				chunkCount += 1;
 			}
 		} catch (e) {
 			if (e.name !== 'AbortError') {
@@ -4129,31 +4201,45 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			return false;
 		} finally {
 			setCancel(c => c === cancelThis ? null : c);
-			if (undoStack.current.at(-1) === chunkCount)
+			if (undoStack.current.at(-1).chunks.length === 0)
 				undoStack.current.pop();
 		}
 		// Chat Mode
 		if (chatMode) {
 			// add bot EOT template (instruct prefix)
-			const eotBot = templates[selectedTemplate]?.instPre.replace(/\\n/g, '\n')
-			setPromptChunks(p => [...p, { type: 'user', content: eotBot }])
-			prompt += `${eotBot}`
+			const eotBot = templates[selectedTemplate]?.instPre.replace(/\\n/g, '\n');
+			addPromptChunk({ type: 'user', content: eotBot });
+			prompt += eotBot;
 		}
 	}
 
 	function undo() {
 		if (!undoStack.current.length)
 			return false;
-		redoStack.current.push(promptChunks.slice(undoStack.current.at(-1)));
-		setPromptChunks(p => p.slice(0, undoStack.current.pop()));
+		const currentUndo = undoStack.current.pop();
+		if (currentUndo.action === 'add') {
+			setPromptChunks(p => [...p.slice(0, currentUndo.offset), ...p.slice(currentUndo.offset + currentUndo.chunks.length, p.length)]);
+		} else if (currentUndo.action === 'remove') {
+			setPromptChunks(p => [...p.slice(0, currentUndo.offset), ...currentUndo.chunks, ...p.slice(currentUndo.offset, p.length)]);
+		} else if (currentUndo.action === 'change') {
+			setPromptChunks(p => [...p.slice(0, currentUndo.offset), currentUndo.oldChunk, ...p.slice(currentUndo.offset + 1, p.length)]);
+		}
+		redoStack.current.push(currentUndo);
 		return true;
 	}
 
 	function redo() {
 		if (!redoStack.current.length)
 			return false;
-		undoStack.current.push(promptChunks.length);
-		setPromptChunks(p => [...p, ...redoStack.current.pop()]);
+		const currentRedo = redoStack.current.pop();
+		if (currentRedo.action === 'add') {
+			setPromptChunks(p => [...p.slice(0, currentRedo.offset), ...currentRedo.chunks, ...p.slice(currentRedo.offset, p.length)]);
+		} else if (currentRedo.action === 'remove') {
+			setPromptChunks(p => [...p.slice(0, currentRedo.offset), ...p.slice(currentRedo.offset + currentRedo.chunks.length, p.length)]);
+		} else if (currentRedo.action === 'change') {
+			setPromptChunks(p => [...p.slice(0, currentRedo.offset), currentRedo.newChunk, ...p.slice(currentRedo.offset + 1, p.length)]);
+		}
+		undoStack.current.push(currentRedo);
 		setUndoHovered(false);
 		return true;
 	}
@@ -4487,56 +4573,39 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		};
 	}, []);
 
-	function onInput({ target }) {
-		setPromptChunks(oldPrompt => {
-			const start = [];
-			const end = [];
-			const oldPromptLength = oldPrompt.length;
-			oldPrompt = [...oldPrompt];
-			let newValue = target.value;
+	function onInput({ target }) {		
+		const start = [];
+		const end = [];
+		const oldPromptLength = promptChunks.length;
+		let oldPrompt = [...promptChunks];
+		let newValue = target.value;
 
-			while (oldPrompt.length) {
-				const chunk = oldPrompt[0];
-				if (!newValue.startsWith(chunk.content))
-					break;
-				oldPrompt.shift();
-				start.push(chunk);
-				newValue = newValue.slice(chunk.content.length);
-			}
+		while (oldPrompt.length) {
+			const chunk = oldPrompt[0];
+			if (!newValue.startsWith(chunk.content))
+				break;
+			oldPrompt.shift();
+			start.push(chunk);
+			newValue = newValue.slice(chunk.content.length);
+		}
 
-			while (oldPrompt.length) {
-				const chunk = oldPrompt.at(-1);
-				if (!newValue.endsWith(chunk.content))
-					break;
-				oldPrompt.pop();
-				end.unshift(chunk);
-				newValue = newValue.slice(0, -chunk.content.length);
-			}
+		while (oldPrompt.length) {
+			const chunk = oldPrompt.at(-1);
+			if (!newValue.endsWith(chunk.content))
+				break;
+			oldPrompt.pop();
+			end.unshift(chunk);
+			newValue = newValue.slice(0, -chunk.content.length);
+		}
 
-			// Remove all undo positions within the modified range.
-			undoStack.current = undoStack.current.filter(pos => start.length < pos);
-			if (!undoStack.current.length)
-				setUndoHovered(false);
-
-			// Update all undo positions.
-			if (start.length + end.length + (+!!newValue) !== oldPromptLength) {
-				// Reset redo stack if a new chunk is added/removed at the end.
-				if (!end.length)
-					redoStack.current = [];
-
-				if (!oldPrompt.length)
-					undoStack.current = undoStack.current.map(pos => pos + 1);
-				else
-					undoStack.current = undoStack.current.map(pos => pos - oldPrompt.length);
-			}
-
-			const newPrompt = [
-				...start,
-				...(newValue ? [{ type: 'user', content: newValue }] : []),
-				...end,
-			];
-			return newPrompt;
-		});
+		if (oldPrompt.length == 1 && newValue) {
+			changePromptChunk(start.length, { type: 'user', content: newValue });
+		} else {
+			if (oldPrompt.length != 0)
+				removePromptChunks(start.length, start.length + oldPrompt.length);
+			if (newValue)
+				addPromptChunk({ type: 'user', content: newValue }, start.length);
+		}
 	}
 
 	function onScroll({ target }) {
@@ -4602,14 +4671,9 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	}
 
 	async function switchCompletion(i, tok) {
-		const newPrompt = [
-			...promptChunks.slice(0, i),
-			{
-				...promptChunks[i],
-				content: tok,
-			},
-		];
-		setPromptChunks(newPrompt);
+		removePromptChunks(i, promptChunks.length);
+		undoStack.current.push({ action: 'add', offset: i, chunks: [] });
+		addPromptChunk({ ...promptChunks[i], content: tok });
 		setTriggerPredict(true);
 		setRestartedPredict(true);
 	}
@@ -4721,7 +4785,8 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 				${highlightGenTokens || showProbsMode !== -1 ? html`
 					${promptChunks.map((chunk, i) => {
 						const isCurrent = currentPromptChunk && currentPromptChunk.index === i;
-						const isNextUndo = undoHovered && !!undoStack.current.length && undoStack.current.at(-1) <= i;
+						const nextUndo = undoStack.current.at(-1);
+						const isNextUndo = undoHovered && nextUndo && nextUndo.action === 'add' && i >= nextUndo.offset && i < nextUndo.offset + nextUndo.chunks.length;
 						return html`
 							<span
 								key=${i}
@@ -4999,7 +5064,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 				<div className="shorts">
 					<button
 						title="Regenerate (Ctrl + R)"
-						disabled=${!undoStack.current.length}
+						disabled=${!undoStack.current.length || undoStack.current.at(-1)?.action !== 'add' || undoStack.current.at(-1)?.chunks.at(undoStack.current.at(-1)?.chunks.length > 1 ? -2 : -1)?.type === 'user'}
 						onClick=${() => undoAndPredict()}
 						onMouseEnter=${() => setUndoHovered(true)}
 						onMouseLeave=${() => setUndoHovered(false)}>
@@ -5010,7 +5075,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 				<div className="shorts">
 					<button
 						title="Undo (Ctrl + Z)"
-						disabled=${!!cancel || !undoStack.current.length}
+						disabled=${!!cancel || !undoStack.current.length || undoStack.current.at(-1)?.action !== 'add'}
 						onClick=${() => undo()}
 						onMouseEnter=${() => setUndoHovered(true)}
 						onMouseLeave=${() => setUndoHovered(false)}>
