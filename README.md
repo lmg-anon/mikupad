@@ -25,6 +25,8 @@ cd mikupad
 open mikupad.html
 ```
 
+Then compile mikupad yourself with the provided `compile` scripts or download the pre-compiled `mikupad_compiled.html` file from [Releases](https://github.com/lmg-anon/mikupad/releases/latest) to use mikupad fully offline.
+
 You can also [try it on GitHub Pages](https://lmg-anon.github.io/mikupad/mikupad.html).
 
 ## Contributing
