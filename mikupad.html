@@ -595,6 +595,9 @@ html.nockoffAI .wi-entry-name input {
 .instructmodal-edits .hbox {
 	margin-top:8px;
 }
+.instructmodal-edits .vbox {
+	margin-top:8px;
+}
 
 
 
@@ -2073,7 +2076,7 @@ function AuthorNoteModal({ isOpen, closeModal, authorNoteTokens, handleauthorNot
 			</${Modal}>`;
 }
 
-function ContextModal({ isOpen, closeModal, tokens, memoryTokens, authorNoteTokens, handleMemoryTokensChange, modifiedPrompt, defaultPresets, cancel }) {
+function ContextModal({ isOpen, closeModal, tokens, memoryTokens, authorNoteTokens, handleMemoryTokensChange, finalPromptText, defaultPresets, cancel }) {
 	return html`
 		<${Modal} isOpen=${isOpen} onClose=${closeModal}
 			title="Context"
@@ -2152,7 +2155,7 @@ function ContextModal({ isOpen, closeModal, tokens, memoryTokens, authorNoteToke
 			</${CollapsibleGroup}>
 			<textarea
 				readOnly=${!!cancel}
-				value=${modifiedPrompt}
+				value=${finalPromptText}
 				class="expanded-text-area-settings"
 				id="context-area-settings" readOnly/>
 		</${Modal}>`;
@@ -2669,6 +2672,7 @@ function InstructModal({ isOpen, closeModal, templateStorage, selectedTemplate, 
 				"sysSuf": "",
 				"instPre": "",
 				"instSuf": "",
+				"fimTemplate": undefined,
 			}
 			return { ...newState }
 		})
@@ -2748,6 +2752,7 @@ function InstructModal({ isOpen, closeModal, templateStorage, selectedTemplate, 
 					"sysSuf": template.affixes.sysSuf,
 					"instPre": template.affixes.instPre,
 					"instSuf": template.affixes.instSuf,
+					"fimTemplate": template.affixes.fimTemplate,
 				}
 			}
 			return { ...newState }
@@ -2888,7 +2893,7 @@ function InstructModal({ isOpen, closeModal, templateStorage, selectedTemplate, 
 						onInput=${e => handleInstructTemplateChange(selectedTemplate,"instPre",e.target.value)}
 						onValueChange=${() => {}}/>
 
-						<${InputBox} label="Instruct Suffix {/inst}"
+					<${InputBox} label="Instruct Suffix {/inst}"
 						placeholder="[/INST]"
 						className=""
 						tooltip=""
@@ -2908,7 +2913,7 @@ function InstructModal({ isOpen, closeModal, templateStorage, selectedTemplate, 
 						onInput=${e => handleInstructTemplateChange(selectedTemplate,"sysPre",e.target.value)}
 						onValueChange=${() => {}}/>
 
-						<${InputBox} label="System Prompt Suffix {/sys}"
+					<${InputBox} label="System Prompt Suffix {/sys}"
 						placeholder="<</SYS>>\n\n"
 						className=""
 						tooltip=""
@@ -2916,6 +2921,32 @@ function InstructModal({ isOpen, closeModal, templateStorage, selectedTemplate, 
 						value=${getArrObjByName(templateList,selectedTemplate)?.affixes.sysSuf || ""}
 						onInput=${e => handleInstructTemplateChange(selectedTemplate,"sysSuf",e.target.value)}
 						onValueChange=${() => {}}/>
+				</div>
+
+				<div className="hbox">
+					<div className="vbox">
+						<${Checkbox} label="Supports Fill-In-The-Middle"
+									value=${getArrObjByName(templateList,selectedTemplate)?.affixes.fimTemplate !== undefined}
+									onValueChange=${(value) => handleInstructTemplateChange(selectedTemplate,"fimTemplate", value ? '' : undefined)}/>
+						${getArrObjByName(templateList,selectedTemplate)?.affixes.fimTemplate !== undefined && html`
+								<${InputBox} label="Fill-In-The-Middle Template"
+									placeholder="[SUFFIX]{suffix}[PREFIX]{prefix}"
+									className=""
+									tooltip=""
+									readOnly=${!!cancel}
+									value=${getArrObjByName(templateList,selectedTemplate)?.affixes.fimTemplate || ""}
+									onInput=${e => handleInstructTemplateChange(selectedTemplate,"fimTemplate",e.target.value)}
+									onValueChange=${() => {}}/>`}
+					</div>
+					<div id="advancedContextPlaceholders">
+						${getArrObjByName(templateList,selectedTemplate)?.affixes.fimTemplate !== undefined
+							? html`
+								<div>Use the <b>{fill}</b> placeholder to seamlessly apply the Fill-In-The-Middle template and start the prediction from that point.</div>
+								<div><b>{prefix}</b> represents the text before the placeholder, and <b>{suffix}</b> represents the text after it.</div>`
+							: html`
+								<div>This template doesn't have a Fill-In-The-Middle template.</div>
+								<div>You can use the <b>{predict}</b> placeholder to start the prediction from that point, but the model won't be aware of the text after the placeholder.</div>`}
+					</div>
 				</div>
 			</div>
 
@@ -3457,6 +3488,13 @@ const defaultPresets = {
 			'instPre': '[INST]',
 			'instSuf': '[/INST]',
 		},
+		'Codestral': {
+			'sysPre' : '<<SYS>>\\n',
+			'sysSuf' : '<</SYS>>\\n\\n',
+			'instPre': '[INST]',
+			'instSuf': '[/INST]',
+			'fimTemplate': '[SUFFIX]{suffix}[PREFIX]{prefix}'
+		},
 		'ChatML': {
 			'sysPre' : '<|im_start|>system\\n',
 			'sysSuf' : '',
@@ -3530,6 +3568,26 @@ function replaceNewlines(template) {
 	return Object.fromEntries(
 		Object.entries(template).map(([key, value]) => [key, value.replaceAll("\\n", "\n")])
 	);
+}
+
+function regexSplitString(str, separator, limit) {
+    const result = [];
+    const separators = [];
+    let lastIndex = 0;
+    let match;
+    const regex = new RegExp(separator, 'g');
+    
+    while ((match = regex.exec(str)) !== null) {
+        if (limit !== undefined && result.length >= limit) break;
+        
+        result.push(str.slice(lastIndex, match.index));
+        separators.push(match[0]);
+        lastIndex = match.index + match[0].length;
+    }
+    
+    result.push(str.slice(lastIndex)); // Add the remainder of the string
+    
+    return [result, separators];
 }
 
 function useSessionState(sessionStorage, name, initialState) {
@@ -3882,6 +3940,78 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 
 	const promptText = useMemo(() => joinPrompt(promptChunks), [promptChunks]);
 
+	const { modifiedPromptText, fimPromptInfo } = useMemo(() => {
+		if (cancel)
+			return { modifiedPromptText: promptText };
+
+		const fillPlaceholder = "{fill}";
+		const predictPlaceholder = "{predict}";
+
+		let placeholderRegex = predictPlaceholder;
+		if (templates[selectedTemplate]?.fimTemplate !== undefined && templates[selectedTemplate]?.fimTemplate.length > 0)
+			placeholderRegex += `|${fillPlaceholder}`;
+
+		let leftPromptChunks = undefined;
+		let rightPromptChunks = undefined;
+		let foundPlaceholder = undefined;
+
+		for (let i = 0; i < promptChunks.length; i++) {
+			const chunk = promptChunks[i];
+			if (chunk.type !== 'user')
+				continue;
+			
+			if (chunk.content.includes(fillPlaceholder) || chunk.content.includes(predictPlaceholder)) {
+				// split the chunk in 2
+				let [sides, separators] = regexSplitString(chunk.content, placeholderRegex, 1);
+				foundPlaceholder = separators[0];
+
+				let left = sides[0];
+				if ((left.at(-2) != ' ' || left.at(-2) != '\t') && left.at(-1) == ' ') {
+					// This is most likely an unintentional mistake by the user.
+					left = left.substring(0, left.length - 1);
+				}
+				leftPromptChunks = [
+					...promptChunks.slice(0, i),
+					...(left ? [{ type: 'user', content: left }] : [])
+				];
+
+				let right = sides[1];
+				rightPromptChunks = [
+					...(right ? [{ type: 'user', content: right }] : []),
+					...promptChunks.slice(i + 1, promptChunks.length),
+				];
+				break;
+			}
+		}
+
+		if (foundPlaceholder === undefined)
+			return { modifiedPromptText: promptText };
+
+		let modifiedPromptText;
+		if (foundPlaceholder == '{fill}') {
+			const prefix = joinPrompt(leftPromptChunks);
+			const suffix = joinPrompt(rightPromptChunks);
+
+			modifiedPromptText = replacePlaceholders(templates[selectedTemplate].fimTemplate, {
+				'{prefix}': prefix,
+				'{suffix}': suffix
+			});
+		} else {
+			modifiedPromptText = joinPrompt(leftPromptChunks);
+		}
+
+		const fimPromptInfo = {
+			fimLeftChunks: leftPromptChunks,
+			fimRightChunks: rightPromptChunks,
+			fimPlaceholder: foundPlaceholder
+		};
+
+		return {
+			modifiedPromptText,
+			fimPromptInfo
+		};
+	}, [promptChunks, templates, selectedTemplate]);
+
 	// compute separately as I imagine this can get expensive
 	const assembledWorldInfo = useMemo(() => {
 		// assemble non-empty wi
@@ -3897,7 +4027,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 				: Number(entry.search);
 
 			// truncate to search range. using promptText allows for search ranges larger than context
-			const searchPrompt = promptText.substring(promptText.length - searchRange * defaultPresets.tokenRatio);
+			const searchPrompt = modifiedPromptText.substring(modifiedPromptText.length - searchRange * defaultPresets.tokenRatio);
 
 			// search in range
 			return entry.keys.some((key, index) => {
@@ -3918,12 +4048,10 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			});
 		});
 
-		const assembledWorldInfo = activeWorldInfo.length > 0
+		return activeWorldInfo.length > 0
 			? activeWorldInfo.map(entry => entry.text).join("\n")
 			: "";
-
-		return assembledWorldInfo
-	}, [worldInfo]);
+	}, [modifiedPromptText, worldInfo]);
 
 	const additionalContextPrompt = useMemo(() => {
 		// add world info to memory for easier assembly
@@ -3936,19 +4064,19 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 
 		// replacements for the contextOrder string
 		const contextReplacements = {
-			"{wiPrefix}": memoryTokens.worldInfo && memoryTokens.worldInfo !== ""
+			"{wiPrefix}": assembledWorldInfo && assembledWorldInfo !== ""
 				? worldInfo.prefix
 				: "", // wi prefix and suffix will be added whenever wi isn't empty
-			"{wiText}": memoryTokens.worldInfo,
-			"{wiSuffix}": memoryTokens.worldInfo && memoryTokens.worldInfo !== ""
+			"{wiText}": assembledWorldInfo,
+			"{wiSuffix}": assembledWorldInfo && assembledWorldInfo !== ""
 				? worldInfo.suffix
 				: "",
 
-			"{memPrefix}": memoryTokens.text && memoryTokens.text !== "" || memoryTokens.worldInfo !== ""
+			"{memPrefix}": memoryTokens.text && memoryTokens.text !== "" || assembledWorldInfo !== ""
 				? memoryTokens.prefix
 				: "", // memory prefix and suffix will be added whenever memory or wi aren't empty
 			"{memText}": memoryTokens.text,
-			"{memSuffix}": memoryTokens.text && memoryTokens.text !== "" || memoryTokens.worldInfo !== ""
+			"{memSuffix}": memoryTokens.text && memoryTokens.text !== "" || assembledWorldInfo !== ""
 				? memoryTokens.suffix
 				: "",
 		}
@@ -3957,10 +4085,10 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		const additionalContext = (Object.values(contextReplacements)
 			.filter(value => typeof value === 'string').join('')).length;
 		const estimatedContextStart = Math.round(
-			promptText.length - contextLength * defaultPresets.tokenRatio + additionalContext) + 1;
+			modifiedPromptText.length - contextLength * defaultPresets.tokenRatio + additionalContext) + 1;
 
 		// trunkate prompt to context limit
-		const truncPrompt = promptText.substring(estimatedContextStart);
+		const truncPrompt = modifiedPromptText.substring(estimatedContextStart);
 
 		// make injection depth valid
 		const truncPromptLen = truncPrompt.split('\n').length;
@@ -3993,13 +4121,32 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		}).join("\n").replace(/\\n/g, '\n');
 
 		return permContextPrompt;
-	}, [contextLength, promptText, memoryTokens, authorNoteTokens, authorNoteDepth, assembledWorldInfo, worldInfo.prefix, worldInfo.suffix]);
+	}, [contextLength, modifiedPromptText, memoryTokens, authorNoteTokens, authorNoteDepth, assembledWorldInfo, worldInfo.prefix, worldInfo.suffix]);
 
-	const modifiedPrompt = useMemo(() => {
-		return replacePlaceholders(additionalContextPrompt,templateReplacements);
+	const finalPromptText = useMemo(() => {
+		return replacePlaceholders(additionalContextPrompt, templateReplacements);
 	}, [additionalContextPrompt, templates, selectedTemplate]);
 
-	async function predict(prompt = modifiedPrompt, chunkCount = promptChunks.length) {
+	// predicts one {fill} placeholder
+	async function fillPredict() {
+		if (fimPromptInfo === undefined)
+			return false;
+
+		const { fimLeftChunks, fimRightChunks } = fimPromptInfo;
+		predict(finalPromptText, fimLeftChunks.length, (chunk) => {
+			fimLeftChunks.push(chunk);
+			setPromptChunks(p => [
+				...fimLeftChunks,
+				...fimRightChunks
+			]);
+			setTokens(t => t + (chunk?.completion_probabilities?.length ?? 1));
+			return true;
+		});
+
+		return true;
+	}
+
+	async function predict(prompt = finalPromptText, chunkCount = promptChunks.length, callback = undefined) {
 		if (cancel) {
 			cancel?.();
 
@@ -4009,8 +4156,12 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			setCancel(() => () => cancelled = true);
 			await new Promise(resolve => setTimeout(resolve, 500));
 			if (cancelled)
-				return;
+				return false;
 		}
+
+		// predict the fill placeholder if it is present in the prompt.
+		if (!callback && !restartedPredict && await fillPredict())
+			return true;
 
 		const ac = new AbortController();
 		const cancelThis = () => {
@@ -4029,33 +4180,37 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			// so let's set the predictStartTokens beforehand.
 			setPredictStartTokens(tokens);
 
-			const tokenCount = await getTokenCount({
-				endpoint,
-				endpointAPI,
-				...(endpointAPI == 3 || endpointAPI == 0 ? { endpointAPIKey } : {}),
-				content: prompt,
-				signal: ac.signal,
-				...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {})
-			});
-			setTokens(tokenCount);
-			setPredictStartTokens(tokenCount);
+			if (!callback) {
+				const tokenCount = await getTokenCount({
+					endpoint,
+					endpointAPI,
+					...(endpointAPI == 3 || endpointAPI == 0 ? { endpointAPIKey } : {}),
+					content: prompt,
+					signal: ac.signal,
+					...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {})
+				});
+				setTokens(tokenCount);
+				setPredictStartTokens(tokenCount);
 
-			// Chat Mode
-			if (chatMode && !restartedPredict && templates[selectedTemplate]) {
-				// add user EOT template (instruct suffix) if not switch completion
-				const { instSuf, instPre } = replaceNewlines(templates[selectedTemplate]);
-				const instSufIndex = instSuf ? prompt.lastIndexOf(instSuf) : -1;
-				const instPreIndex = instPre ? prompt.lastIndexOf(instPre) : -1;
-				if (instSufIndex <= instPreIndex) {
-					setPromptChunks(p => [...p, { type: 'user', content: instSuf }])
-					prompt += instSuf;
+				// Chat Mode
+				if (chatMode && !restartedPredict && templates[selectedTemplate]) {
+					// add user EOT template (instruct suffix) if not switch completion
+					const { instSuf, instPre } = replaceNewlines(templates[selectedTemplate]);
+					const instSufIndex = instSuf ? prompt.lastIndexOf(instSuf) : -1;
+					const instPreIndex = instPre ? prompt.lastIndexOf(instPre) : -1;
+					if (instSufIndex <= instPreIndex) {
+						setPromptChunks(p => [...p, { type: 'user', content: instSuf }])
+						prompt += instSuf;
+					}
 				}
-			}
-			setRestartedPredict(false)
+				setRestartedPredict(false)
 
-			while (undoStack.current.at(-1) >= chunkCount)
-				undoStack.current.pop();
-			undoStack.current.push(chunkCount);
+				while (undoStack.current.at(-1) >= chunkCount)
+					undoStack.current.pop();
+				undoStack.current.push(chunkCount);
+			} else {
+				undoStack.current = [];
+			}
 			redoStack.current = [];
 			setUndoHovered(false);
 			setRejectedAPIKey(false);
@@ -4109,8 +4264,13 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 					chunk.content = chunk.stopping_word;
 				if (!chunk.content)
 					continue;
-				setPromptChunks(p => [...p, chunk]);
-				setTokens(t => t + (chunk?.completion_probabilities?.length ?? 1));
+				if (callback) {
+					if (!callback(chunk))
+						break;
+				} else {
+					setPromptChunks(p => [...p, chunk]);
+					setTokens(t => t + (chunk?.completion_probabilities?.length ?? 1));
+				}
 				chunkCount += 1;
 			}
 		} catch (e) {
@@ -4129,16 +4289,21 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			return false;
 		} finally {
 			setCancel(c => c === cancelThis ? null : c);
-			if (undoStack.current.at(-1) === chunkCount)
-				undoStack.current.pop();
+			if (!callback) {
+				if (undoStack.current.at(-1) === chunkCount)
+					undoStack.current.pop();
+			}
 		}
+
 		// Chat Mode
-		if (chatMode) {
+		if (!callback && chatMode) {
 			// add bot EOT template (instruct prefix)
 			const eotBot = templates[selectedTemplate]?.instPre.replace(/\\n/g, '\n')
 			setPromptChunks(p => [...p, { type: 'user', content: eotBot }])
 			prompt += `${eotBot}`
 		}
+		
+		return true;
 	}
 
 	function undo() {
@@ -4315,7 +4480,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 					endpoint,
 					endpointAPI,
 					...(endpointAPI == 3 || endpointAPI == 0 ? { endpointAPIKey } : {}),
-					content: modifiedPrompt,
+					content: finalPromptText,
 					signal: ac.signal,
 					...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {})
 				});
@@ -4513,28 +4678,50 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 				newValue = newValue.slice(0, -chunk.content.length);
 			}
 
+			// Merge chunks if they're from the user
+			let mergeUserChunks = (chunks, newContent) => {
+				let lastChunk = chunks[chunks.length - 1];
+				while (lastChunk && lastChunk.type === 'user') {
+					lastChunk.content += newContent;
+					if (chunks[chunks.length - 2] && chunks[chunks.length - 2].type === 'user') {
+						newContent = lastChunk.content;
+						lastChunk = chunks[chunks.length - 2];
+						chunks.splice(chunks.length - 1, 1);
+					} else {
+						return chunks;
+					}
+				}
+				return [...chunks, { type: 'user', content: newContent }];
+			};
+
+			let newPrompt = [...start];
+			if (newValue) {
+				newPrompt = mergeUserChunks(newPrompt, newValue);
+			}
+			if (end.length && end[0].type === 'user') {
+				newPrompt = mergeUserChunks(newPrompt, end.shift().content);
+			}
+			newPrompt.push(...end);
+
 			// Remove all undo positions within the modified range.
-			undoStack.current = undoStack.current.filter(pos => start.length < pos);
+			undoStack.current = undoStack.current.filter(pos => pos > start.length && pos < newPrompt.length);
 			if (!undoStack.current.length)
 				setUndoHovered(false);
 
-			// Update all undo positions.
-			if (start.length + end.length + (+!!newValue) !== oldPromptLength) {
-				// Reset redo stack if a new chunk is added/removed at the end.
-				if (!end.length)
-					redoStack.current = [];
+			// Adjust undo/redo stacks.
+			const chunkDifference = oldPromptLength - newPrompt.length;
+			undoStack.current = undoStack.current.map(pos => {
+				if (pos >= start.length) {
+					return pos - chunkDifference;
+				}
+				return pos;
+			});
 
-				if (!oldPrompt.length)
-					undoStack.current = undoStack.current.map(pos => pos + 1);
-				else
-					undoStack.current = undoStack.current.map(pos => pos - oldPrompt.length);
+			// Reset redo stack if a new chunk is added/removed at the end.
+			if (chunkDifference < 0 && !end.length) {
+				redoStack.current = [];
 			}
 
-			const newPrompt = [
-				...start,
-				...(newValue ? [{ type: 'user', content: newValue }] : []),
-				...end,
-			];
 			return newPrompt;
 		});
 	}
@@ -4602,6 +4789,12 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	}
 
 	async function switchCompletion(i, tok) {
+		const remainingPrompt = promptChunks.slice(i);
+		if (remainingPrompt.some((chunk) => chunk.type === 'user')) {
+			// disallow switching tokens in FIM.
+			return;
+		}
+
 		const newPrompt = [
 			...promptChunks.slice(0, i),
 			{
@@ -5089,7 +5282,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			memoryTokens=${memoryTokens}
 			authorNoteTokens=${authorNoteTokens}
 			handleMemoryTokensChange=${handleMemoryTokensChange}
-			modifiedPrompt=${modifiedPrompt}
+			finalPromptText=${finalPromptText}
 			defaultPresets=${defaultPresets}
 			cancel=${cancel}/>
 
