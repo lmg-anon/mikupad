@@ -2076,7 +2076,7 @@ function AuthorNoteModal({ isOpen, closeModal, authorNoteTokens, handleauthorNot
 			</${Modal}>`;
 }
 
-function ContextModal({ isOpen, closeModal, tokens, memoryTokens, authorNoteTokens, handleMemoryTokensChange, modifiedPrompt, defaultPresets, cancel }) {
+function ContextModal({ isOpen, closeModal, tokens, memoryTokens, authorNoteTokens, handleMemoryTokensChange, finalPromptText, defaultPresets, cancel }) {
 	return html`
 		<${Modal} isOpen=${isOpen} onClose=${closeModal}
 			title="Context"
@@ -2155,7 +2155,7 @@ function ContextModal({ isOpen, closeModal, tokens, memoryTokens, authorNoteToke
 			</${CollapsibleGroup}>
 			<textarea
 				readOnly=${!!cancel}
-				value=${modifiedPrompt}
+				value=${finalPromptText}
 				class="expanded-text-area-settings"
 				id="context-area-settings" readOnly/>
 		</${Modal}>`;
@@ -4123,7 +4123,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		return permContextPrompt;
 	}, [contextLength, modifiedPromptText, memoryTokens, authorNoteTokens, authorNoteDepth, assembledWorldInfo, worldInfo.prefix, worldInfo.suffix]);
 
-	const modifiedPrompt = useMemo(() => {
+	const finalPromptText = useMemo(() => {
 		return replacePlaceholders(additionalContextPrompt, templateReplacements);
 	}, [additionalContextPrompt, templates, selectedTemplate]);
 
@@ -4133,7 +4133,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			return false;
 
 		const { fimLeftChunks, fimRightChunks } = fimPromptInfo;
-		predict(modifiedPrompt, fimLeftChunks.length, (chunk) => {
+		predict(finalPromptText, fimLeftChunks.length, (chunk) => {
 			fimLeftChunks.push(chunk);
 			setPromptChunks(p => [
 				...fimLeftChunks,
@@ -4146,7 +4146,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		return true;
 	}
 
-	async function predict(prompt = modifiedPrompt, chunkCount = promptChunks.length, callback = undefined) {
+	async function predict(prompt = finalPromptText, chunkCount = promptChunks.length, callback = undefined) {
 		if (cancel) {
 			cancel?.();
 
@@ -4480,7 +4480,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 					endpoint,
 					endpointAPI,
 					...(endpointAPI == 3 || endpointAPI == 0 ? { endpointAPIKey } : {}),
-					content: modifiedPrompt,
+					content: finalPromptText,
 					signal: ac.signal,
 					...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {})
 				});
@@ -5276,7 +5276,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			memoryTokens=${memoryTokens}
 			authorNoteTokens=${authorNoteTokens}
 			handleMemoryTokensChange=${handleMemoryTokensChange}
-			modifiedPrompt=${modifiedPrompt}
+			finalPromptText=${finalPromptText}
 			defaultPresets=${defaultPresets}
 			cancel=${cancel}/>
 
