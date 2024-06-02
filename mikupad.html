@@ -2076,7 +2076,7 @@ function AuthorNoteModal({ isOpen, closeModal, authorNoteTokens, handleauthorNot
 			</${Modal}>`;
 }
 
-function ContextModal({ isOpen, closeModal, tokens, memoryTokens, authorNoteTokens, handleMemoryTokensChange, modifiedPrompt, defaultPresets, cancel }) {
+function ContextModal({ isOpen, closeModal, tokens, memoryTokens, authorNoteTokens, handleMemoryTokensChange, modifiedPrompt, fimPromptInfo, defaultPresets, cancel }) {
 	return html`
 		<${Modal} isOpen=${isOpen} onClose=${closeModal}
 			title="Context"
@@ -2155,7 +2155,7 @@ function ContextModal({ isOpen, closeModal, tokens, memoryTokens, authorNoteToke
 			</${CollapsibleGroup}>
 			<textarea
 				readOnly=${!!cancel}
-				value=${modifiedPrompt}
+				value=${!fimPromptInfo ? modifiedPrompt : fimPromptInfo.fimModifiedPrompt}
 				class="expanded-text-area-settings"
 				id="context-area-settings" readOnly/>
 		</${Modal}>`;
@@ -4063,20 +4063,20 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		return replacePlaceholders(additionalContextPrompt, templateReplacements);
 	}, [additionalContextPrompt, templates, selectedTemplate]);
 
-	// predicts one {fill} placeholder
-	async function fillPredict() {
+	const fimPromptInfo = useMemo(() => {
+		if (cancel)
+			return undefined;
+
 		const fillPlaceholder = "{fill}";
 		const predictPlaceholder = "{predict}";
 
 		let placeholderRegex = predictPlaceholder;
-		if (templates[selectedTemplate]?.fimTemplate !== undefined) {
+		if (templates[selectedTemplate]?.fimTemplate !== undefined)
 			placeholderRegex += `|${fillPlaceholder}`;
-		}
 
 		let leftPromptChunks = undefined;
 		let rightPromptChunks = undefined;
-		let foundFillPlaceholder = false;
-		let foundPredictPlaceholder = false;
+		let foundPlaceholder = undefined;
 
 		for (let i = 0; i < promptChunks.length; i++) {
 			const chunk = promptChunks[i];
@@ -4086,8 +4086,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			if (chunk.content.includes(fillPlaceholder) || chunk.content.includes(predictPlaceholder)) {
 				// split the chunk in 2
 				let [sides, separators] = regexSplitString(chunk.content, placeholderRegex, 1);
-				foundFillPlaceholder = separators[0] == fillPlaceholder;
-				foundPredictPlaceholder = separators[0] == predictPlaceholder;
+				foundPlaceholder = separators[0];
 
 				let left = sides[0];
 				if ((left.at(-2) != ' ' || left.at(-2) != '\t') && left.at(-1) == ' ') {
@@ -4108,11 +4107,13 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			}
 		}
 
-		if (!foundFillPlaceholder && !foundPredictPlaceholder)
-			return false;
+		console.log(foundPlaceholder);
+
+		if (foundPlaceholder === undefined)
+			return undefined;
 
 		let promptText;
-		if (foundFillPlaceholder) {
+		if (foundPlaceholder == '{fill}') {
 			const prefix = joinPrompt(leftPromptChunks);
 			const suffix = joinPrompt(rightPromptChunks);
 
@@ -4128,16 +4129,30 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		const additionalContextPrompt = assembleAdditionalContext(assembledWorldInfo, promptText);
 		const finalPrompt = replacePlaceholders(additionalContextPrompt, templateReplacements);
 
-		predict(finalPrompt, leftPromptChunks.length, (chunk) => {
-			leftPromptChunks.push(chunk);
+		return {
+			fimModifiedPrompt: finalPrompt,
+			fimLeftChunks: leftPromptChunks,
+			fimRightChunks: rightPromptChunks,
+			fimPlaceholder: foundPlaceholder
+		};
+	}, [modifiedPrompt, templates, selectedTemplate]);
+
+	// predicts one {fill} placeholder
+	async function fillPredict() {
+		if (fimPromptInfo === undefined)
+			return false;
+
+		const { fimModifiedPrompt, fimLeftChunks, fimRightChunks } = fimPromptInfo;
+		predict(fimModifiedPrompt, fimLeftChunks.length, (chunk) => {
+			fimLeftChunks.push(chunk);
 			setPromptChunks(p => [
-				...leftPromptChunks,
-				...rightPromptChunks
+				...fimLeftChunks,
+				...fimRightChunks
 			]);
 			setTokens(t => t + (chunk?.completion_probabilities?.length ?? 1));
 			return true;
 		});
-
+		
 		return true;
 	}
 
@@ -5272,6 +5287,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			authorNoteTokens=${authorNoteTokens}
 			handleMemoryTokensChange=${handleMemoryTokensChange}
 			modifiedPrompt=${modifiedPrompt}
+			fimPromptInfo=${fimPromptInfo}
 			defaultPresets=${defaultPresets}
 			cancel=${cancel}/>
 
