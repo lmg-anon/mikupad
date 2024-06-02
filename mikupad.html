@@ -2076,7 +2076,7 @@ function AuthorNoteModal({ isOpen, closeModal, authorNoteTokens, handleauthorNot
 			</${Modal}>`;
 }
 
-function ContextModal({ isOpen, closeModal, tokens, memoryTokens, authorNoteTokens, handleMemoryTokensChange, modifiedPrompt, fimPromptInfo, defaultPresets, cancel }) {
+function ContextModal({ isOpen, closeModal, tokens, memoryTokens, authorNoteTokens, handleMemoryTokensChange, modifiedPrompt, defaultPresets, cancel }) {
 	return html`
 		<${Modal} isOpen=${isOpen} onClose=${closeModal}
 			title="Context"
@@ -2155,7 +2155,7 @@ function ContextModal({ isOpen, closeModal, tokens, memoryTokens, authorNoteToke
 			</${CollapsibleGroup}>
 			<textarea
 				readOnly=${!!cancel}
-				value=${!fimPromptInfo ? modifiedPrompt : fimPromptInfo.fimModifiedPrompt}
+				value=${modifiedPrompt}
 				class="expanded-text-area-settings"
 				id="context-area-settings" readOnly/>
 		</${Modal}>`;
@@ -3940,132 +3940,9 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 
 	const promptText = useMemo(() => joinPrompt(promptChunks), [promptChunks]);
 
-	const assembleWorldInfo = (promptText) => {
-		// assemble non-empty wi
-		const validWorldInfo = !Array.isArray(worldInfo.entries) ? [] : worldInfo.entries.filter(entry =>
-			entry.keys.length > 0 && !(entry.keys.length == 1 && entry.keys[0] == "") && entry.text !== "");
-
-		// search prompt
-		const activeWorldInfo = validWorldInfo.filter(entry => {
-			if (validWorldInfo.length < 1) { return }
-			// default to 2048
-			const searchRange = isNaN(entry.search) || entry.search === ""
-				? 2048
-				: Number(entry.search);
-
-			// truncate to search range. using promptText allows for search ranges larger than context
-			const searchPrompt = promptText.substring(promptText.length - searchRange * defaultPresets.tokenRatio);
-
-			// search in range
-			return entry.keys.some((key, index) => {
-				// don't waste resources on disabled entries
-				if (searchPrompt.length == 0) {
-					return
-				}
-
-				// an invalid regex here can completely lock you out of mikupad until you clear
-				// localStorage, so this is necessary to handle that.
-				try {
-					return new RegExp(key, "i").test(searchPrompt) && key !== "";
-				}
-				catch (error) {
-					console.error(`Error in RegEx for key '${key}': ${error.message}`);
-					return false;
-				}
-			});
-		});
-
-		return activeWorldInfo.length > 0
-			? activeWorldInfo.map(entry => entry.text).join("\n")
-			: "";
-	};
-
-	// compute separately as I imagine this can get expensive
-	const assembledWorldInfo = useMemo(() => {
-		return assembleWorldInfo(promptText);
-	}, [worldInfo]);
-
-	const assembleAdditionalContext = (assembledWorldInfo, promptText) => {
-		if ("worldInfo" in memoryTokens)
-			delete memoryTokens["worldInfo"];
-
-		const order = ["prefix","text","suffix"]
-		const assembledAuthorNote = authorNoteTokens.text && authorNoteTokens.text !== ""
-			? order.map(key => authorNoteTokens[key]).join("").replace(/\\n/g,'\n')
-			: "";
-
-		// replacements for the contextOrder string
-		const contextReplacements = {
-			"{wiPrefix}": assembledWorldInfo && assembledWorldInfo !== ""
-				? worldInfo.prefix
-				: "", // wi prefix and suffix will be added whenever wi isn't empty
-			"{wiText}": assembledWorldInfo,
-			"{wiSuffix}": assembledWorldInfo && assembledWorldInfo !== ""
-				? worldInfo.suffix
-				: "",
-
-			"{memPrefix}": memoryTokens.text && memoryTokens.text !== "" || assembledWorldInfo !== ""
-				? memoryTokens.prefix
-				: "", // memory prefix and suffix will be added whenever memory or wi aren't empty
-			"{memText}": memoryTokens.text,
-			"{memSuffix}": memoryTokens.text && memoryTokens.text !== "" || assembledWorldInfo !== ""
-				? memoryTokens.suffix
-				: "",
-		}
-
-		// prompt length estimation
-		const additionalContext = (Object.values(contextReplacements)
-			.filter(value => typeof value === 'string').join('')).length;
-		const estimatedContextStart = Math.round(
-			promptText.length - contextLength * defaultPresets.tokenRatio + additionalContext) + 1;
-
-		// trunkate prompt to context limit
-		const truncPrompt = promptText.substring(estimatedContextStart);
-
-		// make injection depth valid
-		const truncPromptLen = truncPrompt.split('\n').length;
-		const injDepth = truncPromptLen > authorNoteDepth ? authorNoteDepth : truncPromptLen
-
-		const lines = truncPrompt.match(/.*\n?/g);
-		const injIndex = lines.length-injDepth-1
-		// inject an
-		lines.splice(injIndex,0,assembledAuthorNote)
-		// if an, return an context, else return original truncated context
-		const authorNotePrompt = assembledAuthorNote != ""
-			? lines.join('')
-			: truncPrompt;
-
-		// add the final replacement
-		contextReplacements["{prompt}"] = authorNotePrompt
-
-		const workingContextOrder = memoryTokens.contextOrder && memoryTokens.contextOrder !== ""
-			? memoryTokens.contextOrder
-			: defaultPresets.memoryTokens.contextOrder;
-
-		// assemble context in order:
-		// the context is (1) split by line, (2) persistent context placeholders are 
-		// replaced, (3) instruct template placeholders are replaced (4) non-empty
-		// lines are joined back together.
-		const permContextPrompt = workingContextOrder.split("\n").map(function (line) {
-			return replacePlaceholders(line,contextReplacements)
-		}).filter(function (line) {
-			return line.trim() !== "";
-		}).join("\n").replace(/\\n/g, '\n');
-
-		return permContextPrompt;
-	};
-
-	const additionalContextPrompt = useMemo(() => {
-		return assembleAdditionalContext(assembledWorldInfo, promptText);
-	}, [contextLength, promptText, memoryTokens, authorNoteTokens, authorNoteDepth, assembledWorldInfo, worldInfo.prefix, worldInfo.suffix]);
-
-	const modifiedPrompt = useMemo(() => {
-		return replacePlaceholders(additionalContextPrompt, templateReplacements);
-	}, [additionalContextPrompt, templates, selectedTemplate]);
-
-	const fimPromptInfo = useMemo(() => {
+	const { modifiedPromptText, fimPromptInfo } = useMemo(() => {
 		if (cancel)
-			return undefined;
+			return { modifiedPromptText: promptText };
 
 		const fillPlaceholder = "{fill}";
 		const predictPlaceholder = "{predict}";
@@ -4107,43 +3984,156 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			}
 		}
 
-		console.log(foundPlaceholder);
-
 		if (foundPlaceholder === undefined)
-			return undefined;
+			return { modifiedPromptText: promptText };
 
-		let promptText;
+		let modifiedPromptText;
 		if (foundPlaceholder == '{fill}') {
 			const prefix = joinPrompt(leftPromptChunks);
 			const suffix = joinPrompt(rightPromptChunks);
 
-			promptText = replacePlaceholders(templates[selectedTemplate].fimTemplate, {
+			modifiedPromptText = replacePlaceholders(templates[selectedTemplate].fimTemplate, {
 				'{prefix}': prefix,
 				'{suffix}': suffix
 			});
 		} else {
-			promptText = joinPrompt(leftPromptChunks);
+			modifiedPromptText = joinPrompt(leftPromptChunks);
 		}
 
-		const assembledWorldInfo = assembleWorldInfo(promptText);
-		const additionalContextPrompt = assembleAdditionalContext(assembledWorldInfo, promptText);
-		const finalPrompt = replacePlaceholders(additionalContextPrompt, templateReplacements);
-
-		return {
-			fimModifiedPrompt: finalPrompt,
+		const fimPromptInfo = {
 			fimLeftChunks: leftPromptChunks,
 			fimRightChunks: rightPromptChunks,
 			fimPlaceholder: foundPlaceholder
 		};
-	}, [modifiedPrompt, templates, selectedTemplate]);
+
+		return {
+			modifiedPromptText,
+			fimPromptInfo
+		};
+	}, [promptChunks, templates, selectedTemplate]);
+
+	// compute separately as I imagine this can get expensive
+	const assembledWorldInfo = useMemo(() => {
+		// assemble non-empty wi
+		const validWorldInfo = !Array.isArray(worldInfo.entries) ? [] : worldInfo.entries.filter(entry =>
+			entry.keys.length > 0 && !(entry.keys.length == 1 && entry.keys[0] == "") && entry.text !== "");
+
+		// search prompt
+		const activeWorldInfo = validWorldInfo.filter(entry => {
+			if (validWorldInfo.length < 1) { return }
+			// default to 2048
+			const searchRange = isNaN(entry.search) || entry.search === ""
+				? 2048
+				: Number(entry.search);
+
+			// truncate to search range. using promptText allows for search ranges larger than context
+			const searchPrompt = modifiedPromptText.substring(modifiedPromptText.length - searchRange * defaultPresets.tokenRatio);
+
+			// search in range
+			return entry.keys.some((key, index) => {
+				// don't waste resources on disabled entries
+				if (searchPrompt.length == 0) {
+					return
+				}
+
+				// an invalid regex here can completely lock you out of mikupad until you clear
+				// localStorage, so this is necessary to handle that.
+				try {
+					return new RegExp(key, "i").test(searchPrompt) && key !== "";
+				}
+				catch (error) {
+					console.error(`Error in RegEx for key '${key}': ${error.message}`);
+					return false;
+				}
+			});
+		});
+
+		return activeWorldInfo.length > 0
+			? activeWorldInfo.map(entry => entry.text).join("\n")
+			: "";
+	}, [modifiedPromptText, worldInfo]);
+
+	const additionalContextPrompt = useMemo(() => {
+		// add world info to memory for easier assembly
+		memoryTokens["worldInfo"] = assembledWorldInfo;
+
+		const order = ["prefix","text","suffix"]
+		const assembledAuthorNote = authorNoteTokens.text && authorNoteTokens.text !== ""
+			? order.map(key => authorNoteTokens[key]).join("").replace(/\\n/g,'\n')
+			: "";
+
+		// replacements for the contextOrder string
+		const contextReplacements = {
+			"{wiPrefix}": assembledWorldInfo && assembledWorldInfo !== ""
+				? worldInfo.prefix
+				: "", // wi prefix and suffix will be added whenever wi isn't empty
+			"{wiText}": assembledWorldInfo,
+			"{wiSuffix}": assembledWorldInfo && assembledWorldInfo !== ""
+				? worldInfo.suffix
+				: "",
+
+			"{memPrefix}": memoryTokens.text && memoryTokens.text !== "" || assembledWorldInfo !== ""
+				? memoryTokens.prefix
+				: "", // memory prefix and suffix will be added whenever memory or wi aren't empty
+			"{memText}": memoryTokens.text,
+			"{memSuffix}": memoryTokens.text && memoryTokens.text !== "" || assembledWorldInfo !== ""
+				? memoryTokens.suffix
+				: "",
+		}
+
+		// prompt length estimation
+		const additionalContext = (Object.values(contextReplacements)
+			.filter(value => typeof value === 'string').join('')).length;
+		const estimatedContextStart = Math.round(
+			modifiedPromptText.length - contextLength * defaultPresets.tokenRatio + additionalContext) + 1;
+
+		// trunkate prompt to context limit
+		const truncPrompt = modifiedPromptText.substring(estimatedContextStart);
+
+		// make injection depth valid
+		const truncPromptLen = truncPrompt.split('\n').length;
+		const injDepth = truncPromptLen > authorNoteDepth ? authorNoteDepth : truncPromptLen
+
+		const lines = truncPrompt.match(/.*\n?/g);
+		const injIndex = lines.length-injDepth-1
+		// inject an
+		lines.splice(injIndex,0,assembledAuthorNote)
+		// if an, return an context, else return original truncated context
+		const authorNotePrompt = assembledAuthorNote != ""
+			? lines.join('')
+			: truncPrompt;
+
+		// add the final replacement
+		contextReplacements["{prompt}"] = authorNotePrompt
+
+		const workingContextOrder = memoryTokens.contextOrder && memoryTokens.contextOrder !== ""
+			? memoryTokens.contextOrder
+			: defaultPresets.memoryTokens.contextOrder;
+
+		// assemble context in order:
+		// the context is (1) split by line, (2) persistent context placeholders are 
+		// replaced, (3) instruct template placeholders are replaced (4) non-empty
+		// lines are joined back together.
+		const permContextPrompt = workingContextOrder.split("\n").map(function (line) {
+			return replacePlaceholders(line,contextReplacements)
+		}).filter(function (line) {
+			return line.trim() !== "";
+		}).join("\n").replace(/\\n/g, '\n');
+
+		return permContextPrompt;
+	}, [contextLength, modifiedPromptText, memoryTokens, authorNoteTokens, authorNoteDepth, assembledWorldInfo, worldInfo.prefix, worldInfo.suffix]);
+
+	const modifiedPrompt = useMemo(() => {
+		return replacePlaceholders(additionalContextPrompt, templateReplacements);
+	}, [additionalContextPrompt, templates, selectedTemplate]);
 
 	// predicts one {fill} placeholder
 	async function fillPredict() {
 		if (fimPromptInfo === undefined)
 			return false;
 
-		const { fimModifiedPrompt, fimLeftChunks, fimRightChunks } = fimPromptInfo;
-		predict(fimModifiedPrompt, fimLeftChunks.length, (chunk) => {
+		const { fimLeftChunks, fimRightChunks } = fimPromptInfo;
+		predict(modifiedPrompt, fimLeftChunks.length, (chunk) => {
 			fimLeftChunks.push(chunk);
 			setPromptChunks(p => [
 				...fimLeftChunks,
@@ -5287,7 +5277,6 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			authorNoteTokens=${authorNoteTokens}
 			handleMemoryTokensChange=${handleMemoryTokensChange}
 			modifiedPrompt=${modifiedPrompt}
-			fimPromptInfo=${fimPromptInfo}
 			defaultPresets=${defaultPresets}
 			cancel=${cancel}/>
 
