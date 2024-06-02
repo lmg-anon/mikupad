@@ -4142,7 +4142,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			setTokens(t => t + (chunk?.completion_probabilities?.length ?? 1));
 			return true;
 		});
-		
+
 		return true;
 	}
 
@@ -4159,8 +4159,8 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 				return false;
 		}
 
-		// predict the fill placeholder if it exists.
-		if (!callback && await fillPredict())
+		// predict the fill placeholder if it is present in the prompt.
+		if (!callback && !restartedPredict && await fillPredict())
 			return true;
 
 		const ac = new AbortController();
