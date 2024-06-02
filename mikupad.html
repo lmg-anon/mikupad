@@ -2941,7 +2941,7 @@ function InstructModal({ isOpen, closeModal, templateStorage, selectedTemplate, 
 					<div id="advancedContextPlaceholders">
 						${getArrObjByName(templateList,selectedTemplate)?.affixes.fimTemplate !== undefined
 							? html`
-								<div>Use the <b>{fill}</b> placeholder to use the Fill-In-The-Middle template and start the prediction from that point.</div>
+								<div>Use the <b>{fill}</b> placeholder to seamlessly apply the Fill-In-The-Middle template and start the prediction from that point.</div>
 								<div><b>{prefix}</b> represents the text before the placeholder, and <b>{suffix}</b> represents the text after it.</div>`
 							: html`
 								<div>This template doesn't have a Fill-In-The-Middle template.</div>
@@ -3948,7 +3948,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		const predictPlaceholder = "{predict}";
 
 		let placeholderRegex = predictPlaceholder;
-		if (templates[selectedTemplate]?.fimTemplate !== undefined)
+		if (templates[selectedTemplate]?.fimTemplate !== undefined && templates[selectedTemplate]?.fimTemplate.length > 0)
 			placeholderRegex += `|${fillPlaceholder}`;
 
 		let leftPromptChunks = undefined;
@@ -4789,6 +4789,12 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	}
 
 	async function switchCompletion(i, tok) {
+		const remainingPrompt = promptChunks.slice(i);
+		if (remainingPrompt.some((chunk) => chunk.type === 'user')) {
+			// disallow switching tokens in FIM.
+			return;
+		}
+
 		const newPrompt = [
 			...promptChunks.slice(0, i),
 			{
