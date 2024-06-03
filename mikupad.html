@@ -1767,7 +1767,42 @@ function Checkbox({ label, value, onValueChange, ...props }) {
 		</label>`;
 }
 
-function CollapsibleGroup({ label, expanded, children }) {
+function CollapsibleGroup({ label, expanded, children, toggleCollapsible }) {
+	const contentArea = useRef(null);
+	const [contentHeight, setContentHeight] = useState(!expanded ? 0 : '');
+
+	useEffect(() => {
+		setContentHeight(contentArea.current.scrollHeight);
+		const observer = new SVResizeObserver(() => {
+			setContentHeight(contentArea.current.scrollHeight);
+		});
+		observer.observe(contentArea.current);
+		return () => observer.disconnect();
+	}, []);
+
+	useEffect(() => {
+		setContentHeight(contentArea.current.scrollHeight);
+	}, [expanded]);
+
+	const expandSvg = html`<svg fill="var(--color-light)" height="12" width="12" viewBox="0 0 330 330"><path d="M325.607,79.393c-5.857-5.857-15.355-5.858-21.213,0.001l-139.39,139.393L25.607,79.393 c-5.857-5.857-15.355-5.858-21.213,0.001c-5.858,5.858-5.858,15.355,0,21.213l150.004,150c2.813,2.813,6.628,4.393,10.606,4.393 s7.794-1.581,10.606-4.394l149.996-150C331.465,94.749,331.465,85.251,325.607,79.393z"/></svg>`;
+	const collapseSvg = html`<svg fill="var(--color-light)" height="12" width="12" viewBox="0 0 330 330"><path d="M325.606,229.393l-150.004-150C172.79,76.58,168.974,75,164.996,75c-3.979,0-7.794,1.581-10.607,4.394 l-149.996,150c-5.858,5.858-5.858,15.355,0,21.213c5.857,5.857,15.355,5.858,21.213,0l139.39-139.393l139.397,139.393 C307.322,253.536,311.161,255,315,255c3.839,0,7.678-1.464,10.607-4.394C331.464,244.748,331.464,235.251,325.606,229.393z"/></svg>`;
+
+	return html`
+		<div className="collapsible-group">
+			<div className="collapsible-header" onClick=${() => {toggleCollapsible()}}>
+				${!expanded ? expandSvg : collapseSvg}
+				${label}
+			</div>
+			<div
+				ref=${contentArea}
+				className="collapsible-content ${!expanded ? 'collapsed' : 'expanded'}"
+				style=${{ 'max-height': !expanded ? 0 : contentHeight }}>
+				${children}
+			</div>
+		</div>`;
+}
+
+function CollapsibleGroupBack({ label, expanded, children }) {
 	const contentArea = useRef(null);
 	const [contentHeight, setContentHeight] = useState(!expanded ? 0 : '');
 	const [isCollapsed, setIsCollapsed] = useState(!expanded);
@@ -2088,7 +2123,7 @@ function AuthorNoteModal({ isOpen, closeModal, authorNoteTokens, handleauthorNot
 			</${Modal}>`;
 }
 
-function ContextModal({ isOpen, closeModal, tokens, memoryTokens, authorNoteTokens, handleMemoryTokensChange, finalPromptText, defaultPresets, cancel }) {
+function ContextModal({ isOpen, closeModal, tokens, memoryTokens, authorNoteTokens, handleMemoryTokensChange, finalPromptText, defaultPresets, cancel, collapsibleState }) {
 	return html`
 		<${Modal} isOpen=${isOpen} onClose=${closeModal}
 			title="Context"
@@ -2119,7 +2154,10 @@ function ContextModal({ isOpen, closeModal, tokens, memoryTokens, authorNoteToke
 				</tbody>
 			</table>
 			</div>
-			<${CollapsibleGroup} label="Advanced Context Ordering">
+			<${CollapsibleGroup}
+				toggleCollapsible=${() => toggleCollapsible("Advanced Context Ordering")}
+				expanded=${collapsibleState["Advanced Context Ordering"]}
+				label="Advanced Context Ordering">
 				<div id="context-order-desc">
 					You can use the following placeholders to order the context according to your needs:<br />
 					<div id="advancedContextPlaceholders">
@@ -2173,7 +2211,7 @@ function ContextModal({ isOpen, closeModal, tokens, memoryTokens, authorNoteToke
 		</${Modal}>`;
 }
 
-function WorldInfoModal({ isOpen, closeModal, worldInfo, setWorldInfo, cancel }) {
+function WorldInfoModal({ isOpen, closeModal, worldInfo, setWorldInfo, collapsibleState, cancel }) {
 	const handleWorldInfoNew = () => {
 		setWorldInfo((prevWorldInfo) => {
 			return {
@@ -2240,7 +2278,10 @@ function WorldInfoModal({ isOpen, closeModal, worldInfo, setWorldInfo, cancel })
 
 			Each entry will begin on a newline. Keys will be interpreted as case-insensitive regular expressions. Search Range specifies how many tokens back into the context will be searched for activation keys. Search range 0 to disable an entry.">
 			<div id="modal-wi-global">
-				<${CollapsibleGroup} label="Prefix/Suffix">
+				<${CollapsibleGroup}
+					toggleCollapsible=${() => toggleCollapsible("Prefix/Suffix wi")}
+					expanded=${collapsibleState["Prefix/Suffix wi"]}
+					label="Prefix/Suffix">
 					The prefix and suffix will be added at the beginning or end of all your active World Info entries respectively.
 					<br />
 					<div className="hbox">
@@ -3486,6 +3527,12 @@ const defaultPresets = {
 		"prefix": "",
 		"suffix": ""
 	}),
+	collapsibleState: {
+		"Sessions": false,
+		"Parameters": true,
+		"Sampling": true,
+		"Persistent Context": false,
+	},
 	logitBias:{ bias:{},model:"none" },
 	instructTemplates:{
 		'Alpaca': {
@@ -3740,6 +3787,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	const [stoppingStringsError, setStoppingStringsError] = useState(undefined);
 	const [savedScrollTop, setSavedScrollTop] = useSessionState('scrollTop', defaultPresets.scrollTop);
 	const [modalState, setModalState] = useState({});
+	const [collapsibleState, setCollapsibleState] = useSessionState('collapsibleState', defaultPresets.collapsibleState);
 	const [logitBias, setLogitBias] = useSessionState('logitBias', defaultPresets.logitBias);
 	const [logitBiasParam, setLogitBiasParam] = useState({});
 	const [contextLength, setContextLength] = useSessionState('contextLength', defaultPresets.contextLength);
@@ -3747,7 +3795,6 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	const [authorNoteTokens, setAuthorNoteTokens] = useSessionState('authorNoteTokens', defaultPresets.authorNoteTokens);
 	const [authorNoteDepth, setAuthorNoteDepth] = useSessionState('authorNoteDepth', defaultPresets.authorNoteDepth);
 	const [worldInfo, setWorldInfo] = useSessionState('worldInfo', defaultPresets.worldInfo);
-
 
 	function replacePlaceholders(string,placeholders) {
 		// give placeholders as json object
@@ -3948,6 +3995,14 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			...prevState,
 			[modalKey]: false,
 		}));
+	};
+
+	const toggleCollapsible = (collapsibleKey) => {
+		setCollapsibleState((prevState) => ({
+			...prevState,
+			[collapsibleKey]: !prevState[collapsibleKey],
+		}));
+		console.log(collapsibleState)
 	};
 
 
@@ -4980,10 +5035,16 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 					{ name: 'nockoffAI', value: 3 },
 				]}/>
 			<div class="horz-separator"/>
-			<${CollapsibleGroup} label="Sessions">
+			<${CollapsibleGroup}
+				toggleCollapsible=${() => toggleCollapsible("Sessions")}
+				expanded=${collapsibleState["Sessions"]}
+				label="Sessions">
 				<${Sessions} sessionStorage=${sessionStorage} disabled=${!!cancel}/>
 			</${CollapsibleGroup}>
-			<${CollapsibleGroup} label="Parameters" expanded>
+			<${CollapsibleGroup}
+				toggleCollapsible=${() => toggleCollapsible("Parameters")}
+				expanded=${collapsibleState["Parameters"]}
+				label="Parameters">
 				<${InputBox} label="Server"
 					className="${isMixedContent() ? 'mixed-content' : ''}"
 					tooltip="${isMixedContent() ? 'This URL might be blocked due to mixed content. If the prediction fails, download mikupad.html and run it locally.' : ''}"
@@ -5076,7 +5137,10 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 					value=${stoppingStrings}
 					onValueChange=${setStoppingStrings}/>
 			</${CollapsibleGroup}>
-			<${CollapsibleGroup} label="Sampling" expanded>
+			<${CollapsibleGroup}
+				toggleCollapsible=${() => toggleCollapsible("Sampling")}
+				expanded=${collapsibleState["Sampling"]}
+				label="Sampling">
 				${endpointAPI == 3 && html`
 					<${Checkbox} label="Full OpenAI compliance"
 						disabled=${!!cancel} value=${openaiPresets} onValueChange=${setOpenaiPresets}/>`}
@@ -5157,7 +5221,10 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 
 
 			</${CollapsibleGroup}>
-			<${CollapsibleGroup} label="Persistent Context">
+			<${CollapsibleGroup}
+				toggleCollapsible=${() => toggleCollapsible("Persistent Context")}
+				expanded=${collapsibleState["Persistent Context"]}
+				label="Persistent Context">
 				<label className="TextArea">
 					<div>Memory ${memoryTokens.tokens > 0 ? html`<small>(${memoryTokens.tokens} Tokens)</small>`:""}</div>
 					<textarea
@@ -5317,6 +5384,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			handleMemoryTokensChange=${handleMemoryTokensChange}
 			finalPromptText=${finalPromptText}
 			defaultPresets=${defaultPresets}
+			collapsibleState=${collapsibleState}
 			cancel=${cancel}/>
 
 		<${WorldInfoModal}
@@ -5324,6 +5392,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			closeModal=${() => closeModal("wi")}
 			worldInfo=${worldInfo}
 			setWorldInfo=${setWorldInfo}
+			collapsibleState=${collapsibleState}
 			cancel=${cancel}/>
 
 		<!-- TODO: The amount of parameters in this modal is a bit excessive... -->
