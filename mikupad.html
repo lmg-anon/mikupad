@@ -283,7 +283,7 @@ html.nockoffAI .wi-textarea {
 }
 
 #prompt-container:hover #prompt-overlay > .machine {
-	background: color-mix(in srgb, var(--color-miku) 10%, transparent);
+	background: color-mix(in srgb, var(--bg-color, var(--color-miku)) 10%, transparent);
 }
 #prompt-container #prompt-overlay > .machine.erase {
 	background: color-mix(in srgb, #FF0000 10%, transparent);
@@ -1350,7 +1350,15 @@ async function* llamaCppCompletion({ endpoint, endpointAPIKey, proxyEndpoint, si
 	});
 	if (!res.ok)
 		throw new Error(`HTTP ${res.status}`);
-	return yield* await parseEventStream(res.body);
+	for await (const chunk of parseEventStream(res.body)) {
+		const probs = chunk.completion_probabilities[0].probs;
+		const prob = probs?.find(p => p.tok_str === chunk.content)?.prob;
+		yield {
+			content: chunk.content,
+			prob: prob ?? (probs?.length > 0 ? -1000 : 0),
+			completion_probabilities: chunk.completion_probabilities
+		};
+	}
 }
 
 async function koboldCppTokenCount({ endpoint, proxyEndpoint, signal, ...options }) {
@@ -1654,6 +1662,7 @@ async function* openaiCompletion({ endpoint, endpointAPIKey, proxyEndpoint, sign
 		const probs = logprobs.map(([tok, logprob]) => ({ tok_str: tok, prob: Math.exp(logprob) }));
 		yield {
 			content: chunk.choices[0].text,
+			prob: Math.exp(chunk.choices[0].logprobs?.top_logprobs?.[0][chunk.choices[0].text] ?? (logprobs.length > 0 ? -1000 : 0)),
 			completion_probabilities: [{
 				content: chunk.choices[0].text,
 				probs
@@ -3687,6 +3696,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	const [attachSidebar, setAttachSidebar] = usePersistentState('attachSidebar', false);
 	const [showProbsMode, setShowProbsMode] = usePersistentState('showProbsMode', 0);
 	const [highlightGenTokens, setHighlightGenTokens] = usePersistentState('highlightGenTokens', true);
+	const [colorizePerplexity, setColorizePerplexity] = usePersistentState('colorizePerplexity', false);
 	const [preserveCursorPosition, setPreserveCursorPosition] = usePersistentState('preserveCursorPosition', true);
 	const [promptAreaWidth, setPromptAreaWidth] = usePersistentState('promptAreaWidth', undefined);
 	const [theme, setTheme] = usePersistentState('theme', 0);
@@ -4913,12 +4923,26 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			<div ref=${promptOverlay} id="prompt-overlay" aria-hidden>
 				${highlightGenTokens || showProbsMode !== -1 ? html`
 					${promptChunks.map((chunk, i) => {
+						const getPerplexityColor = (ratio) => {
+							const sRatio = Math.max(0, Math.min(1, ratio));
+							if (sRatio <= 0.5) {
+								// Scale ratio from [0, 0.5] to [0, 1]
+								const adjustedRatio = sRatio / 0.5;
+								return `color-mix(in srgb, red ${100 - adjustedRatio * 100}%, yellow ${adjustedRatio * 100}%)`;
+							} else {
+								// Scale ratio from [0.5, 1] to [0, 1]
+								const adjustedRatio = (sRatio - 0.5) / 0.5;
+								return `color-mix(in srgb, yellow ${100 - adjustedRatio * 100}%, var(--color-miku) ${adjustedRatio * 100}%)`;
+							}
+						};
+						const chunkProb = chunk.prob ?? 1;
 						const isCurrent = currentPromptChunk && currentPromptChunk.index === i;
 						const isNextUndo = undoHovered && !!undoStack.current.length && undoStack.current.at(-1) <= i;
 						return html`
 							<span
 								key=${i}
 								data-promptchunk=${i}
+								style=${colorizePerplexity && chunkProb < 1 ? { '--bg-color': getPerplexityColor(chunkProb) } : {}}
 								className=${`${(!highlightGenTokens && !isCurrent) || chunk.type === 'user' ? 'user' : 'machine'} ${isCurrent ? 'current' : ''} ${isNextUndo ? 'erase' : ''}`}>
 								${(chunk.content === '\n' ? ' \n' : chunk.content) + (i === promptChunks.length - 1 && chunk.content.endsWith('\n') ? '\u00a0' : '')}
 							</span>`;
@@ -5241,6 +5265,8 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 				value=${attachSidebar} onValueChange=${setAttachSidebar}/>
 			<${Checkbox} label="Highlight generated tokens"
 				value=${highlightGenTokens} onValueChange=${setHighlightGenTokens}/>
+			<${Checkbox} label="Colorize perplexity"
+				value=${colorizePerplexity} onValueChange=${setColorizePerplexity}/>
 			<${Checkbox} label="Preserve cursor position after prediction (disabled in Chat Mode)"
 				value=${preserveCursorPosition} onValueChange=${setPreserveCursorPosition}/>
 			<${SelectBox}
