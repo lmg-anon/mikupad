@@ -323,6 +323,9 @@ html.nockoffAI #probs {
 	flex: none;
 	font-size: 1rem;
 }
+#probs > button.current {
+	background: var(--color-base-40);
+}
 #probs > button:first-child {
 	border-radius: 5px 0 0 5px;
 	padding-left: 6px;
@@ -4955,11 +4958,14 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 				style=${{
 					'display': 'none'
 				}}>
-				${probs.map((prob, i) =>
-					html`<button key=${i} onClick=${() => switchCompletion(currentPromptChunk?.index, prob.tok_str)}>
+				${probs.map((prob, i) => {
+					const index = currentPromptChunk?.index;
+					const isCurrentToken = promptChunks[index]?.prob == prob.prob;
+					return html`<button key=${i} className=${isCurrentToken ? 'current' : ''} onClick=${() => switchCompletion(index, prob.tok_str)}>
 						<div className="tok">${replaceUnprintableBytes(prob.tok_str)}</div>
 						<div className="prob">${(prob.prob * 100).toFixed(2)}%</div>
-					</button>`)}
+					</button>`;
+				})}
 			</div>` : null}
 		<div id="sidebar" ref=${sidebar} style=${{ 'max-height': ''}}>
 			<${SelectBox}
