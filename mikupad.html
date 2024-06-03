@@ -2694,14 +2694,13 @@ function InstructModal({ isOpen, closeModal, templateStorage, selectedTemplate, 
 	async function handleInstructTemplateDuplicate() {
 		const index = templateList.findIndex(obj => obj.name === selectedTemplate)
 		const reselectTemplate = templateList[index == -1 ? 0 : index]?.nameNew
-
 		await updateTemplateDB()
 		await setTemplateDuplicate(reselectTemplate + " (Duplicate)")
 		setTemplates((prevState) => {
 			var newState = {
 				...prevState
 			}
-			newState[selectedTemplate + " (Duplicate)"] = {
+			newState[reselectTemplate + " (Duplicate)"] = {
 				"sysPre": templates[selectedTemplate]?.sysPre,
 				"sysSuf": templates[selectedTemplate]?.sysSuf,
 				"instPre": templates[selectedTemplate]?.instPre,
