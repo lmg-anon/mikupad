@@ -1769,8 +1769,8 @@ function Checkbox({ label, value, onValueChange, ...props }) {
 
 function CollapsibleGroup({ label, stateLabel, expanded, children }) {
 	const contentArea = useRef(null);
-	const [contentHeight, setContentHeight] = useState(!expanded ? 0 : '');
 	const [isCollapsed, setIsCollapsed] = usePersistentState(`(${stateLabel ? stateLabel : label}).isCollapsed`, !expanded);
+	const [contentHeight, setContentHeight] = useState(isCollapsed ? 0 : '');
 
 	useEffect(() => {
 		setContentHeight(contentArea.current.scrollHeight);
