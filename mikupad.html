@@ -1354,12 +1354,14 @@ async function* llamaCppCompletion({ endpoint, endpointAPIKey, proxyEndpoint, si
 	if (!res.ok)
 		throw new Error(`HTTP ${res.status}`);
 	for await (const chunk of parseEventStream(res.body)) {
-		const probs = chunk.completion_probabilities[0]?.probs;
-		const prob = probs?.find(p => p.tok_str === chunk.content)?.prob;
+		const probs = chunk.completion_probabilities[0]?.probs ?? [];
+		const prob = probs.find(p => p.tok_str === chunk.content)?.prob;
 		yield {
 			content: chunk.content,
-			prob: prob ?? (probs?.length > 0 ? -1000 : 0),
-			completion_probabilities: chunk.completion_probabilities
+			...(probs.length > 0 ? {
+				prob: prob ?? -1,
+				completion_probabilities: chunk.completion_probabilities
+			} : {})
 		};
 	}
 }
@@ -1661,15 +1663,28 @@ async function* openaiCompletion({ endpoint, endpointAPIKey, proxyEndpoint, sign
 	if (!res.ok)
 		throw new Error(`HTTP ${res.status}`);
 	for await (const chunk of parseEventStream(res.body)) {
-		const logprobs = Object.entries(chunk.choices[0].logprobs?.top_logprobs?.[0] ?? {});
-		const probs = logprobs.map(([tok, logprob]) => ({ tok_str: tok, prob: Math.exp(logprob) }));
+		if (!chunk.choices || chunk.choices.length === 0) {
+			continue; // Skip if there are no choices (should never happen)
+		}
+
+		const { text, logprobs } = chunk.choices[0];
+		const top_logprobs = logprobs?.top_logprobs?.[0] ?? {};
+		
+		const probs = Object.entries(top_logprobs).map(([tok, logprob]) => ({
+			tok_str: tok,
+			prob: Math.exp(logprob)
+		}));
+		const prob = probs.find(p => p.tok_str === text)?.prob;
+
 		yield {
-			content: chunk.choices[0].text,
-			prob: Math.exp(chunk.choices[0].logprobs?.top_logprobs?.[0][chunk.choices[0].text] ?? (logprobs.length > 0 ? -1000 : 0)),
-			completion_probabilities: [{
-				content: chunk.choices[0].text,
-				probs
-			}]
+			content: text,
+			...(probs.length > 0 ? {
+				prob: prob ?? -1,
+				completion_probabilities: [{
+					content: text,
+					probs
+				}]
+			} : {})
 		};
 	}
 }
