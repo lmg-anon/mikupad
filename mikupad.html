@@ -1086,6 +1086,15 @@ html.monospace-dark .eye-button {
 	}
 }
 
+.contextBar {
+	height:1.25em;
+	border-radius:2px;
+	overflow:hidden;
+}
+.contextBar-contextModal {
+	margin-top:.25em;
+}
+
 @media (min-width: 767.98px) {
 	#sidebar .SelectBox:first-child, .horz-separator, .collapsible-group {
 		display: block !important;
@@ -1975,7 +1984,27 @@ function Sessions({ sessionStorage, disabled }) {
 		</div>`;
 }
 
+const PercentageBar = ({ values, names, className, colors }) => {
+	const color = colors ? colors : ["#fff","#8c94ff","#8cff94","#ff948c"]
+	const total = values.reduce((acc, curr) => acc + curr, 0);
+	const percentages = values.map(value => (value / total) * 100);
 
+	return html`
+		<div className="${className}" style=${{ opacity: "80%", background: 'grey', display: 'flex', flexDirection: 'row' }}>
+		${values.map((value, index) =>  html`
+			<div class="tooltip"
+			key=${index}
+			title='${names[index]} (${percentages[index].toFixed(1)}%)'
+			style=${{
+				backgroundColor: color[index],
+				width: percentages[index] + '%',
+				height: '100%'
+			}}>
+			</div>
+		`)}
+		</div>
+	`;
+};
 
 function Modal({ isOpen, onClose, title, description, children, ...props }) {
 	if (!isOpen) {
@@ -2098,10 +2127,10 @@ function ContextModal({ isOpen, closeModal, tokens, memoryTokens, authorNoteToke
 				<thead>
 					<tr>
 						<th></th>
+						<th>Prompt</th>
 						<th>Memory</th>
 						<th>World Info</th>
 						<th>Author's Note</th>
-						<th>Prompt</th>
 						<th></th>
 						<th>Total</th>
 					</tr>
@@ -2109,15 +2138,30 @@ function ContextModal({ isOpen, closeModal, tokens, memoryTokens, authorNoteToke
 				<tbody>
 					<tr>
 						<th>Tokens</th>
+						<td>${tokens - authorNoteTokens.tokens - memoryTokens.tokensWI - memoryTokens.tokens}</td>
 						<td>${memoryTokens.tokens}</td>
 						<td>${memoryTokens.tokensWI}</td>
 						<td>${authorNoteTokens.tokens}</td>
-						<td>${tokens - authorNoteTokens.tokens - memoryTokens.tokensWI - memoryTokens.tokens}</td>
 						<td></td>
 						<td>${tokens}</td>
 					</tr>
 				</tbody>
 			</table>
+			<${PercentageBar}
+					className="contextBar contextBar-contextModal"
+					values=${[
+						tokens - authorNoteTokens.tokens - memoryTokens.tokensWI - memoryTokens.tokens,
+						memoryTokens.tokens,
+						memoryTokens.tokensWI,
+						authorNoteTokens.tokens,
+					]}
+					names=${[
+						"Prompt",
+						"Memory",
+						"World Info",
+						"Author's Note"
+					]}>
+				</${PercentageBar}>
 			</div>
 			<${CollapsibleGroup} label="Advanced Context Ordering">
 				<div id="context-order-desc">
@@ -3696,6 +3740,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	const [showProbs, setShowProbs] = useState(true);
 	const [cancel, setCancel] = useState(null);
 	const [spellCheck, setSpellCheck] = usePersistentState('spellCheck', false);
+	const [showContextBar, setShowContextBar] = usePersistentState('showContextBar', false);
 	const [attachSidebar, setAttachSidebar] = usePersistentState('attachSidebar', false);
 	const [showProbsMode, setShowProbsMode] = usePersistentState('showProbsMode', 0);
 	const [highlightGenTokens, setHighlightGenTokens] = usePersistentState('highlightGenTokens', true);
@@ -5206,6 +5251,23 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			</${CollapsibleGroup}>
 			${!!tokens && html`
 				<${InputBox} label="Tokens" value=${tokens} readOnly/>`}
+			${showContextBar && !!tokens && html`
+				<${PercentageBar}
+				className="contextBar"
+					values=${[
+						tokens - authorNoteTokens.tokens - memoryTokens.tokensWI - memoryTokens.tokens,
+						memoryTokens.tokens,
+						memoryTokens.tokensWI,
+						authorNoteTokens.tokens,
+					]}
+					names=${[
+						"Prompt",
+						"Memory",
+						"World Info",
+						"Author's Note"
+					]}>
+				</${PercentageBar}>
+			`}
 			<div className="buttons">
 				<button
 					title="Run next prediction (Ctrl + Enter)"
@@ -5268,6 +5330,8 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			closeModal=${() => closeModal("prompt")}>
 			<${Checkbox} label="Enable spell checking"
 				value=${spellCheck} onValueChange=${setSpellCheck}/>
+			<${Checkbox} label="Show Context Breakdown Bar"
+				value=${showContextBar} onValueChange=${setShowContextBar}/>
 			<${Checkbox} label="Attach sidebar"
 				value=${attachSidebar} onValueChange=${setAttachSidebar}/>
 			<${Checkbox} label="Highlight generated tokens"
