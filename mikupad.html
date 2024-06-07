@@ -1786,10 +1786,10 @@ function Checkbox({ label, value, onValueChange, ...props }) {
 		</label>`;
 }
 
-function CollapsibleGroup({ label, expanded, children }) {
+function CollapsibleGroup({ label, stateLabel, expanded, children }) {
 	const contentArea = useRef(null);
-	const [contentHeight, setContentHeight] = useState(!expanded ? 0 : '');
-	const [isCollapsed, setIsCollapsed] = useState(!expanded);
+	const [isCollapsed, setIsCollapsed] = usePersistentState(`(${stateLabel ? stateLabel : label}).isCollapsed`, !expanded);
+	const [contentHeight, setContentHeight] = useState(isCollapsed ? 0 : '');
 
 	useEffect(() => {
 		setContentHeight(contentArea.current.scrollHeight);
@@ -2259,7 +2259,7 @@ function WorldInfoModal({ isOpen, closeModal, worldInfo, setWorldInfo, cancel })
 
 			Each entry will begin on a newline. Keys will be interpreted as case-insensitive regular expressions. Search Range specifies how many tokens back into the context will be searched for activation keys. Search range 0 to disable an entry.">
 			<div id="modal-wi-global">
-				<${CollapsibleGroup} label="Prefix/Suffix">
+				<${CollapsibleGroup} label="Prefix/Suffix" stateLabel="Prefix/Suffix-WI">
 					The prefix and suffix will be added at the beginning or end of all your active World Info entries respectively.
 					<br />
 					<div className="hbox">
