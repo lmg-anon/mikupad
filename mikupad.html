@@ -2070,80 +2070,6 @@ function Modal({ isOpen, onClose, title, description, children, ...props }) {
 		</div>`;
 }
 
-//https://stackoverflow.com/questions/20926551/recommended-way-of-making-react-component-div-draggable
-function Draggable({ isOpen, onClose, title, id, children, ...props }) {
-  function getDefaultProps() {
-    return {
-      // allow the initial position to be passed in as a prop
-      initialPos: {x: 0, y: 0}
-    }
-  }
-  function getInitialState() {
-    return {
-      pos: this.props.initialPos,
-      dragging: false,
-      rel: null // position relative to the cursor
-    }
-  }
-  // we could get away with not having this (and just having the listeners on
-  // our div), but then the experience would be possibly be janky. If there's
-  // anything w/ a higher z-index that gets in the way, then you're toast,
-  // etc.
-  function componentDidUpdate(props, state) {
-    if (this.state.dragging && !state.dragging) {
-      document.addEventListener('mousemove', this.onMouseMove)
-      document.addEventListener('mouseup', this.onMouseUp)
-    } else if (!this.state.dragging && state.dragging) {
-      document.removeEventListener('mousemove', this.onMouseMove)
-      document.removeEventListener('mouseup', this.onMouseUp)
-    }
-  }
-
-  // calculate relative position of the mouse and set dragging=true
-  function onMouseDown(e) {
-    // only left mouse button
-    if (e.button !== 0) return
-    var pos = $(this.getDOMNode()).offset()
-    this.setState({
-      dragging: true,
-      rel: {
-        x: e.pageX - pos.left,
-        y: e.pageY - pos.top
-      }
-    })
-    e.stopPropagation()
-    e.preventDefault()
-  }
-  function onMouseUp(e) {
-    this.setState({dragging: false})
-    e.stopPropagation()
-    e.preventDefault()
-  }
-  function onMouseMove(e) {
-    if (!this.state.dragging) return
-    this.setState({
-      pos: {
-        x: e.pageX - this.state.rel.x,
-        y: e.pageY - this.state.rel.y
-      }
-    })
-    e.stopPropagation()
-    e.preventDefault()
-  }
-  function render() {
-    // transferPropsTo will merge style & other props passed into our
-    // component to also be on the child DIV.
-    return this.transferPropsTo(React.DOM.div({
-      onMouseDown: this.onMouseDown,
-      style: {
-        left: this.state.pos.x + 'px',
-        top: this.state.pos.y + 'px'
-      }
-    }, this.props.children))
-  }
-}
-
-
 function Widget({ isOpen, onClose, title, id, children, ...props }) {
 	if (!isOpen) {
 		return null;
@@ -2224,6 +2150,7 @@ function Widget({ isOpen, onClose, title, id, children, ...props }) {
 		</div>`;
 }
 function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea, cancel, ...props }) {
+	const [searchAndReplaceError, setSearchAndReplaceError] = useState(undefined);
 	const [searchAndReplaceMode, setSearchAndReplaceMode] = usePersistentState('searchAndReplaceMode', 0);
 	const [searchTerm, setSearchTerm] = usePersistentState('searchTerm', '');
 	const [replaceTerm, setReplaceTerm] = usePersistentState('replaceTerm', '');
@@ -2235,12 +2162,8 @@ function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea,
 		}
 	}, [promptArea]);
 
-
-	console.log(promptArea)
-	console.log(promptArea.current)
-
-
 	function handleSearchAndReplace(mode,search,replace) {
+		setSearchAndReplaceError(undefined)
 		// console.log(prompt)
 		if (!search)
 			return
@@ -2262,6 +2185,9 @@ function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea,
 		// console.log(elem.value)
 		// need to figure out a smart way to keep the cursor position
 		elem.value = elem.value.replaceAll(search,replace)
+		// TODO
+		// THIS DOESN'T SAVE REPLACEMENTS IF YOU DO NOT ADD ANY MANUAL EDITS
+		// BEFORE PREDICTING OR RELOADING
 	}
 
 	return html`
@@ -2294,6 +2220,8 @@ function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea,
 					onClick=${() => handleSearchAndReplace(searchAndReplaceMode,searchTerm,replaceTerm)}>
 						Replace
 				</button>
+				${!!searchAndReplaceError && html`
+					<div style=${{"margin":"8px auto"}} className="error-text">${searchAndReplaceError}</div>`}
 			</${Widget}>`;
 }
 
