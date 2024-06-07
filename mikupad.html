@@ -2655,6 +2655,7 @@ function LogitBiasModal({ isOpen, closeModal, logitBias, setLogitBias, logitBias
 
 function InstructModal({ isOpen, closeModal, templateStorage, selectedTemplate, setSelectedTemplate, templateList, setTemplateList, templates, templatesImport, setTemplates, cancel }) {
 	const [addDeleteTemplate, setAddDeleteTemplate] = useState(false);
+	const [templateDuplicate, setTemplateDuplicate] = useState(false);
 	const [newTemplateName, setNewTemplateName] = useState(undefined);
 
 	function getArrObjByName(array,name,getIndex=false) {
@@ -2709,6 +2710,25 @@ function InstructModal({ isOpen, closeModal, templateStorage, selectedTemplate, 
 		})
 		setAddDeleteTemplate(true)
 	}
+	async function handleInstructTemplateDuplicate() {
+		const index = templateList.findIndex(obj => obj.name === selectedTemplate)
+		const reselectTemplate = templateList[index == -1 ? 0 : index]?.nameNew
+		await updateTemplateDB()
+		await setTemplateDuplicate(reselectTemplate + " (Duplicate)")
+		setTemplates((prevState) => {
+			var newState = {
+				...prevState
+			}
+			newState[reselectTemplate + " (Duplicate)"] = {
+				"sysPre": templates[selectedTemplate]?.sysPre,
+				"sysSuf": templates[selectedTemplate]?.sysSuf,
+				"instPre": templates[selectedTemplate]?.instPre,
+				"instSuf": templates[selectedTemplate]?.instSuf,
+				"fimTemplate": templates[selectedTemplate]?.fimTemplate,
+			}
+			return { ...newState }
+		})
+	}
 
 	async function handleInstructTemplateDelete(name) {
 		if (Object.keys(templates).length < 2)
@@ -2749,7 +2769,12 @@ function InstructModal({ isOpen, closeModal, templateStorage, selectedTemplate, 
 		setTemplateList(list)
 		if (reselectTemplate)
 			setSelectedTemplate(reselectTemplate)
+		if (templateDuplicate) {
+			setSelectedTemplate(templateDuplicate)
+			setTemplateDuplicate(false)
+		}
 	}, [templates,selectedTemplate,templatesImport]);
+
 	useEffect(() => {
 		if (!addDeleteTemplate)
 			return
@@ -2887,6 +2912,13 @@ function InstructModal({ isOpen, closeModal, templateStorage, selectedTemplate, 
 					value=${newTemplateName ?? selectedTemplate}
 					onValueChange=${setSelectedTemplate}
 					options=${templateList}/>
+				<button
+					title="Duplicate Currently Selected Instruct Template"
+					disabled=${!!cancel}
+					class="hbox-button"
+					onClick=${() => handleInstructTemplateDuplicate()}>
+					Duplicate
+				</button>
 				<button
 					title="Add Instruct Template"
 					disabled=${!!cancel}
