@@ -359,7 +359,15 @@ html.nockoffAI #probs {
 	background-color: var(--color-base-40);
 	border-radius:2px;
 	width: calc(100% - 2em);
+	display: flex;
+	align-items: center;
 }
+
+.widget-title svg {
+	height: 1.1em;
+	margin-right: .25em;
+}
+
 
 #searchAndReplace {
 	position: absolute;
@@ -2136,6 +2144,8 @@ function Widget({ isOpen, onClose, title, id, children, ...props }) {
 					onMouseMove=${() => {}}
 					onMouseUp=${() => {}}
 					onMouseLeave=${() => {}}>
+					
+					<svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 11 11" xmlns="http://www.w3.org/2000/svg"><path d="M 5.5 11 L 7 9 L 6 9 L 6 6 L 9 6 L 9 7 L 11 5.5 L 9 4 L 9 5 L 6 5 L 6 2 L 7 2 L 5.5 0 L 4 2 L 5 2 L 5 5 L 2 5 L 2 4 L 0 5.5 L 2 7 L 2 6 L 5 6 L 5 9 L 4 9 Z"></path></svg>
 					${title}
 				</div>
 				<div className="widget-content">
