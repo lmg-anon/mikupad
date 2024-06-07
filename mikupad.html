@@ -2152,8 +2152,8 @@ function Widget({ isOpen, onClose, title, id, children, ...props }) {
 function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea, cancel, ...props }) {
 	const [searchAndReplaceError, setSearchAndReplaceError] = useState(undefined);
 	const [searchAndReplaceMode, setSearchAndReplaceMode] = usePersistentState('searchAndReplaceMode', 0);
-	const [searchTerm, setSearchTerm] = usePersistentState('searchTerm', '');
-	const [replaceTerm, setReplaceTerm] = usePersistentState('replaceTerm', '');
+	const [searchTerm, setSearchTerm] = usePersistentState('searchTerm','');
+	const [replaceTerm, setReplaceTerm] = usePersistentState('replaceTerm','');
 	const [inputElement, setInputElement] = useState(null);
 
 	useEffect(() => {
@@ -2188,6 +2188,18 @@ function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea,
 		// TODO
 		// THIS DOESN'T SAVE REPLACEMENTS IF YOU DO NOT ADD ANY MANUAL EDITS
 		// BEFORE PREDICTING OR RELOADING
+		// TODO
+		// Add this to undo/redo
+	}
+	function regexReplace(search,replace,elem) {
+		let regexComponents = search.match(/\/([^\/]+)\/(\w+)?/)
+		try {
+			let re = new RegExp(String.raw`${regexComponents[1]}`, `${regexComponents[2] ?? ""}`);
+			elem.value = elem.value.replace(re,replace)
+		}
+		catch {
+			setSearchAndReplaceError("Error: Not a RegEx. Is it wrapped in '/'?")
+		}
 	}
 
 	return html`
@@ -2203,7 +2215,7 @@ function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea,
 						options=${[
 							{ name: 'Plaintext', value: 0 },
 							{ name: 'Regex', value: 1 },
-							{ name: 'Template', value: 2 },
+							// { name: 'Template', value: 2 },
 						]}/>
 					${searchAndReplaceMode == 0 && html`
 						<${InputBox} label="Search This" type="text"
@@ -2211,6 +2223,14 @@ function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea,
 							readOnly=${!!cancel} value=${searchTerm} onValueChange=${setSearchTerm}/>
 						<${InputBox} label="Replace With" type="text"
 							placeholder="Makise Kurisu"
+							readOnly=${!!cancel} value=${replaceTerm} onValueChange=${setReplaceTerm}/>
+					`}
+					${searchAndReplaceMode == 1 && html`
+						<${InputBox} label="Search This" type="text"
+							placeholder="/(\\w+) Miku/gi"
+							readOnly=${!!cancel} value=${searchTerm} onValueChange=${setSearchTerm}/>
+						<${InputBox} label="Replace With" type="text"
+							placeholder="$1 Kurisu"
 							readOnly=${!!cancel} value=${replaceTerm} onValueChange=${setReplaceTerm}/>
 					`}
 				</div>
