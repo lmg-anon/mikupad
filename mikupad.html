@@ -2078,182 +2078,6 @@ function Modal({ isOpen, onClose, title, description, children, ...props }) {
 		</div>`;
 }
 
-function Widget({ isOpen, onClose, title, id, children, ...props }) {
-	if (!isOpen) {
-		return null;
-	}
-
-	const [position, setPosition] = useState({ x: 0, y: 0 });
-  const [isDragging, setIsDragging] = useState(false);
-  const dragRef = useRef(null);
-
-  useEffect(() => {
-    const handleMouseMove = (e) => {
-      if (!isDragging) return;
-      const deltaX = e.clientX - dragRef.current.startX;
-      const deltaY = e.clientY - dragRef.current.startY;
-      setPosition({
-        x: dragRef.current.initialX + deltaX,
-        y: dragRef.current.initialY + deltaY,
-      });
-    };
-
-    const handleMouseUp = () => {
-      setIsDragging(false);
-    };
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [isDragging]);
-
-  const handleMouseDown = (e) => {
-    setIsDragging(true);
-    dragRef.current = {
-      startX: e.clientX,
-      startY: e.clientY,
-      initialX: position.x,
-      initialY: position.y,
-    };
-  };
-
-	useEffect(() => {
-		const onKeyDown = (event) => {
-			if (event.key === 'Escape') {
-				onClose();
-			}
-		};
-		document.addEventListener('keydown', onKeyDown);
-		return () => {
-			document.removeEventListener('keydown', onKeyDown);
-		};
-	}, []);
-
-	return html`
-		<div className="widget-body"
-			id="${id}"
-			style=${{ transform: `translate(${position.x}px, ${position.y}px)` }}>
-			<div class="widget-container">
-				<div class="widget-title"
-					style=${{ cursor: isDragging ? 'grabbing' : 'grab' }}
-					onMouseDown=${handleMouseDown}
-					onMouseMove=${() => {}}
-					onMouseUp=${() => {}}
-					onMouseLeave=${() => {}}>
-					<svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 11 11" xmlns="http://www.w3.org/2000/svg"><path d="M 5.5 11 L 7 9 L 6 9 L 6 6 L 9 6 L 9 7 L 11 5.5 L 9 4 L 9 5 L 6 5 L 6 2 L 7 2 L 5.5 0 L 4 2 L 5 2 L 5 5 L 2 5 L 2 4 L 0 5.5 L 2 7 L 2 6 L 5 6 L 5 9 L 4 9 Z"></path></svg>
-					${title}
-				</div>
-				<div className="widget-content">
-					${children}
-				</div>
-				<button
-					class="button-widget-top"
-					onClick=${onClose}>
-					<svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="-1 -1 10 10" xmlns="http://www.w3.org/2000/svg"><path d="M 0 1 L 3 4 L 0 7 L 1 8 L 4 5 L 7 8 L 8 7 L 5 4 L 8 1 L 7 0 L 4 3 L 1 0 L 1 0 Z"></path></svg>
-				</button>
-			</div>
-		</div>`;
-}
-function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea, cancel, ...props }) {
-	const [searchAndReplaceError, setSearchAndReplaceError] = useState(undefined);
-	const [searchAndReplaceMode, setSearchAndReplaceMode] = usePersistentState('searchAndReplaceMode', 0);
-	const [searchTerm, setSearchTerm] = usePersistentState('searchTerm','');
-	const [replaceTerm, setReplaceTerm] = usePersistentState('replaceTerm','');
-	const [inputElement, setInputElement] = useState(null);
-
-	useEffect(() => {
-		if (promptArea.current) {
-			setInputElement(promptArea.current);
-		}
-	}, [promptArea]);
-
-	function handleSearchAndReplace(mode,search,replace) {
-		setSearchAndReplaceError(undefined)
-		// console.log(prompt)
-		if (!search)
-			return
-
-		switch(mode) {
-			case 0:
-				plaintextReplace(search,replace,inputElement)
-				break;
-			case 1:
-				regexReplace(search,replace,inputElement)
-				break;
-			case 2:
-				templateReplace(search,replace,inputElement)
-				break;
-		}
-	}
-
-	function plaintextReplace(search,replace,elem) {
-		// console.log(elem.value)
-		// need to figure out a smart way to keep the cursor position
-		elem.value = elem.value.replaceAll(search,replace)
-		// TODO
-		// THIS DOESN'T SAVE REPLACEMENTS IF YOU DO NOT ADD ANY MANUAL EDITS
-		// BEFORE PREDICTING OR RELOADING
-		// TODO
-		// Add this to undo/redo
-	}
-	function regexReplace(search,replace,elem) {
-		let regexComponents = search.match(/\/([^\/]+)\/(\w+)?/)
-		try {
-			let re = new RegExp(String.raw`${regexComponents[1]}`, `${regexComponents[2] ?? ""}`);
-			elem.value = elem.value.replace(re,replace)
-		}
-		catch {
-			setSearchAndReplaceError("Error: Not a RegEx. Is it wrapped in '/'?")
-		}
-	}
-
-	return html`
-		<${Widget} isOpen=${isOpen} onClose=${closeWidget}
-			title="Search and Replace"
-			id="${id}">
-				${children}
-				<div class="searchAndReplace-inputs">
-					<${SelectBox}
-						label="Mode"
-						value=${searchAndReplaceMode}
-						onValueChange=${setSearchAndReplaceMode}
-						options=${[
-							{ name: 'Plaintext', value: 0 },
-							{ name: 'Regex', value: 1 },
-							// { name: 'Template', value: 2 },
-						]}/>
-					${searchAndReplaceMode == 0 && html`
-						<${InputBox} label="Search This" type="text"
-							placeholder="Hatsune Miku"
-							readOnly=${!!cancel} value=${searchTerm} onValueChange=${setSearchTerm}/>
-						<${InputBox} label="Replace With" type="text"
-							placeholder="Makise Kurisu"
-							readOnly=${!!cancel} value=${replaceTerm} onValueChange=${setReplaceTerm}/>
-					`}
-					${searchAndReplaceMode == 1 && html`
-						<${InputBox} label="Search This" type="text"
-							placeholder="/(\\w+) Miku/gi"
-							readOnly=${!!cancel} value=${searchTerm} onValueChange=${setSearchTerm}/>
-						<${InputBox} label="Replace With" type="text"
-							placeholder="$1 Kurisu"
-							readOnly=${!!cancel} value=${replaceTerm} onValueChange=${setReplaceTerm}/>
-					`}
-				</div>
-				<button
-					title="Replace"
-					disabled=${!!cancel}
-					onClick=${() => handleSearchAndReplace(searchAndReplaceMode,searchTerm,replaceTerm)}>
-						Replace
-				</button>
-				${!!searchAndReplaceError && html`
-					<div style=${{"margin":"8px auto"}} className="error-text">${searchAndReplaceError}</div>`}
-			</${Widget}>`;
-}
-
 function EditorPreferencesModal({ isOpen, closeModal, children }) {
 	return html`
 		<${Modal} isOpen=${isOpen} onClose=${closeModal}
@@ -3204,6 +3028,182 @@ function InstructModal({ isOpen, closeModal, templateStorage, selectedTemplate, 
 
 
 		</${Modal}>`;
+}
+
+function Widget({ isOpen, onClose, title, id, children, ...props }) {
+	if (!isOpen) {
+		return null;
+	}
+
+	const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const dragRef = useRef(null);
+
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      if (!isDragging) return;
+      const deltaX = e.clientX - dragRef.current.startX;
+      const deltaY = e.clientY - dragRef.current.startY;
+      setPosition({
+        x: dragRef.current.initialX + deltaX,
+        y: dragRef.current.initialY + deltaY,
+      });
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging]);
+
+  const handleMouseDown = (e) => {
+    setIsDragging(true);
+    dragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      initialX: position.x,
+      initialY: position.y,
+    };
+  };
+
+	useEffect(() => {
+		const onKeyDown = (event) => {
+			if (event.key === 'Escape') {
+				onClose();
+			}
+		};
+		document.addEventListener('keydown', onKeyDown);
+		return () => {
+			document.removeEventListener('keydown', onKeyDown);
+		};
+	}, []);
+
+	return html`
+		<div className="widget-body"
+			id="${id}"
+			style=${{ transform: `translate(${position.x}px, ${position.y}px)` }}>
+			<div class="widget-container">
+				<div class="widget-title"
+					style=${{ cursor: isDragging ? 'grabbing' : 'grab' }}
+					onMouseDown=${handleMouseDown}
+					onMouseMove=${() => {}}
+					onMouseUp=${() => {}}
+					onMouseLeave=${() => {}}>
+					<svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 11 11" xmlns="http://www.w3.org/2000/svg"><path d="M 5.5 11 L 7 9 L 6 9 L 6 6 L 9 6 L 9 7 L 11 5.5 L 9 4 L 9 5 L 6 5 L 6 2 L 7 2 L 5.5 0 L 4 2 L 5 2 L 5 5 L 2 5 L 2 4 L 0 5.5 L 2 7 L 2 6 L 5 6 L 5 9 L 4 9 Z"></path></svg>
+					${title}
+				</div>
+				<div className="widget-content">
+					${children}
+				</div>
+				<button
+					class="button-widget-top"
+					onClick=${onClose}>
+					<svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="-1 -1 10 10" xmlns="http://www.w3.org/2000/svg"><path d="M 0 1 L 3 4 L 0 7 L 1 8 L 4 5 L 7 8 L 8 7 L 5 4 L 8 1 L 7 0 L 4 3 L 1 0 L 1 0 Z"></path></svg>
+				</button>
+			</div>
+		</div>`;
+}
+function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea, cancel, ...props }) {
+	const [searchAndReplaceError, setSearchAndReplaceError] = useState(undefined);
+	const [searchAndReplaceMode, setSearchAndReplaceMode] = usePersistentState('searchAndReplaceMode', 0);
+	const [searchTerm, setSearchTerm] = usePersistentState('searchTerm','');
+	const [replaceTerm, setReplaceTerm] = usePersistentState('replaceTerm','');
+	const [inputElement, setInputElement] = useState(null);
+
+	useEffect(() => {
+		if (promptArea.current) {
+			setInputElement(promptArea.current);
+		}
+	}, [promptArea]);
+
+	function handleSearchAndReplace(mode,search,replace) {
+		setSearchAndReplaceError(undefined)
+		// console.log(prompt)
+		if (!search)
+			return
+
+		switch(mode) {
+			case 0:
+				plaintextReplace(search,replace,inputElement)
+				break;
+			case 1:
+				regexReplace(search,replace,inputElement)
+				break;
+			case 2:
+				templateReplace(search,replace,inputElement)
+				break;
+		}
+	}
+
+	function plaintextReplace(search,replace,elem) {
+		// console.log(elem.value)
+		// need to figure out a smart way to keep the cursor position
+		elem.value = elem.value.replaceAll(search,replace)
+		// TODO
+		// THIS DOESN'T SAVE REPLACEMENTS IF YOU DO NOT ADD ANY MANUAL EDITS
+		// BEFORE PREDICTING OR RELOADING
+		// TODO
+		// Add this to undo/redo
+	}
+	function regexReplace(search,replace,elem) {
+		let regexComponents = search.match(/\/([^\/]+)\/(\w+)?/)
+		try {
+			let re = new RegExp(String.raw`${regexComponents[1]}`, `${regexComponents[2] ?? ""}`);
+			elem.value = elem.value.replace(re,replace)
+		}
+		catch {
+			setSearchAndReplaceError("Error: Not a RegEx. Is it wrapped in '/'?")
+		}
+	}
+
+	return html`
+		<${Widget} isOpen=${isOpen} onClose=${closeWidget}
+			title="Search and Replace"
+			id="${id}">
+				${children}
+				<div class="searchAndReplace-inputs">
+					<${SelectBox}
+						label="Mode"
+						value=${searchAndReplaceMode}
+						onValueChange=${setSearchAndReplaceMode}
+						options=${[
+							{ name: 'Plaintext', value: 0 },
+							{ name: 'Regex', value: 1 },
+							// { name: 'Template', value: 2 },
+						]}/>
+					${searchAndReplaceMode == 0 && html`
+						<${InputBox} label="Search This" type="text"
+							placeholder="Hatsune Miku"
+							readOnly=${!!cancel} value=${searchTerm} onValueChange=${setSearchTerm}/>
+						<${InputBox} label="Replace With" type="text"
+							placeholder="Makise Kurisu"
+							readOnly=${!!cancel} value=${replaceTerm} onValueChange=${setReplaceTerm}/>
+					`}
+					${searchAndReplaceMode == 1 && html`
+						<${InputBox} label="Search This" type="text"
+							placeholder="/(\\w+) Miku/gi"
+							readOnly=${!!cancel} value=${searchTerm} onValueChange=${setSearchTerm}/>
+						<${InputBox} label="Replace With" type="text"
+							placeholder="$1 Kurisu"
+							readOnly=${!!cancel} value=${replaceTerm} onValueChange=${setReplaceTerm}/>
+					`}
+				</div>
+				<button
+					title="Replace"
+					disabled=${!!cancel}
+					onClick=${() => handleSearchAndReplace(searchAndReplaceMode,searchTerm,replaceTerm)}>
+						Replace
+				</button>
+				${!!searchAndReplaceError && html`
+					<div style=${{"margin":"8px auto"}} className="error-text">${searchAndReplaceError}</div>`}
+		</${Widget}>`;
 }
 
 class IndexedDBAdapter {
