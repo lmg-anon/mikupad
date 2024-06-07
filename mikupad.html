@@ -344,6 +344,10 @@ html.nockoffAI #probs {
 	font-size: 0.8rem;
 }
 
+.widget-body {
+	z-index: 99;
+}
+
 .widget-title {
 	-webkit-user-select: none; /* Safari */
 	-ms-user-select: none; /* IE 10 and IE 11 */
@@ -369,17 +373,25 @@ html.nockoffAI #probs {
 #searchAndReplace .widget-container {
 	position: relative;
 }
-#searchAndReplace .button-widget-top {
+
+.button-widget-top {
+	all:unset;
 	position: absolute;
-	top:0.1em;
-	right:0.1em;
+	top: 0.25em;
+	right: 0.15em;
+	width:1.25em;
+	height:1.25em;
+	border-radius: 3px;
+}
+#searchAndReplace .widget-content {
+	padding: .2em;
 }
 
 .searchAndReplace-inputs {
 	display: flex;
 	flex-direction: row;
 	gap: 8px;
-	padding: .2em;
+	margin-bottom:8px;
 }
 .searchAndReplace-inputs .InputBox {
 	width: 100%;
@@ -388,9 +400,6 @@ html.nockoffAI #probs {
 	width: 40%;
 }
 
-/* .widget-body {
-
-} */
 
 .modal-overlay {
 	position: fixed;
@@ -2213,12 +2222,77 @@ function Widget({ isOpen, onClose, title, id, children, ...props }) {
 			</div>
 		</div>`;
 }
-function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, ...props }) {
+function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea, cancel, ...props }) {
+	const [searchAndReplaceMode, setSearchAndReplaceMode] = usePersistentState('searchAndReplaceMode', 0);
+	const [searchTerm, setSearchTerm] = usePersistentState('searchTerm', '');
+	const [replaceTerm, setReplaceTerm] = usePersistentState('replaceTerm', '');
+	const [inputElement, setInputElement] = useState(null);
+
+	useEffect(() => {
+		if (promptArea.current) {
+			setInputElement(promptArea.current);
+		}
+	}, [promptArea]);
+
+
+	console.log(promptArea)
+	console.log(promptArea.current)
+
+
+	function handleSearchAndReplace(mode,search,replace) {
+		// console.log(prompt)
+		if (!search)
+			return
+
+		switch(mode) {
+			case 0:
+				plaintextReplace(search,replace,inputElement)
+				break;
+			case 1:
+				regexReplace(search,replace,inputElement)
+				break;
+			case 2:
+				templateReplace(search,replace,inputElement)
+				break;
+		}
+	}
+
+	function plaintextReplace(search,replace,elem) {
+		// console.log(elem.value)
+		// need to figure out a smart way to keep the cursor position
+		elem.value = elem.value.replaceAll(search,replace)
+	}
+
 	return html`
 		<${Widget} isOpen=${isOpen} onClose=${closeWidget}
 			title="Search and Replace"
 			id="${id}">
 				${children}
+				<div class="searchAndReplace-inputs">
+					<${SelectBox}
+						label="Mode"
+						value=${searchAndReplaceMode}
+						onValueChange=${setSearchAndReplaceMode}
+						options=${[
+							{ name: 'Plaintext', value: 0 },
+							{ name: 'Regex', value: 1 },
+							{ name: 'Template', value: 2 },
+						]}/>
+					${searchAndReplaceMode == 0 && html`
+						<${InputBox} label="Search This" type="text"
+							placeholder="Hatusne Miku"
+							readOnly=${!!cancel} value=${searchTerm} onValueChange=${setSearchTerm}/>
+						<${InputBox} label="Replace With" type="text"
+							placeholder="Makise Kurisu"
+							readOnly=${!!cancel} value=${replaceTerm} onValueChange=${setReplaceTerm}/>
+					`}
+				</div>
+				<button
+					title="Replace"
+					disabled=${!!cancel}
+					onClick=${() => handleSearchAndReplace(searchAndReplaceMode,searchTerm,replaceTerm)}>
+						Replace
+				</button>
 			</${Widget}>`;
 }
 
@@ -3955,9 +4029,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	const [authorNoteTokens, setAuthorNoteTokens] = useSessionState('authorNoteTokens', defaultPresets.authorNoteTokens);
 	const [authorNoteDepth, setAuthorNoteDepth] = useSessionState('authorNoteDepth', defaultPresets.authorNoteDepth);
 	const [worldInfo, setWorldInfo] = useSessionState('worldInfo', defaultPresets.worldInfo);
-	const [searchAndReplaceMode, setSearchAndReplaceMode] = usePersistentState('searchAndReplaceMode', 0);
-	const [searchTerm, setSearchTerm] = usePersistentState('searchTerm', '');
-	const [replaceTerm, setReplaceTerm] = usePersistentState('replaceTerm', '');
+
 
 
 	function replacePlaceholders(string,placeholders) {
@@ -5167,25 +5239,8 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 				isOpen=${modalState.searchAndReplace}
 				closeWidget=${() => closeModal("searchAndReplace")}
 				id="searchAndReplace"
-				>
-				<div class="searchAndReplace-inputs">
-					<${SelectBox}
-						label="Mode"
-						value=${searchAndReplaceMode}
-						onValueChange=${setSearchAndReplaceMode}
-						options=${[
-							{ name: 'Plaintext', value: 0 },
-							{ name: 'Regex', value: 1 },
-							{ name: 'Template', value: 2 },
-						]}/>
-					${searchAndReplaceMode == 0 && html`
-						<${InputBox} label="Search This" type="text"
-							readOnly=${!!cancel} value=${searchTerm} onValueChange=${setSearchTerm}/>
-						<${InputBox} label="Replace With" type="text"
-							readOnly=${!!cancel} value=${replaceTerm} onValueChange=${setReplaceTerm}/>
-					`}
-				</div>
-			</${SearchAndReplaceWidget}>
+				promptArea=${promptArea}
+				cancel=${cancel}/>
 		</div>
 		${probs ? html`
 			<div
