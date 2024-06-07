@@ -344,6 +344,54 @@ html.nockoffAI #probs {
 	font-size: 0.8rem;
 }
 
+.widget-title {
+	-webkit-user-select: none; /* Safari */
+	-ms-user-select: none; /* IE 10 and IE 11 */
+	user-select: none; /* Standard syntax */
+	padding:0.2em;
+	font-weight: bold;
+	font-size: 110%;
+	background-color: var(--color-base-40);
+	border-radius:2px;
+	width: calc(100% - 2em);
+}
+
+#searchAndReplace {
+	position: absolute;
+  width: 70%;
+  background: var(--color-base-50);
+	top:.75em;
+	left:.75em;
+	border-radius:3px;
+	padding:0.25em;
+}
+
+#searchAndReplace .widget-container {
+	position: relative;
+}
+#searchAndReplace .button-widget-top {
+	position: absolute;
+	top:0.1em;
+	right:0.1em;
+}
+
+.searchAndReplace-inputs {
+	display: flex;
+	flex-direction: row;
+	gap: 8px;
+	padding: .2em;
+}
+.searchAndReplace-inputs .InputBox {
+	width: 100%;
+}
+.searchAndReplace-inputs .SelectBox {
+	width: 40%;
+}
+
+/* .widget-body {
+
+} */
+
 .modal-overlay {
 	position: fixed;
 	top: 0;
@@ -1975,8 +2023,6 @@ function Sessions({ sessionStorage, disabled }) {
 		</div>`;
 }
 
-
-
 function Modal({ isOpen, onClose, title, description, children, ...props }) {
 	if (!isOpen) {
 		return null;
@@ -2012,6 +2058,168 @@ function Modal({ isOpen, onClose, title, description, children, ...props }) {
 				</div>
 			</div>
 		</div>`;
+}
+
+//https://stackoverflow.com/questions/20926551/recommended-way-of-making-react-component-div-draggable
+function Draggable({ isOpen, onClose, title, id, children, ...props }) {
+  function getDefaultProps() {
+    return {
+      // allow the initial position to be passed in as a prop
+      initialPos: {x: 0, y: 0}
+    }
+  }
+  function getInitialState() {
+    return {
+      pos: this.props.initialPos,
+      dragging: false,
+      rel: null // position relative to the cursor
+    }
+  }
+  // we could get away with not having this (and just having the listeners on
+  // our div), but then the experience would be possibly be janky. If there's
+  // anything w/ a higher z-index that gets in the way, then you're toast,
+  // etc.
+  function componentDidUpdate(props, state) {
+    if (this.state.dragging && !state.dragging) {
+      document.addEventListener('mousemove', this.onMouseMove)
+      document.addEventListener('mouseup', this.onMouseUp)
+    } else if (!this.state.dragging && state.dragging) {
+      document.removeEventListener('mousemove', this.onMouseMove)
+      document.removeEventListener('mouseup', this.onMouseUp)
+    }
+  }
+
+  // calculate relative position of the mouse and set dragging=true
+  function onMouseDown(e) {
+    // only left mouse button
+    if (e.button !== 0) return
+    var pos = $(this.getDOMNode()).offset()
+    this.setState({
+      dragging: true,
+      rel: {
+        x: e.pageX - pos.left,
+        y: e.pageY - pos.top
+      }
+    })
+    e.stopPropagation()
+    e.preventDefault()
+  }
+  function onMouseUp(e) {
+    this.setState({dragging: false})
+    e.stopPropagation()
+    e.preventDefault()
+  }
+  function onMouseMove(e) {
+    if (!this.state.dragging) return
+    this.setState({
+      pos: {
+        x: e.pageX - this.state.rel.x,
+        y: e.pageY - this.state.rel.y
+      }
+    })
+    e.stopPropagation()
+    e.preventDefault()
+  }
+  function render() {
+    // transferPropsTo will merge style & other props passed into our
+    // component to also be on the child DIV.
+    return this.transferPropsTo(React.DOM.div({
+      onMouseDown: this.onMouseDown,
+      style: {
+        left: this.state.pos.x + 'px',
+        top: this.state.pos.y + 'px'
+      }
+    }, this.props.children))
+  }
+}
+
+
+function Widget({ isOpen, onClose, title, id, children, ...props }) {
+	if (!isOpen) {
+		return null;
+	}
+
+	const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const dragRef = useRef(null);
+
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      if (!isDragging) return;
+      const deltaX = e.clientX - dragRef.current.startX;
+      const deltaY = e.clientY - dragRef.current.startY;
+      setPosition({
+        x: dragRef.current.initialX + deltaX,
+        y: dragRef.current.initialY + deltaY,
+      });
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging]);
+
+  const handleMouseDown = (e) => {
+    setIsDragging(true);
+    dragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      initialX: position.x,
+      initialY: position.y,
+    };
+  };
+
+	useEffect(() => {
+		const onKeyDown = (event) => {
+			if (event.key === 'Escape') {
+				onClose();
+			}
+		};
+		document.addEventListener('keydown', onKeyDown);
+		return () => {
+			document.removeEventListener('keydown', onKeyDown);
+		};
+	}, []);
+
+	return html`
+		<div className="widget-body"
+			id="${id}"
+			style=${{ transform: `translate(${position.x}px, ${position.y}px)` }}>
+			<div class="widget-container">
+				<div class="widget-title"
+					style=${{ cursor: isDragging ? 'grabbing' : 'grab' }}
+					onMouseDown=${handleMouseDown}
+					onMouseMove=${() => {}}
+					onMouseUp=${() => {}}
+					onMouseLeave=${() => {}}>
+					${title}
+				</div>
+				<div className="widget-content">
+					${children}
+				</div>
+				<button
+					class="button-widget-top"
+					onClick=${onClose}>
+					<svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="-1 -1 10 10" xmlns="http://www.w3.org/2000/svg"><path d="M 0 1 L 3 4 L 0 7 L 1 8 L 4 5 L 7 8 L 8 7 L 5 4 L 8 1 L 7 0 L 4 3 L 1 0 L 1 0 Z"></path></svg>
+				</button>
+			</div>
+		</div>`;
+}
+function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, ...props }) {
+	return html`
+		<${Widget} isOpen=${isOpen} onClose=${closeWidget}
+			title="Search and Replace"
+			id="${id}">
+				${children}
+			</${Widget}>`;
 }
 
 function EditorPreferencesModal({ isOpen, closeModal, children }) {
@@ -3747,6 +3955,9 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	const [authorNoteTokens, setAuthorNoteTokens] = useSessionState('authorNoteTokens', defaultPresets.authorNoteTokens);
 	const [authorNoteDepth, setAuthorNoteDepth] = useSessionState('authorNoteDepth', defaultPresets.authorNoteDepth);
 	const [worldInfo, setWorldInfo] = useSessionState('worldInfo', defaultPresets.worldInfo);
+	const [searchAndReplaceMode, setSearchAndReplaceMode] = usePersistentState('searchAndReplaceMode', 0);
+	const [searchTerm, setSearchTerm] = usePersistentState('searchTerm', '');
+	const [replaceTerm, setReplaceTerm] = usePersistentState('replaceTerm', '');
 
 
 	function replacePlaceholders(string,placeholders) {
@@ -4952,6 +5163,29 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 							</span>`;
 					})}` : null}
 			</div>
+			<${SearchAndReplaceWidget}
+				isOpen=${modalState.searchAndReplace}
+				closeWidget=${() => closeModal("searchAndReplace")}
+				id="searchAndReplace"
+				>
+				<div class="searchAndReplace-inputs">
+					<${SelectBox}
+						label="Mode"
+						value=${searchAndReplaceMode}
+						onValueChange=${setSearchAndReplaceMode}
+						options=${[
+							{ name: 'Plaintext', value: 0 },
+							{ name: 'Regex', value: 1 },
+							{ name: 'Template', value: 2 },
+						]}/>
+					${searchAndReplaceMode == 0 && html`
+						<${InputBox} label="Search This" type="text"
+							readOnly=${!!cancel} value=${searchTerm} onValueChange=${setSearchTerm}/>
+						<${InputBox} label="Replace With" type="text"
+							readOnly=${!!cancel} value=${replaceTerm} onValueChange=${setReplaceTerm}/>
+					`}
+				</div>
+			</${SearchAndReplaceWidget}>
 		</div>
 		${probs ? html`
 			<div
@@ -5259,6 +5493,9 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 					<svg transform="translate(0, 2)" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 512 512"><path d="M495.9 166.6c3.2 8.7 .5 18.4-6.4 24.6l-43.3 39.4c1.1 8.3 1.7 16.8 1.7 25.4s-.6 17.1-1.7 25.4l43.3 39.4c6.9 6.2 9.6 15.9 6.4 24.6c-4.4 11.9-9.7 23.3-15.8 34.3l-4.7 8.1c-6.6 11-14 21.4-22.1 31.2c-5.9 7.2-15.7 9.6-24.5 6.8l-55.7-17.7c-13.4 10.3-28.2 18.9-44 25.4l-12.5 57.1c-2 9.1-9 16.3-18.2 17.8c-13.8 2.3-28 3.5-42.5 3.5s-28.7-1.2-42.5-3.5c-9.2-1.5-16.2-8.7-18.2-17.8l-12.5-57.1c-15.8-6.5-30.6-15.1-44-25.4L83.1 425.9c-8.8 2.8-18.6 .3-24.5-6.8c-8.1-9.8-15.5-20.2-22.1-31.2l-4.7-8.1c-6.1-11-11.4-22.4-15.8-34.3c-3.2-8.7-.5-18.4 6.4-24.6l43.3-39.4C64.6 273.1 64 264.6 64 256s.6-17.1 1.7-25.4L22.4 191.2c-6.9-6.2-9.6-15.9-6.4-24.6c4.4-11.9 9.7-23.3 15.8-34.3l4.7-8.1c6.6-11 14-21.4 22.1-31.2c5.9-7.2 15.7-9.6 24.5-6.8l55.7 17.7c13.4-10.3 28.2-18.9 44-25.4l12.5-57.1c2-9.1 9-16.3 18.2-17.8C227.3 1.2 241.5 0 256 0s28.7 1.2 42.5 3.5c9.2 1.5 16.2 8.7 18.2 17.8l12.5 57.1c15.8 6.5 30.6 15.1 44 25.4l55.7-17.7c8.8-2.8 18.6-.3 24.5 6.8c8.1 9.8 15.5 20.2 22.1 31.2l4.7 8.1c6.1 11 11.4 22.4 15.8 34.3zM256 336a80 80 0 1 0 0-160 80 80 0 1 0 0 160z" fill="var(--color-light)"/></svg>
 				</button>
 			</div>
+			<button onClick=${() => toggleModal("searchAndReplace")}>
+				show search and replace
+			</button>
 			${!!lastError && html`
 				<span className="error-text">${lastError}</span>`}
 		</div>
