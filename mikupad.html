@@ -3155,7 +3155,7 @@ function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea,
 	function regexReplace(search,replace,elem) {
 		let regexComponents = search.match(/\/([^\/]+)\/(\w+)?/)
 		try {
-			let re = new RegExp(String.raw`${regexComponents[1]}`, `${regexComponents[2] ?? ""}`);
+			let re = new RegExp(String.raw`${regexComponents[1]}`, String.raw`${regexComponents[2] ?? ""}`);
 			elem.value = elem.value.replace(re,replace)
 		}
 		catch {
@@ -4783,30 +4783,30 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			if (defaultPrevented)
 				return;
 			switch (`${altKey}:${ctrlKey}:${shiftKey}:${key}`) {
-			case 'false:false:true:Enter':
-			case 'false:true:false:Enter':
-				predict();
-				break;
-			case 'false:false:false:Escape':
-				cancel();
-				break;
-			case 'false:true:false:r':
-			case 'false:false:true:r':
-				undoAndPredict();
-				break;
-			case 'false:true:false:z':
-			case 'false:false:true:z':
-				if (cancel || !undo()) return;
-				break;
-			case 'false:true:true:Z':
-			case 'false:true:false:y':
-			case 'false:false:true:y':
-				if (cancel || !redo()) return;
-				break;
+				case 'false:false:true:Enter':
+				case 'false:true:false:Enter':
+					predict();
+					break;
+				case 'false:false:false:Escape':
+					cancel();
+					break;
+				case 'false:true:false:r':
+				case 'false:false:true:r':
+					undoAndPredict();
+					break;
+				case 'false:true:false:z':
+				case 'false:false:true:z':
+					if (cancel || !undo()) return;
+					break;
+				case 'false:true:true:Z':
+				case 'false:true:false:y':
+				case 'false:false:true:y':
+					if (cancel || !redo()) return;
+					break;
 
-			default:
-				keyState.current = e;
-				return;
+				default:
+					keyState.current = e;
+					return;
 			}
 			e.preventDefault();
 		}
