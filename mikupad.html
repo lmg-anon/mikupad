@@ -719,7 +719,7 @@ html.nockoffAI .SelectBox > select:disabled {
 	margin: 0 5px 0 0;
 	vertical-align: middle;
 	position: relative;
-		bottom: .08em;
+	bottom: .08em;
 }
 
 .InputBox > div > input.mixed-content {
@@ -2011,15 +2011,6 @@ const SVG_Close = ({...props}) => {
 	<${SVG}
 		viewBox="-1 -1 10 10">
 		<path d="M 0 1 L 3 4 L 0 7 L 1 8 L 4 5 L 7 8 L 8 7 L 5 4 L 8 1 L 7 0 L 4 3 L 1 0 L 1 0 Z"/>
-	</${SVG}>
-`};
-const SVG_Ex = ({...props}) => {
-	return html`
-	<${SVG}
-		width="16"
-		height="16"
-		viewBox="0 0 128 128">
-		<path d=""/>
 	</${SVG}>
 `};
 const SVG_Confirm = ({...props}) => {
@@ -3822,7 +3813,7 @@ function regexSplitString(str, separator, limit) {
 	
 	while ((match = regex.exec(str)) !== null) {
 			if (limit !== undefined && result.length >= limit) break;
-			
+
 			result.push(str.slice(lastIndex, match.index));
 			separators.push(match[0]);
 			lastIndex = match.index + match[0].length;
