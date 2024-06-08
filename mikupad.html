@@ -344,15 +344,29 @@ html.nockoffAI #probs {
 	font-size: 0.8rem;
 }
 
+.flexfiller {
+	flex-grow: 1;
+}
+
 .widget-body {
-	z-index: 99;
+	z-index: 10;
 	color: var(--color-light)
 }
 html.nockoffAI #searchAndReplace {
 	background: var(--color-sidebar);
 }
 
-
+.widget-title-bar {
+	display: flex;
+	align-items: center;
+}
+.button-widget-top {
+	all:unset;
+	margin: auto;
+	width:1.25em;
+	height:1.25em;
+	border-radius: 3px;
+}
 .widget-title {
 	-webkit-user-select: none; /* Safari */
 	-ms-user-select: none; /* IE 10 and IE 11 */
@@ -370,12 +384,14 @@ html.nockoffAI .widget-title {
 	background: var(--color-input);
 	color: var(--color-base-50);
 }
+html.monospace-dark .widget-title {
+  background: #46465a;
+} 
 
 .widget-title svg {
 	height: 1em;
 	margin-right: .25em;
 }
-
 
 #searchAndReplace {
 	position: absolute;
@@ -387,19 +403,10 @@ html.nockoffAI .widget-title {
 	padding:0.25em;
 }
 
-#searchAndReplace .widget-container {
-	position: relative;
-}
+html.monospace-dark #searchAndReplace {
+  background: #282833;
+} 
 
-.button-widget-top {
-	all:unset;
-	position: absolute;
-	top: 0.25em;
-	right: 0.15em;
-	width:1.25em;
-	height:1.25em;
-	border-radius: 3px;
-}
 #searchAndReplace .widget-content {
 	padding: .2em;
 }
@@ -417,6 +424,10 @@ html.nockoffAI .widget-title {
 	width: max-content;
 }
 
+.searchAndReplace-buttons {
+	display: flex;
+	gap: 8px;
+}
 
 .modal-overlay {
 	position: fixed;
@@ -428,6 +439,7 @@ html.nockoffAI .widget-title {
 	display: flex;
 	align-items: center;
 	justify-content: center;
+	z-index: 20;
 }
 .modal-container {
 	width: 100%;
@@ -3098,23 +3110,25 @@ function Widget({ isOpen, onClose, title, id, children, ...props }) {
 			id="${id}"
 			style=${{ transform: `translate(${position.x}px, ${position.y}px)` }}>
 			<div class="widget-container">
-				<div class="widget-title"
-					style=${{ cursor: isDragging ? 'grabbing' : 'grab' }}
-					onMouseDown=${handleMouseDown}
-					onMouseMove=${() => {}}
-					onMouseUp=${() => {}}
-					onMouseLeave=${() => {}}>
-					<svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 11 11" xmlns="http://www.w3.org/2000/svg"><path d="M 5.5 11 L 7 9 L 6 9 L 6 6 L 9 6 L 9 7 L 11 5.5 L 9 4 L 9 5 L 6 5 L 6 2 L 7 2 L 5.5 0 L 4 2 L 5 2 L 5 5 L 2 5 L 2 4 L 0 5.5 L 2 7 L 2 6 L 5 6 L 5 9 L 4 9 Z"></path></svg>
-					${title}
+				<div class="widget-title-bar">
+					<div class="widget-title"
+						style=${{ cursor: isDragging ? 'grabbing' : 'grab' }}
+						onMouseDown=${handleMouseDown}
+						onMouseMove=${() => {}}
+						onMouseUp=${() => {}}
+						onMouseLeave=${() => {}}>
+						<svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 11 11" xmlns="http://www.w3.org/2000/svg"><path d="M 5.5 11 L 7 9 L 6 9 L 6 6 L 9 6 L 9 7 L 11 5.5 L 9 4 L 9 5 L 6 5 L 6 2 L 7 2 L 5.5 0 L 4 2 L 5 2 L 5 5 L 2 5 L 2 4 L 0 5.5 L 2 7 L 2 6 L 5 6 L 5 9 L 4 9 Z"></path></svg>
+						${title}
+					</div>
+					<button
+						class="button-widget-top"
+						onClick=${onClose}>
+						<svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="-1 -1 10 10" xmlns="http://www.w3.org/2000/svg"><path d="M 0 1 L 3 4 L 0 7 L 1 8 L 4 5 L 7 8 L 8 7 L 5 4 L 8 1 L 7 0 L 4 3 L 1 0 L 1 0 Z"></path></svg>
+					</button>
 				</div>
 				<div className="widget-content">
 					${children}
 				</div>
-				<button
-					class="button-widget-top"
-					onClick=${onClose}>
-					<svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="-1 -1 10 10" xmlns="http://www.w3.org/2000/svg"><path d="M 0 1 L 3 4 L 0 7 L 1 8 L 4 5 L 7 8 L 8 7 L 5 4 L 8 1 L 7 0 L 4 3 L 1 0 L 1 0 Z"></path></svg>
-				</button>
 			</div>
 		</div>`;
 }
@@ -3155,16 +3169,17 @@ function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea,
 		// need to figure out a smart way to keep the cursor position
 		elem.value = elem.value.replaceAll(search,replace)
 		// TODO
-		// THIS DOESN'T SAVE REPLACEMENTS IF YOU DO NOT ADD ANY MANUAL EDITS
-		// BEFORE PREDICTING OR RELOADING
-		// TODO
 		// Add this to undo/redo
+		const event = new Event('input', { bubbles: true });
+		elem.dispatchEvent(event);
 	}
 	function regexReplace(search,replace,elem) {
 		let regexComponents = search.match(/\/([^\/]+)\/(\w+)?/)
 		try {
 			let re = new RegExp(String.raw`${regexComponents[1]}`, String.raw`${regexComponents[2] ?? ""}`);
 			elem.value = elem.value.replace(re,replace)
+			const event = new Event('input', { bubbles: true });
+			elem.dispatchEvent(event);
 		}
 		catch {
 			setSearchAndReplaceError("Error: Not a RegEx. Is it wrapped in '/'?")
@@ -3203,12 +3218,21 @@ function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea,
 							readOnly=${!!cancel} value=${replaceTerm} onValueChange=${setReplaceTerm}/>
 					`}
 				</div>
-				<button
-					title="Replace"
-					disabled=${!!cancel}
-					onClick=${() => handleSearchAndReplace(searchAndReplaceMode,searchTerm,replaceTerm)}>
-						Replace
-				</button>
+				<div class="searchAndReplace-buttons">
+					<div class="flexfiller"/>
+					<button
+						title="Replace"
+						disabled=${!!cancel}
+						onClick=${() => handleSearchAndReplace(searchAndReplaceMode,searchTerm,replaceTerm)}>
+							Replace
+					</button>
+					<button
+						title="Find"
+						disabled=${!!cancel}
+						onClick=${() => handleFind(searchAndReplaceMode,searchTerm)}>
+							Find
+					</button>
+				</div>
 				${!!searchAndReplaceError && html`
 					<div style=${{"margin":"8px auto"}} className="error-text">${searchAndReplaceError}</div>`}
 		</${Widget}>`;
