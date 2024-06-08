@@ -1,14 +1,14 @@
 <!doctype html>
 <meta charset="utf-8">
 <!-- mikupad by Anon
-	--
-	-- To the extent possible under law, the person who associated CC0 with
-	-- mikupad has waived all copyright and related or neighboring rights
-	-- to mikupad.
-	--
-	-- You should have received a copy of the CC0 legalcode along with this
-	-- work.  If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
-	-->
+  --
+  -- To the extent possible under law, the person who associated CC0 with
+  -- mikupad has waived all copyright and related or neighboring rights
+  -- to mikupad.
+  --
+  -- You should have received a copy of the CC0 legalcode along with this
+  -- work.  If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
+  -->
 <title>mikupad</title>
 <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1.0">
 <script type="importmap">
@@ -3814,23 +3814,23 @@ function replaceNewlines(template) {
 }
 
 function regexSplitString(str, separator, limit) {
-		const result = [];
-		const separators = [];
-		let lastIndex = 0;
-		let match;
-		const regex = new RegExp(separator, 'g');
-		
-		while ((match = regex.exec(str)) !== null) {
-				if (limit !== undefined && result.length >= limit) break;
-				
-				result.push(str.slice(lastIndex, match.index));
-				separators.push(match[0]);
-				lastIndex = match.index + match[0].length;
-		}
-		
-		result.push(str.slice(lastIndex)); // Add the remainder of the string
-		
-		return [result, separators];
+	const result = [];
+	const separators = [];
+	let lastIndex = 0;
+	let match;
+	const regex = new RegExp(separator, 'g');
+	
+	while ((match = regex.exec(str)) !== null) {
+			if (limit !== undefined && result.length >= limit) break;
+			
+			result.push(str.slice(lastIndex, match.index));
+			separators.push(match[0]);
+			lastIndex = match.index + match[0].length;
+	}
+	
+	result.push(str.slice(lastIndex)); // Add the remainder of the string
+	
+	return [result, separators];
 }
 
 function useSessionState(sessionStorage, name, initialState) {
