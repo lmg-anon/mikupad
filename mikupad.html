@@ -3278,6 +3278,7 @@ function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea,
 				reportError(e);
 				const errStr = e.toString()
 				setSearchAndReplaceError(errStr)
+				return false
 			}
 		}
 		return positions;
@@ -3312,6 +3313,8 @@ function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea,
 	function findAndStorePositions(mode,search,flags,elem) {
 		positions = findAllMatches(mode, search, flags, elem);
 		currentIndex = -1; 
+		if (positions.length === 0)
+			setSearchAndReplaceError(`Warning: No matches found for ${ (mode==0?"Plaintext":mode==1?"RegEx":"Template") } \'${search}\'`)
 	}
 
 
@@ -3322,6 +3325,13 @@ function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea,
 		setSearchAndReplaceError(undefined)
 		if (!search)
 			return
+		positions = findAllMatches(mode, search, flags, inputElement);
+		console.log(positions)
+		if (positions.length === 0) {
+			setSearchAndReplaceError(`Warning: No matches found for ${ (mode==0?"Plaintext":mode==1?"RegEx":"Template") } \'${search}\'`)
+			return
+		}
+
 		switch(mode) {
 			case 0:
 				plaintextReplace(search,replace,inputElement)
