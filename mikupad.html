@@ -422,7 +422,7 @@ html.monospace-dark #searchAndReplace {
 	margin-bottom:8px;
 }
 .searchAndReplace-inputs .InputBox {
-	flex-grow: 1;
+	flex: 1
 }
 .searchAndReplace-inputs .SelectBox {
 	width: max-content;
@@ -3198,6 +3198,7 @@ function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea,
 	const [searchAndReplaceError, setSearchAndReplaceError] = useState(undefined);
 	const [searchAndReplaceMode, setSearchAndReplaceMode] = usePersistentState('searchAndReplaceMode', 0);
 	const [searchTerm, setSearchTerm] = usePersistentState('searchTerm','');
+	const [searchFlags, setSearchFlags] = usePersistentState('searchFlags','gi');
 	const [replaceTerm, setReplaceTerm] = usePersistentState('replaceTerm','');
 	const [inputElement, setInputElement] = useState(null);
 
@@ -3207,32 +3208,32 @@ function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea,
 		}
 	}, [promptArea]);
 
-	function handleFindNext(mode,search) {
+	function handleFindNext(mode,search,flags) {
 		setSearchAndReplaceError(undefined)
 		if (!search)
 			return
 		switch(mode) {
 			case 0:
-				findNextMatch(mode,search,inputElement)
+				findNextMatch(mode,search,flags,inputElement)
 				break;
 			case 1:
-				findNextMatch(mode,search,inputElement)
+				findNextMatch(mode,search,flags,inputElement)
 				break;
 			case 2:
 				templateFindNext(search,inputElement)
 				break;
 		}
 	}
-	function handleFindPrev(mode,search) {
+	function handleFindPrev(mode,search,flags) {
 		setSearchAndReplaceError(undefined)
 		if (!search)
 			return
 		switch(mode) {
 			case 0:
-				findPrevMatch(mode,search,inputElement)
+				findPrevMatch(mode,search,flags,inputElement)
 				break;
 			case 1:
-				findPrevMatch(mode,search,inputElement)
+				findPrevMatch(mode,search,flags,inputElement)
 				break;
 			case 2:
 				templateFindPrev(mode,search,inputElement)
@@ -3244,7 +3245,7 @@ function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea,
 	let positions = [];
 	let currentIndex = -1;
 
-	function findAllMatches(mode, search, elem) {
+	function findAllMatches(mode, search, flags, elem) {
 		setSearchAndReplaceError(undefined)
 		let startIndex = 0;
 		let index;
@@ -3260,10 +3261,9 @@ function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea,
 		}
 		else if (mode == 1) {
 			try {
-				let regexComponents = search.match(/\/([^\/]+)\/(\w+)?/)
-				if (regexComponents[2] && !regexComponents[2].includes("g"))
-					regexComponents[2] += "g" // if no global flag, while loop is infinite
-				let re = new RegExp(String.raw`${regexComponents[1]}`, String.raw`${regexComponents[2] ?? "g"}`);
+				if (flags && !flags.includes("g"))
+					flags += "g" // if no global flag, while loop is infinite
+				let re = new RegExp(String.raw`${search}`, String.raw`${flags ?? "g"}`);
 				while ((match = re.exec(text)) !== null) {
 					positions.push({ start: match.index, end: re.lastIndex });
 					if (match.index === re.lastIndex) {
@@ -3289,9 +3289,9 @@ function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea,
 			elem.setSelectionRange(position.start, position.end);
 		}
 	}
-	function findNextMatch(mode,search,elem) {
+	function findNextMatch(mode,search,flags,elem) {
 		if (positions.length === 0) {
-			findAndStorePositions(mode,search,elem);
+			findAndStorePositions(mode,search,flags,elem);
 		}
 		if (positions.length > 0) {
 			currentIndex = (currentIndex + 1) % positions.length;
@@ -3299,9 +3299,9 @@ function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea,
 		}
 	}
 
-	function findPrevMatch(mode,search,elem) {
+	function findPrevMatch(mode,search,flags,elem) {
 		if (positions.length === 0) {
-			findAndStorePositions(mode,search,elem);
+			findAndStorePositions(mode,search,flags,elem);
 		}
 		if (positions.length > 0) {
 			currentIndex = (currentIndex - 1 + positions.length) % positions.length;
@@ -3309,14 +3309,14 @@ function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea,
 		}
 	}
 
-	function findAndStorePositions(mode,search,elem) {
-		positions = findAllMatches(mode, search, elem);
+	function findAndStorePositions(mode,search,flags,elem) {
+		positions = findAllMatches(mode, search, flags, elem);
 		currentIndex = -1; 
 	}
 
 
 
-	function handleSearchAndReplace(mode,search,replace) {
+	function handleSearchAndReplace(mode,search,flags,replace) {
 		// TODO
 		// Add this to undo/redo
 		setSearchAndReplaceError(undefined)
@@ -3327,7 +3327,7 @@ function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea,
 				plaintextReplace(search,replace,inputElement)
 				break;
 			case 1:
-				regexReplace(search,replace,inputElement)
+				regexReplace(search,flags,replace,inputElement)
 				break;
 			case 2:
 				templateReplace(search,replace,inputElement)
@@ -3341,10 +3341,9 @@ function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea,
 		const event = new Event('input', { bubbles: true });
 		elem.dispatchEvent(event);
 	}
-	function regexReplace(search,replace,elem) {
-		let regexComponents = search.match(/\/([^\/]+)\/(\w+)?/)
+	function regexReplace(search,flags,replace,elem) {
 		try {
-			let re = new RegExp(String.raw`${regexComponents[1]}`, String.raw`${regexComponents[2] ?? ""}`);
+			let re = new RegExp(String.raw`${search}`, String.raw`${flags ?? ""}`);
 			elem.value = elem.value.replace(re,replace)
 			const event = new Event('input', { bubbles: true });
 			elem.dispatchEvent(event);
@@ -3371,7 +3370,7 @@ function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea,
 						onValueChange=${setSearchAndReplaceMode}
 						options=${[
 							{ name: 'Plaintext', value: 0 },
-							{ name: 'Regex', value: 1 },
+							{ name: 'RegEx', value: 1 },
 							// { name: 'Template', value: 2 },
 						]}/>
 					${searchAndReplaceMode == 0 && html`
@@ -3383,9 +3382,14 @@ function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea,
 							readOnly=${!!cancel} value=${replaceTerm} onValueChange=${setReplaceTerm}/>
 					`}
 					${searchAndReplaceMode == 1 && html`
-						<${InputBox} label="Search This" type="text"
-							placeholder="/(\\w+) Miku/gi"
+						<${InputBox} label="Search This RegEx" type="text"
+							placeholder="(\\w+) Miku"
 							readOnly=${!!cancel} value=${searchTerm} onValueChange=${setSearchTerm}/>
+						<div style=${{ 'flex':'0 1 min-content' }}>
+							<${InputBox} label="Flags" type="text"
+								placeholder="gi"
+								readOnly=${!!cancel} value=${searchFlags} onValueChange=${setSearchFlags}/>
+						</div>
 						<${InputBox} label="Replace With" type="text"
 							placeholder="$1 Kurisu"
 							readOnly=${!!cancel} value=${replaceTerm} onValueChange=${setReplaceTerm}/>
@@ -3397,21 +3401,21 @@ function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea,
 						class="findButton"
 						title="Find Previous Match"
 						disabled=${!!cancel}
-						onClick=${() => handleFindPrev(searchAndReplaceMode,searchTerm)}>
+						onClick=${() => handleFindPrev(searchAndReplaceMode,searchTerm,searchFlags)}>
 						<svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 2 1" xmlns="http://www.w3.org/2000/svg"><path d="M 0 1 L 1 0 L 2 1 Z"></path></svg>
 					</button>
 					<button
 						class="findButton findButtonText"
 						title="Find Next Match"
 						disabled=${!!cancel}
-						onClick=${() => handleFindNext(searchAndReplaceMode,searchTerm)}>
+						onClick=${() => handleFindNext(searchAndReplaceMode,searchTerm,searchFlags)}>
 							<svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 2 1" xmlns="http://www.w3.org/2000/svg"><path d="M 0 0 L 1 1 L 2 0 Z"></path></svg>
 							Find Next
 					</button>
 					<button
 						title="Replace All Matches"
 						disabled=${!!cancel}
-						onClick=${() => handleSearchAndReplace(searchAndReplaceMode,searchTerm,replaceTerm)}>
+						onClick=${() => handleSearchAndReplace(searchAndReplaceMode,searchTerm,searchFlags,replaceTerm)}>
 							Replace All
 					</button>
 				</div>
