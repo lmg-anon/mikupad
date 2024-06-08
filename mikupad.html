@@ -3264,7 +3264,6 @@ function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea,
 				if (regexComponents[2] && !regexComponents[2].includes("g"))
 					regexComponents[2] += "g" // if no global flag, while loop is infinite
 				let re = new RegExp(String.raw`${regexComponents[1]}`, String.raw`${regexComponents[2] ?? "g"}`);
-				console.log("a")
 				while ((match = re.exec(text)) !== null) {
 					positions.push({ start: match.index, end: re.lastIndex });
 					if (match.index === re.lastIndex) {
@@ -3318,6 +3317,8 @@ function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea,
 
 
 	function handleSearchAndReplace(mode,search,replace) {
+		// TODO
+		// Add this to undo/redo
 		setSearchAndReplaceError(undefined)
 		if (!search)
 			return
@@ -3335,11 +3336,8 @@ function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea,
 	}
 
 	function plaintextReplace(search,replace,elem) {
-		// console.log(elem.value)
 		// need to figure out a smart way to keep the cursor position
 		elem.value = elem.value.replaceAll(search,replace)
-		// TODO
-		// Add this to undo/redo
 		const event = new Event('input', { bubbles: true });
 		elem.dispatchEvent(event);
 	}
