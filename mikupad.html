@@ -3395,24 +3395,24 @@ function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea,
 					<div class="flexfiller"/>
 					<button
 						class="findButton"
-						title="Find Previous"
+						title="Find Previous Match"
 						disabled=${!!cancel}
 						onClick=${() => handleFindPrev(searchAndReplaceMode,searchTerm)}>
 						<svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 2 1" xmlns="http://www.w3.org/2000/svg"><path d="M 0 1 L 1 0 L 2 1 Z"></path></svg>
 					</button>
 					<button
 						class="findButton findButtonText"
-						title="Find Next"
+						title="Find Next Match"
 						disabled=${!!cancel}
 						onClick=${() => handleFindNext(searchAndReplaceMode,searchTerm)}>
 							<svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 2 1" xmlns="http://www.w3.org/2000/svg"><path d="M 0 0 L 1 1 L 2 0 Z"></path></svg>
 							Find Next
 					</button>
 					<button
-						title="Replace"
+						title="Replace All Matches"
 						disabled=${!!cancel}
 						onClick=${() => handleSearchAndReplace(searchAndReplaceMode,searchTerm,replaceTerm)}>
-							Replace
+							Replace All
 					</button>
 				</div>
 				${!!searchAndReplaceError && html`
