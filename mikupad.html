@@ -3263,6 +3263,8 @@ function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea,
 			try {
 				if (flags && !flags.includes("g"))
 					flags += "g" // if no global flag, while loop is infinite
+				else if (flags == "")
+					flags = "g"
 				let re = new RegExp(String.raw`${search}`, String.raw`${flags ?? "g"}`);
 				while ((match = re.exec(text)) !== null) {
 					positions.push({ start: match.index, end: re.lastIndex });
@@ -3274,10 +3276,7 @@ function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea,
 			catch (e) {
 				reportError(e);
 				const errStr = e.toString()
-				if (errStr == "TypeError: regexComponents is null")
-					setSearchAndReplaceError("Error: Regex not wrapped in '/'")
-				else
-					setSearchAndReplaceError(errStr)
+				setSearchAndReplaceError(errStr)
 			}
 		}
 		return positions;
@@ -3351,10 +3350,7 @@ function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea,
 		catch (e) {
 			reportError(e);
 			const errStr = e.toString()
-			if (errStr == "TypeError: regexComponents is null")
-				setSearchAndReplaceError("Error: Regex not wrapped in '/'")
-			else
-				setSearchAndReplaceError(errStr)
+			setSearchAndReplaceError(errStr)
 		}
 	}
 
