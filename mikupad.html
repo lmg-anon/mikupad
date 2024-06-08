@@ -432,6 +432,17 @@ html.monospace-dark #searchAndReplace {
 	display: flex;
 	gap: 8px;
 }
+#searchAndReplace .findButton {
+	display: flex;
+	align-items: center;
+}
+#searchAndReplace .findButtonText svg {
+	margin-right:.25em;
+}
+#searchAndReplace .findButton svg {
+	width: .75em;
+}
+
 
 .modal-overlay {
 	position: fixed;
@@ -3196,12 +3207,120 @@ function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea,
 		}
 	}, [promptArea]);
 
-	function handleSearchAndReplace(mode,search,replace) {
+	function handleFindNext(mode,search) {
 		setSearchAndReplaceError(undefined)
-		// console.log(prompt)
 		if (!search)
 			return
+		switch(mode) {
+			case 0:
+				findNextMatch(mode,search,inputElement)
+				break;
+			case 1:
+				findNextMatch(mode,search,inputElement)
+				break;
+			case 2:
+				templateFindNext(search,inputElement)
+				break;
+		}
+	}
+	function handleFindPrev(mode,search) {
+		setSearchAndReplaceError(undefined)
+		if (!search)
+			return
+		switch(mode) {
+			case 0:
+				findPrevMatch(mode,search,inputElement)
+				break;
+			case 1:
+				findPrevMatch(mode,search,inputElement)
+				break;
+			case 2:
+				templateFindPrev(mode,search,inputElement)
+				break;
+		}
+	}
 
+	// Plaintext Find
+	let positions = [];
+	let currentIndex = -1;
+
+	function findAllMatches(mode, search, elem) {
+		setSearchAndReplaceError(undefined)
+		let startIndex = 0;
+		let index;
+		let match;
+		let positions = [];
+		let text = elem.value;
+
+		if (mode == 0) {
+			while ((index = text.indexOf(search, startIndex)) > -1) {
+					positions.push({ start: index, end: index + search.length });
+					startIndex = index + search.length;
+			}
+		}
+		else if (mode == 1) {
+			try {
+				let regexComponents = search.match(/\/([^\/]+)\/(\w+)?/)
+				if (regexComponents[2] && !regexComponents[2].includes("g"))
+					regexComponents[2] += "g" // if no global flag, while loop is infinite
+				let re = new RegExp(String.raw`${regexComponents[1]}`, String.raw`${regexComponents[2] ?? "g"}`);
+				console.log("a")
+				while ((match = re.exec(text)) !== null) {
+					positions.push({ start: match.index, end: re.lastIndex });
+					if (match.index === re.lastIndex) {
+						re.lastIndex++;
+					}
+				}
+			}
+			catch (e) {
+				reportError(e);
+				const errStr = e.toString()
+				if (errStr == "TypeError: regexComponents is null")
+					setSearchAndReplaceError("Error: Regex not wrapped in '/'")
+				else
+					setSearchAndReplaceError(errStr)
+			}
+		}
+		return positions;
+	}
+	function highlightCurrent(elem) {
+		if (positions.length > 0 && currentIndex >= 0 && currentIndex < positions.length) {
+			const position = positions[currentIndex];
+			elem.focus();
+			elem.setSelectionRange(position.start, position.end);
+		}
+	}
+	function findNextMatch(mode,search,elem) {
+		if (positions.length === 0) {
+			findAndStorePositions(mode,search,elem);
+		}
+		if (positions.length > 0) {
+			currentIndex = (currentIndex + 1) % positions.length;
+			highlightCurrent(elem);
+		}
+	}
+
+	function findPrevMatch(mode,search,elem) {
+		if (positions.length === 0) {
+			findAndStorePositions(mode,search,elem);
+		}
+		if (positions.length > 0) {
+			currentIndex = (currentIndex - 1 + positions.length) % positions.length;
+			highlightCurrent(elem);
+		}
+	}
+
+	function findAndStorePositions(mode,search,elem) {
+		positions = findAllMatches(mode, search, elem);
+		currentIndex = -1; 
+	}
+
+
+
+	function handleSearchAndReplace(mode,search,replace) {
+		setSearchAndReplaceError(undefined)
+		if (!search)
+			return
 		switch(mode) {
 			case 0:
 				plaintextReplace(search,replace,inputElement)
@@ -3232,8 +3351,13 @@ function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea,
 			const event = new Event('input', { bubbles: true });
 			elem.dispatchEvent(event);
 		}
-		catch {
-			setSearchAndReplaceError("Error: Not a RegEx. Is it wrapped in '/'?")
+		catch (e) {
+			reportError(e);
+			const errStr = e.toString()
+			if (errStr == "TypeError: regexComponents is null")
+				setSearchAndReplaceError("Error: Regex not wrapped in '/'")
+			else
+				setSearchAndReplaceError(errStr)
 		}
 	}
 
@@ -3272,16 +3396,25 @@ function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea,
 				<div class="searchAndReplace-buttons">
 					<div class="flexfiller"/>
 					<button
+						class="findButton"
+						title="Find Previous"
+						disabled=${!!cancel}
+						onClick=${() => handleFindPrev(searchAndReplaceMode,searchTerm)}>
+						<svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 2 1" xmlns="http://www.w3.org/2000/svg"><path d="M 0 1 L 1 0 L 2 1 Z"></path></svg>
+					</button>
+					<button
+						class="findButton findButtonText"
+						title="Find Next"
+						disabled=${!!cancel}
+						onClick=${() => handleFindNext(searchAndReplaceMode,searchTerm)}>
+							<svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 2 1" xmlns="http://www.w3.org/2000/svg"><path d="M 0 0 L 1 1 L 2 0 Z"></path></svg>
+							Find Next
+					</button>
+					<button
 						title="Replace"
 						disabled=${!!cancel}
 						onClick=${() => handleSearchAndReplace(searchAndReplaceMode,searchTerm,replaceTerm)}>
 							Replace
-					</button>
-					<button
-						title="Find"
-						disabled=${!!cancel}
-						onClick=${() => handleFind(searchAndReplaceMode,searchTerm)}>
-							Find
 					</button>
 				</div>
 				${!!searchAndReplaceError && html`
