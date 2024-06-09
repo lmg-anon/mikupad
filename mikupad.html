@@ -443,6 +443,9 @@ html.monospace-dark #searchAndReplace {
 #searchAndReplace .findButton svg {
 	width: .75em;
 }
+.number-matches {
+	align-content: center;
+}
 
 
 .modal-overlay {
@@ -3201,6 +3204,7 @@ function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea,
 	const [searchTerm, setSearchTerm] = usePersistentState('searchTerm','');
 	const [searchFlags, setSearchFlags] = usePersistentState('searchFlags','gi');
 	const [replaceTerm, setReplaceTerm] = usePersistentState('replaceTerm','');
+	const [numMatches, setNumMatches] = useState(0);
 	const [inputElement, setInputElement] = useState(null);
 
 	useEffect(() => {
@@ -3242,7 +3246,6 @@ function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea,
 		}
 	}
 
-	// Plaintext Find
 	let positions = [];
 	let currentIndex = -1;
 
@@ -3278,7 +3281,7 @@ function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea,
 				reportError(e);
 				const errStr = e.toString()
 				setSearchAndReplaceError(errStr)
-				return false
+				return null
 			}
 		}
 		return positions;
@@ -3317,8 +3320,6 @@ function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea,
 			setSearchAndReplaceError(`Warning: No matches found for ${ (mode==0?"Plaintext":mode==1?"RegEx":"Template") } \'${search}\'`)
 	}
 
-
-
 	function handleSearchAndReplace(mode,search,flags,replace) {
 		// TODO
 		// Add this to undo/redo
@@ -3326,7 +3327,6 @@ function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea,
 		if (!search)
 			return
 		positions = findAllMatches(mode, search, flags, inputElement);
-		console.log(positions)
 		if (positions.length === 0) {
 			setSearchAndReplaceError(`Warning: No matches found for ${ (mode==0?"Plaintext":mode==1?"RegEx":"Template") } \'${search}\'`)
 			return
@@ -3364,6 +3364,20 @@ function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea,
 			setSearchAndReplaceError(errStr)
 		}
 	}
+
+	function countMatches(mode, search, flags) {
+		setSearchAndReplaceError(undefined)
+		if (!searchTerm)
+			return
+		positions = findAllMatches(mode, search, flags, inputElement);
+		setNumMatches(positions.length ?? 0)
+		if (positions.length === 0)
+			setSearchAndReplaceError(`Warning: No matches found for ${ (mode==0?"Plaintext":mode==1?"RegEx":"Template") } \'${search}\'`)
+	}
+
+	useEffect(() => {
+		setNumMatches(0)
+	}, [searchTerm,searchFlags]);
 
 	return html`
 		<${Widget} isOpen=${isOpen} onClose=${closeWidget}
@@ -3404,6 +3418,15 @@ function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea,
 				</div>
 				<div class="searchAndReplace-buttons">
 					<div class="flexfiller"/>
+					<div class="number-matches">
+						${numMatches == 0 ? "" : numMatches + " Matches"}
+					</div>
+					<button
+						title="Count Matches"
+						disabled=${!!cancel}
+						onClick=${() => countMatches(searchAndReplaceMode,searchTerm,searchFlags)}>
+							Count
+					</button>
 					<button
 						class="findButton"
 						title="Find Previous Match"
