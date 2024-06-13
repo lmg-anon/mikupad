@@ -1111,6 +1111,9 @@ html.monospace-dark .eye-button {
 .contextBar .percentagebar-Author-s-Note {
 	background-color: #ff948c;
 }
+.contextBar .percentagebar-Free-Context {
+	background-color: #fff0;
+}
 
 @media (min-width: 767.98px) {
 	#sidebar .SelectBox:first-child, .horz-separator, .collapsible-group {
@@ -2324,7 +2327,7 @@ function AuthorNoteModal({ isOpen, closeModal, authorNoteTokens, handleauthorNot
 			</${Modal}>`;
 }
 
-function ContextModal({ isOpen, closeModal, tokens, memoryTokens, authorNoteTokens, handleMemoryTokensChange, finalPromptText, defaultPresets, cancel }) {
+function ContextModal({ isOpen, closeModal, tokens, contextLength, memoryTokens, authorNoteTokens, handleMemoryTokensChange, finalPromptText, defaultPresets, cancel }) {
 	return html`
 		<${Modal} isOpen=${isOpen} onClose=${closeModal}
 			title="Context"
@@ -2361,12 +2364,14 @@ function ContextModal({ isOpen, closeModal, tokens, memoryTokens, authorNoteToke
 						memoryTokens.tokens,
 						memoryTokens.tokensWI,
 						authorNoteTokens.tokens,
+						Math.max(contextLength - tokens, 0)
 					]}
 					names=${[
 						"Prompt",
 						"Memory",
 						"World Info",
-						"Author's Note"
+						"Author's Note",
+						"Free Context"
 					]}>
 				</${PercentageBar}>
 			</div>
@@ -5497,12 +5502,14 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 						memoryTokens.tokens,
 						memoryTokens.tokensWI,
 						authorNoteTokens.tokens,
+						Math.max(contextLength - tokens, 0)
 					]}
 					names=${[
 						"Prompt",
 						"Memory",
 						"World Info",
-						"Author's Note"
+						"Author's Note",
+						"Free Context"
 					]}>
 				</${PercentageBar}>
 			`}
@@ -5614,6 +5621,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			isOpen=${modalState.context}
 			closeModal=${() => closeModal("context")}
 			tokens=${tokens}
+			contextLength=${contextLength}
 			memoryTokens=${memoryTokens}
 			authorNoteTokens=${authorNoteTokens}
 			handleMemoryTokensChange=${handleMemoryTokensChange}
