@@ -1099,6 +1099,19 @@ html.monospace-dark .eye-button {
 	margin-top:.25em;
 }
 
+.contextBar .percentagebar-Prompt {
+	background-color: #fff;
+}
+.contextBar .percentagebar-Memory {
+	background-color: #8c94ff;
+}
+.contextBar .percentagebar-World-Info {
+	background-color: #8cff94;
+}
+.contextBar .percentagebar-Author-s-Note {
+	background-color: #ff948c;
+}
+
 @media (min-width: 767.98px) {
 	#sidebar .SelectBox:first-child, .horz-separator, .collapsible-group {
 		display: block !important;
@@ -2174,8 +2187,11 @@ const SVG_Redo = ({...props}) => {
 	<${SVG_Undo}
 		...${props}
 		style=${{ 'transform':'scaleX(-1)' }}/>
-`};const PercentageBar = ({ values, names, className, colors }) => {
-	const color = colors ? colors : ["#fff","#8c94ff","#8cff94","#ff948c"]
+`};
+
+
+const PercentageBar = ({ values, names, className, colors }) => {
+	// const color = colors ? colors : ["#fff","#8c94ff","#8cff94","#ff948c"]
 	const total = values.reduce((acc, curr) => acc + curr, 0);
 	const percentages = values.map(value => (value / total) * 100);
 
@@ -2183,13 +2199,14 @@ const SVG_Redo = ({...props}) => {
 		<div className="${className}" style=${{ opacity: "80%", background: 'grey', display: 'flex', flexDirection: 'row' }}>
 		${values.map((value, index) =>  html`
 			<div class="tooltip"
-			key=${index}
-			title='${names[index]} (${percentages[index].toFixed(1)}%)'
-			style=${{
-				backgroundColor: color[index],
-				width: percentages[index] + '%',
-				height: '100%'
-			}}>
+				key=${index}
+				title='${names[index]} (${percentages[index].toFixed(1)}%)'
+				classNames='${"percentagebar-" + names[index].replace(/[ .'*]/g,"-")}'
+				style=${{
+					...( colors ? { backgroundColor: colors[index], } : {} ),
+					width: percentages[index] + '%',
+					height: '100%'
+				}}>
 			</div>
 		`)}
 		</div>
