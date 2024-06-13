@@ -2267,6 +2267,26 @@ const SVG_Redo = ({...props}) => {
 		...${props}
 		style=${{ 'transform':'scaleX(-1)' }}/>
 `};
+const SVG_SearchAndReplace = ({...props}) => {
+	return html`
+	<${SVG}
+		...${props}
+		viewBox="0 0 29.4 35.4"
+		stroke-linecap="round"
+		stroke-width="5">
+		<path fill="none" stroke-linejoin="round" d="M5 9.1a10.6 10.6 0 0 1 9.7-6.6 10.6 10.6 0 0 1 9.8 6.6m0 7.9a10.6 10.6 0 0 1-9.8 6.7A10.6 10.6 0 0 1 5 17"/>
+		<path fill="none" d="m20.4 24.5 3.6 7.1"/>
+		<path stroke="none" d="M3.6 13.2 0 23.2l13.6-6.4-10-3.6m22.2-.2 3.6-10L16 9.3l10 3.6"/>
+	</${SVG}>
+`};
+const SVG_Moveable = ({...props}) => {
+	return html`
+	<${SVG}
+		...${props}
+		viewBox="0 0 11 11">
+		<path d="M 5.5 11 L 7 9 L 6 9 L 6 6 L 9 6 L 9 7 L 11 5.5 L 9 4 L 9 5 L 6 5 L 6 2 L 7 2 L 5.5 0 L 4 2 L 5 2 L 5 5 L 2 5 L 2 4 L 0 5.5 L 2 7 L 2 6 L 5 6 L 5 9 L 4 9 Z"/>
+	</${SVG}>
+`};
 
 function Modal({ isOpen, onClose, title, description, children, ...props }) {
 	if (!isOpen) {
@@ -3356,13 +3376,13 @@ function Widget({ isOpen, onClose, title, id, children, ...props }) {
 						onMouseMove=${() => {}}
 						onMouseUp=${() => {}}
 						onMouseLeave=${() => {}}>
-						<svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 11 11" xmlns="http://www.w3.org/2000/svg"><path d="M 5.5 11 L 7 9 L 6 9 L 6 6 L 9 6 L 9 7 L 11 5.5 L 9 4 L 9 5 L 6 5 L 6 2 L 7 2 L 5.5 0 L 4 2 L 5 2 L 5 5 L 2 5 L 2 4 L 0 5.5 L 2 7 L 2 6 L 5 6 L 5 9 L 4 9 Z"></path></svg>
+						<${SVG_Moveable}/>
 						${title}
 					</div>
 					<button
 						class="button-widget-top"
 						onClick=${onClose}>
-						<svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="-1 -1 10 10" xmlns="http://www.w3.org/2000/svg"><path d="M 0 1 L 3 4 L 0 7 L 1 8 L 4 5 L 7 8 L 8 7 L 5 4 L 8 1 L 7 0 L 4 3 L 1 0 L 1 0 Z"></path></svg>
+						<${SVG_Close}/>
 					</button>
 				</div>
 				<div className="widget-content">
@@ -3605,14 +3625,14 @@ function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea,
 						title="Find Previous Match"
 						disabled=${!!cancel}
 						onClick=${() => handleFindPrev(searchAndReplaceMode,searchTerm,searchFlags)}>
-						<svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 2 1" xmlns="http://www.w3.org/2000/svg"><path d="M 0 1 L 1 0 L 2 1 Z"></path></svg>
+						<${SVG_ArrowUp}/>
 					</button>
 					<button
 						class="findButton findButtonText"
 						title="Find Next Match"
 						disabled=${!!cancel}
 						onClick=${() => handleFindNext(searchAndReplaceMode,searchTerm,searchFlags)}>
-							<svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 2 1" xmlns="http://www.w3.org/2000/svg"><path d="M 0 0 L 1 1 L 2 0 Z"></path></svg>
+							<${SVG_ArrowDown}/>
 							Find Next
 					</button>
 					<button
@@ -5578,6 +5598,13 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 				className="textAreaSettings"
 				onClick=${() => toggleModal("prompt")}>
 				<${SVG_Settings}/>
+			</button>
+			<button
+				title="Search & Replace"
+				style=${{"margin-top":"1.5em"}}
+				className="textAreaSettings"
+				onClick=${() => toggleModal("searchAndReplace")}>
+				<${SVG_SearchAndReplace} style=${{"height":"1.3em"}} />
 			</button>
 			<textarea
 				ref=${promptArea}
