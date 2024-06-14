@@ -1105,13 +1105,13 @@ html.monospace-dark .eye-button {
 .contextBar .percentagebar-Memory {
 	background-color: #8c94ff;
 }
-.contextBar .percentagebar-World-Info {
+.contextBar .percentagebar-WorldInfo {
 	background-color: #8cff94;
 }
-.contextBar .percentagebar-Author-s-Note {
+.contextBar .percentagebar-AuthorsNote {
 	background-color: #ff948c;
 }
-.contextBar .percentagebar-Free-Context {
+.contextBar .percentagebar-FreeContext {
 	background-color: #fff0;
 }
 
@@ -2193,18 +2193,18 @@ const SVG_Redo = ({...props}) => {
 `};
 
 
-const PercentageBar = ({ values, names, className, colors }) => {
+const PercentageBar = ({ values, className, colors }) => {
 	// const color = colors ? colors : ["#fff","#8c94ff","#8cff94","#ff948c"]
-	const total = values.reduce((acc, curr) => acc + curr, 0);
-	const percentages = values.map(value => (value / total) * 100);
+	const total = Object.values(values).reduce((acc, curr) => acc + curr, 0);
+	const percentages = Object.values(values).map(value => (value / total) * 100);
 
 	return html`
 		<div className="${className}" style=${{ opacity: "80%", background: 'grey', display: 'flex', flexDirection: 'row' }}>
-		${values.map((value, index) =>  html`
+		${Object.keys(values).map((name, index) =>  html`
 			<div class="tooltip"
 				key=${index}
-				title='${names[index]} (${percentages[index].toFixed(1)}%)'
-				className='${"percentagebar-" + names[index].replace(/[^a-z]/ig,"-")}'
+				title='${name} (${percentages[index].toFixed(1)}%)'
+				className='${"percentagebar-" + name.replace(/[^a-z]/ig,"")}'
 				style=${{
 					...( colors ? { backgroundColor: colors[index], } : {} ),
 					width: percentages[index] + '%',
@@ -2359,20 +2359,13 @@ function ContextModal({ isOpen, closeModal, tokens, contextLength, memoryTokens,
 			</table>
 			<${PercentageBar}
 					className="contextBar contextBar-contextModal"
-					values=${[
-						tokens - authorNoteTokens.tokens - memoryTokens.tokensWI - memoryTokens.tokens,
-						memoryTokens.tokens,
-						memoryTokens.tokensWI,
-						authorNoteTokens.tokens,
-						Math.max(contextLength - tokens, 0)
-					]}
-					names=${[
-						"Prompt",
-						"Memory",
-						"World Info",
-						"Author's Note",
-						"Free Context"
-					]}>
+					values=${{
+						"Prompt": tokens - authorNoteTokens.tokens - memoryTokens.tokensWI - memoryTokens.tokens,
+						"Memory": memoryTokens.tokens,
+						"World Info": memoryTokens.tokensWI,
+						"Author's Note": authorNoteTokens.tokens,
+						"Free Context": Math.max(contextLength - tokens, 0)
+					}}>
 				</${PercentageBar}>
 			</div>
 			<${CollapsibleGroup} label="Advanced Context Ordering">
@@ -5497,20 +5490,13 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			${showContextBar && !!tokens && html`
 				<${PercentageBar}
 				className="contextBar"
-					values=${[
-						tokens - authorNoteTokens.tokens - memoryTokens.tokensWI - memoryTokens.tokens,
-						memoryTokens.tokens,
-						memoryTokens.tokensWI,
-						authorNoteTokens.tokens,
-						Math.max(contextLength - tokens, 0)
-					]}
-					names=${[
-						"Prompt",
-						"Memory",
-						"World Info",
-						"Author's Note",
-						"Free Context"
-					]}>
+					values=${{
+						"Prompt": tokens - authorNoteTokens.tokens - memoryTokens.tokensWI - memoryTokens.tokens,
+						"Memory": memoryTokens.tokens,
+						"World Info": memoryTokens.tokensWI,
+						"Author's Note": authorNoteTokens.tokens,
+						"Free Context": Math.max(contextLength - tokens, 0)
+					}}>
 				</${PercentageBar}>
 			`}
 			<div className="buttons">
