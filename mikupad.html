@@ -2204,7 +2204,7 @@ const PercentageBar = ({ values, names, className, colors }) => {
 			<div class="tooltip"
 				key=${index}
 				title='${names[index]} (${percentages[index].toFixed(1)}%)'
-				classNames='${"percentagebar-" + names[index].replace(/[ .'*]/g,"-")}'
+				className='${"percentagebar-" + names[index].replace(/[^a-z]/ig,"-")}'
 				style=${{
 					...( colors ? { backgroundColor: colors[index], } : {} ),
 					width: percentages[index] + '%',
