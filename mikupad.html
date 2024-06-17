@@ -400,8 +400,8 @@ html.monospace-dark .widget-title {
 
 #searchAndReplace {
 	position: absolute;
-  width: 70%;
-  background: var(--color-base-50);
+	width: 40vw;
+	background: var(--color-base-50);
 	top:.75em;
 	left:.75em;
 	border-radius:3px;
@@ -3399,6 +3399,7 @@ function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea,
 	const [replaceTerm, setReplaceTerm] = usePersistentState('replaceTerm','');
 	const [numMatches, setNumMatches] = useState(0);
 	const [inputElement, setInputElement] = useState(null);
+	const [replacedTrigger, setReplacedTrigger] = useState(false);
 
 	useEffect(() => {
 		if (promptArea.current) {
@@ -3443,6 +3444,8 @@ function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea,
 	let currentIndex = -1;
 
 	function findAllMatches(mode, search, flags, elem) {
+		if (!inputElement)
+			return 0
 		setSearchAndReplaceError(undefined)
 		let startIndex = 0;
 		let index;
@@ -3524,6 +3527,7 @@ function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea,
 			setSearchAndReplaceError(`Warning: No matches found for ${ (mode==0?"Plaintext":mode==1?"RegEx":"Template") } \'${search}\'`)
 			return
 		}
+		setReplacedTrigger((prev) => !prev)
 
 		switch(mode) {
 			case 0:
@@ -3560,17 +3564,22 @@ function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea,
 
 	function countMatches(mode, search, flags) {
 		setSearchAndReplaceError(undefined)
-		if (!searchTerm)
+		if (!searchTerm) {
+			setNumMatches(0)
 			return
+		}
 		positions = findAllMatches(mode, search, flags, inputElement);
-		setNumMatches(positions.length ?? 0)
-		if (positions.length === 0)
-			setSearchAndReplaceError(`Warning: No matches found for ${ (mode==0?"Plaintext":mode==1?"RegEx":"Template") } \'${search}\'`)
+		try {
+			setNumMatches(positions.length ?? 0)
+		}
+		catch {
+			setNumMatches(0)
+		}
 	}
 
 	useEffect(() => {
-		setNumMatches(0)
-	}, [searchTerm,searchFlags]);
+		countMatches(searchAndReplaceMode,searchTerm,searchFlags)
+	}, [searchAndReplaceMode,searchTerm,searchFlags,isOpen,replacedTrigger]);
 
 	return html`
 		<${Widget} isOpen=${isOpen} onClose=${closeWidget}
@@ -3612,14 +3621,8 @@ function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea,
 				<div class="searchAndReplace-buttons">
 					<div class="flexfiller"/>
 					<div class="number-matches">
-						${numMatches == 0 ? "" : numMatches + " Matches"}
+						${ searchTerm != "" ? numMatches + (numMatches == 1 ? " Match" : " Matches") : ""}
 					</div>
-					<button
-						title="Count Matches"
-						disabled=${!!cancel}
-						onClick=${() => countMatches(searchAndReplaceMode,searchTerm,searchFlags)}>
-							Count
-					</button>
 					<button
 						class="findButton"
 						title="Find Previous Match"
@@ -3633,7 +3636,6 @@ function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea,
 						disabled=${!!cancel}
 						onClick=${() => handleFindNext(searchAndReplaceMode,searchTerm,searchFlags)}>
 							<${SVG_ArrowDown}/>
-							Find Next
 					</button>
 					<button
 						title="Replace All Matches"
