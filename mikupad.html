@@ -4245,7 +4245,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			modifiedPromptText,
 			fimPromptInfo
 		};
-	}, [promptChunks, templates, selectedTemplate]);
+	}, [promptChunks, templates, selectedTemplate, cancel]);
 
 	// compute separately as I imagine this can get expensive
 	const assembledWorldInfo = useMemo(() => {
