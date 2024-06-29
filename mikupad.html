@@ -1205,6 +1205,10 @@ import { createRoot } from 'react-dom/client';
 import { html } from 'htm/react';
 import { SVResizeObserver } from 'scrollview-resize';
 
+const API_LLAMA_CPP = 0;
+const API_KOBOLD_CPP = 2;
+const API_OPENAI_COMPAT = 3;
+
 // Polyfill for piece of shit Chromium
 if (!(Symbol.asyncIterator in ReadableStream.prototype)) {
 	ReadableStream.prototype[Symbol.asyncIterator] = async function* () {
@@ -1284,19 +1288,19 @@ export async function getTokens({ endpoint, endpointAPI, endpointAPIKey, signal,
 	// example: { ids:[9288,4731],str:["test"," string"] }
 	endpoint = normalizeEndpoint(endpoint, endpointAPI);
 	switch (endpointAPI) {
-		case 0: // llama.cpp
+		case API_LLAMA_CPP:
 			return await llamaCppTokenize({ endpoint, endpointAPIKey, signal, ...options });
-		case 2: // koboldcpp
+		case API_KOBOLD_CPP:
 			return await koboldCppTokenize({ endpoint, signal, ...options });
-		case 3: // openai
-			return await openaiTokenize({ endpoint, endpointAPIKey, signal, ...options })
+		case API_OPENAI_COMPAT:
+			return await openaiTokenize({ endpoint, endpointAPIKey, signal, ...options });
 	}
 }
 
 export async function getModels({ endpoint, endpointAPI, endpointAPIKey, signal, ...options }) {
 	endpoint = normalizeEndpoint(endpoint, endpointAPI);
 	switch (endpointAPI) {
-		case 3: // openai
+		case API_OPENAI_COMPAT:
 			return await openaiModels({ endpoint, endpointAPIKey, signal, ...options });
 		default:
 			return [];
@@ -1306,11 +1310,11 @@ export async function getModels({ endpoint, endpointAPI, endpointAPIKey, signal,
 export async function* completion({ endpoint, endpointAPI, endpointAPIKey, signal, ...options }) {
 	endpoint = normalizeEndpoint(endpoint, endpointAPI);
 	switch (endpointAPI) {
-		case 0: // llama.cpp
+		case API_LLAMA_CPP:
 			return yield* await llamaCppCompletion({ endpoint, endpointAPIKey, signal, ...options });
-		case 2: // koboldcpp
+		case API_KOBOLD_CPP:
 			return yield* await koboldCppCompletion({ endpoint, signal, ...options });
-		case 3: // openai
+		case API_OPENAI_COMPAT:
 			return yield* await openaiCompletion({ endpoint, endpointAPIKey, signal, ...options });
 	}
 }
@@ -5192,8 +5196,9 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	}, [modalState["context"], promptText, cancel, endpoint, endpointAPI]);
 
 	useEffect(() => {
-		if (endpointAPI != 3)
+		if (endpointAPI !== API_OPENAI_COMPAT) {
 			return;
+		}
 		setRejectedAPIKey(false);
 		const ac = new AbortController();
 		const to = setTimeout(async () => {
@@ -5693,12 +5698,11 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 					value=${endpointAPI}
 					onValueChange=${switchEndpointAPI}
 					options=${[
-						{ name: 'llama.cpp', value: 0 },
-						/*{ name: 'legacy oobabooga', value: 1 },*/
-						{ name: 'koboldcpp', value: 2 },
-						{ name: 'openai-compatible', value: 3 },
+						{ name: 'llama.cpp'        , value: API_LLAMA_CPP },
+						{ name: 'KoboldCpp'        , value: API_KOBOLD_CPP },
+						{ name: 'OpenAI compatible', value: API_OPENAI_COMPAT },
 					]}/>
-				${(endpointAPI == 3 || endpointAPI == 0) && html`
+				${(endpointAPI === API_LLAMA_CPP || endpointAPI === API_OPENAI_COMPAT) && html`
 					<div className="hbox-flex" style=${{"flex-wrap": "unset"}}>
 						<${InputBox} label="API Key" type="${!showAPIKey ? "password" : "text"}"
 							className="${rejectedAPIKey ? 'rejected' : ''}"
