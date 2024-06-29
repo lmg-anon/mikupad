@@ -348,6 +348,106 @@ html.nockoffAI #probs {
 	font-size: 0.8rem;
 }
 
+.flexfiller {
+	flex-grow: 1;
+}
+
+.widget-body {
+	z-index: 10;
+	color: var(--color-light);
+	box-shadow: #0004 2px 2px 6px 2px;
+}
+html.nockoffAI #searchAndReplace {
+	background: var(--color-sidebar);
+}
+
+.widget-title-bar {
+	display: flex;
+	align-items: center;
+}
+.button-widget-top {
+	all:unset;
+	margin: auto;
+	width:1.25em;
+	height:1.25em;
+	border-radius: 3px;
+}
+.widget-title {
+	-webkit-user-select: none; /* Safari */
+	-ms-user-select: none; /* IE 10 and IE 11 */
+	user-select: none; /* Standard syntax */
+	padding:0.2em;
+	font-weight: bold;
+	font-size: 110%;
+	background-color: var(--color-base-40);
+	border-radius:2px;
+	width: calc(100% - 2em);
+	display: flex;
+	align-items: center;
+}
+html.nockoffAI .widget-title {
+	background: var(--color-input);
+	color: var(--color-base-50);
+}
+html.monospace-dark .widget-title {
+  background: #46465a;
+} 
+
+.widget-title svg {
+	height: 1em;
+	margin-right: .25em;
+}
+
+#searchAndReplace {
+	position: absolute;
+	width: 40vw;
+	background: var(--color-base-50);
+	top:.75em;
+	left:.75em;
+	border-radius:3px;
+	padding:0.25em;
+}
+
+html.monospace-dark #searchAndReplace {
+  background: #282833;
+} 
+
+#searchAndReplace .widget-content {
+	padding: .2em;
+}
+
+.searchAndReplace-inputs {
+	display: flex;
+	flex-direction: row;
+	gap: 8px;
+	margin-bottom:8px;
+}
+.searchAndReplace-inputs .InputBox {
+	flex: 1
+}
+.searchAndReplace-inputs .SelectBox {
+	width: max-content;
+}
+
+.searchAndReplace-buttons {
+	display: flex;
+	gap: 8px;
+}
+#searchAndReplace .findButton {
+	display: flex;
+	align-items: center;
+}
+#searchAndReplace .findButtonText svg {
+	margin-right:.25em;
+}
+#searchAndReplace .findButton svg {
+	width: .75em;
+}
+.number-matches {
+	align-content: center;
+}
+
+
 .modal-overlay {
 	position: fixed;
 	top: 0;
@@ -358,6 +458,7 @@ html.nockoffAI #probs {
 	display: flex;
 	align-items: center;
 	justify-content: center;
+	z-index: 20;
 }
 .modal-container {
 	width: 100%;
@@ -2166,6 +2267,26 @@ const SVG_Redo = ({...props}) => {
 		...${props}
 		style=${{ 'transform':'scaleX(-1)' }}/>
 `};
+const SVG_SearchAndReplace = ({...props}) => {
+	return html`
+	<${SVG}
+		...${props}
+		viewBox="0 0 29.4 35.4"
+		stroke-linecap="round"
+		stroke-width="5">
+		<path fill="none" stroke-linejoin="round" d="M5 9.1a10.6 10.6 0 0 1 9.7-6.6 10.6 10.6 0 0 1 9.8 6.6m0 7.9a10.6 10.6 0 0 1-9.8 6.7A10.6 10.6 0 0 1 5 17"/>
+		<path fill="none" d="m20.4 24.5 3.6 7.1"/>
+		<path stroke="none" d="M3.6 13.2 0 23.2l13.6-6.4-10-3.6m22.2-.2 3.6-10L16 9.3l10 3.6"/>
+	</${SVG}>
+`};
+const SVG_Moveable = ({...props}) => {
+	return html`
+	<${SVG}
+		...${props}
+		viewBox="0 0 11 11">
+		<path d="M 5.5 11 L 7 9 L 6 9 L 6 6 L 9 6 L 9 7 L 11 5.5 L 9 4 L 9 5 L 6 5 L 6 2 L 7 2 L 5.5 0 L 4 2 L 5 2 L 5 5 L 2 5 L 2 4 L 0 5.5 L 2 7 L 2 6 L 5 6 L 5 9 L 4 9 Z"/>
+	</${SVG}>
+`};
 
 function Modal({ isOpen, onClose, title, description, children, ...props }) {
 	if (!isOpen) {
@@ -3188,6 +3309,346 @@ function InstructModal({ isOpen, closeModal, templateStorage, selectedTemplate, 
 		</${Modal}>`;
 }
 
+function Widget({ isOpen, onClose, title, id, children, ...props }) {
+	if (!isOpen) {
+		return null;
+	}
+
+	const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const dragRef = useRef(null);
+
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      if (!isDragging) return;
+      const deltaX = e.clientX - dragRef.current.startX;
+      const deltaY = e.clientY - dragRef.current.startY;
+      setPosition({
+        x: dragRef.current.initialX + deltaX,
+        y: dragRef.current.initialY + deltaY,
+      });
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging]);
+
+  const handleMouseDown = (e) => {
+    setIsDragging(true);
+    dragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      initialX: position.x,
+      initialY: position.y,
+    };
+  };
+
+	useEffect(() => {
+		const onKeyDown = (event) => {
+			if (event.key === 'Escape') {
+				onClose();
+			}
+		};
+		document.addEventListener('keydown', onKeyDown);
+		return () => {
+			document.removeEventListener('keydown', onKeyDown);
+		};
+	}, []);
+
+	return html`
+		<div className="widget-body"
+			id="${id}"
+			style=${{ transform: `translate(${position.x}px, ${position.y}px)` }}>
+			<div class="widget-container">
+				<div class="widget-title-bar">
+					<div class="widget-title"
+						style=${{ cursor: isDragging ? 'grabbing' : 'grab' }}
+						onMouseDown=${handleMouseDown}
+						onMouseMove=${() => {}}
+						onMouseUp=${() => {}}
+						onMouseLeave=${() => {}}>
+						<${SVG_Moveable}/>
+						${title}
+					</div>
+					<button
+						class="button-widget-top"
+						onClick=${onClose}>
+						<${SVG_Close}/>
+					</button>
+				</div>
+				<div className="widget-content">
+					${children}
+				</div>
+			</div>
+		</div>`;
+}
+function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea, cancel, ...props }) {
+	const [searchAndReplaceError, setSearchAndReplaceError] = useState(undefined);
+	const [searchAndReplaceMode, setSearchAndReplaceMode] = usePersistentState('searchAndReplaceMode', 0);
+	const [searchTerm, setSearchTerm] = usePersistentState('searchTerm','');
+	const [searchFlags, setSearchFlags] = usePersistentState('searchFlags','gi');
+	const [replaceTerm, setReplaceTerm] = usePersistentState('replaceTerm','');
+	const [numMatches, setNumMatches] = useState(0);
+	const [inputElement, setInputElement] = useState(null);
+	const [replacedTrigger, setReplacedTrigger] = useState(false);
+
+	useEffect(() => {
+		if (promptArea.current) {
+			setInputElement(promptArea.current);
+		}
+	}, [promptArea]);
+
+	function handleFindNext(mode,search,flags) {
+		setSearchAndReplaceError(undefined)
+		if (!search)
+			return
+		switch(mode) {
+			case 0:
+				findNextMatch(mode,search,flags,inputElement)
+				break;
+			case 1:
+				findNextMatch(mode,search,flags,inputElement)
+				break;
+			case 2:
+				templateFindNext(search,inputElement)
+				break;
+		}
+	}
+	function handleFindPrev(mode,search,flags) {
+		setSearchAndReplaceError(undefined)
+		if (!search)
+			return
+		switch(mode) {
+			case 0:
+				findPrevMatch(mode,search,flags,inputElement)
+				break;
+			case 1:
+				findPrevMatch(mode,search,flags,inputElement)
+				break;
+			case 2:
+				templateFindPrev(mode,search,inputElement)
+				break;
+		}
+	}
+
+	let positions = [];
+	let currentIndex = -1;
+
+	function findAllMatches(mode, search, flags, elem) {
+		if (!inputElement)
+			return 0
+		setSearchAndReplaceError(undefined)
+		let startIndex = 0;
+		let index;
+		let match;
+		let positions = [];
+		let text = elem.value;
+
+		if (mode == 0) {
+			while ((index = text.indexOf(search, startIndex)) > -1) {
+					positions.push({ start: index, end: index + search.length });
+					startIndex = index + search.length;
+			}
+		}
+		else if (mode == 1) {
+			try {
+				if (flags && !flags.includes("g"))
+					flags += "g" // if no global flag, while loop is infinite
+				else if (flags == "")
+					flags = "g"
+				let re = new RegExp(String.raw`${search}`, String.raw`${flags ?? "g"}`);
+				while ((match = re.exec(text)) !== null) {
+					positions.push({ start: match.index, end: re.lastIndex });
+					if (match.index === re.lastIndex) {
+						re.lastIndex++;
+					}
+				}
+			}
+			catch (e) {
+				reportError(e);
+				const errStr = e.toString()
+				setSearchAndReplaceError(errStr)
+				return null
+			}
+		}
+		return positions;
+	}
+	function highlightCurrent(elem) {
+		if (positions.length > 0 && currentIndex >= 0 && currentIndex < positions.length) {
+			const position = positions[currentIndex];
+			elem.focus();
+			elem.setSelectionRange(position.start, position.end);
+		}
+	}
+	function findNextMatch(mode,search,flags,elem) {
+		if (positions.length === 0) {
+			findAndStorePositions(mode,search,flags,elem);
+		}
+		if (positions.length > 0) {
+			currentIndex = (currentIndex + 1) % positions.length;
+			highlightCurrent(elem);
+		}
+	}
+
+	function findPrevMatch(mode,search,flags,elem) {
+		if (positions.length === 0) {
+			findAndStorePositions(mode,search,flags,elem);
+		}
+		if (positions.length > 0) {
+			currentIndex = (currentIndex - 1 + positions.length) % positions.length;
+			highlightCurrent(elem);
+		}
+	}
+
+	function findAndStorePositions(mode,search,flags,elem) {
+		positions = findAllMatches(mode, search, flags, elem);
+		currentIndex = -1; 
+		if (positions.length === 0)
+			setSearchAndReplaceError(`Warning: No matches found for ${ (mode==0?"Plaintext":mode==1?"RegEx":"Template") } \'${search}\'`)
+	}
+
+	function handleSearchAndReplace(mode,search,flags,replace) {
+		// TODO
+		// Add this to undo/redo
+		setSearchAndReplaceError(undefined)
+		if (!search)
+			return
+		positions = findAllMatches(mode, search, flags, inputElement);
+		if (positions.length === 0) {
+			setSearchAndReplaceError(`Warning: No matches found for ${ (mode==0?"Plaintext":mode==1?"RegEx":"Template") } \'${search}\'`)
+			return
+		}
+		setReplacedTrigger((prev) => !prev)
+
+		switch(mode) {
+			case 0:
+				plaintextReplace(search,replace,inputElement)
+				break;
+			case 1:
+				regexReplace(search,flags,replace,inputElement)
+				break;
+			case 2:
+				templateReplace(search,replace,inputElement)
+				break;
+		}
+	}
+
+	function plaintextReplace(search,replace,elem) {
+		// need to figure out a smart way to keep the cursor position
+		elem.value = elem.value.replaceAll(search,replace)
+		const event = new Event('input', { bubbles: true });
+		elem.dispatchEvent(event);
+	}
+	function regexReplace(search,flags,replace,elem) {
+		try {
+			let re = new RegExp(String.raw`${search}`, String.raw`${flags ?? ""}`);
+			elem.value = elem.value.replace(re,replace)
+			const event = new Event('input', { bubbles: true });
+			elem.dispatchEvent(event);
+		}
+		catch (e) {
+			reportError(e);
+			const errStr = e.toString()
+			setSearchAndReplaceError(errStr)
+		}
+	}
+
+	function countMatches(mode, search, flags) {
+		setSearchAndReplaceError(undefined)
+		if (!searchTerm) {
+			setNumMatches(0)
+			return
+		}
+		positions = findAllMatches(mode, search, flags, inputElement);
+		try {
+			setNumMatches(positions.length ?? 0)
+		}
+		catch {
+			setNumMatches(0)
+		}
+	}
+
+	useEffect(() => {
+		countMatches(searchAndReplaceMode,searchTerm,searchFlags)
+	}, [searchAndReplaceMode,searchTerm,searchFlags,isOpen,replacedTrigger]);
+
+	return html`
+		<${Widget} isOpen=${isOpen} onClose=${closeWidget}
+			title="Search and Replace"
+			id="${id}">
+				${children}
+				<div class="searchAndReplace-inputs">
+					<${SelectBox}
+						label="Mode"
+						value=${searchAndReplaceMode}
+						onValueChange=${setSearchAndReplaceMode}
+						options=${[
+							{ name: 'Plaintext', value: 0 },
+							{ name: 'RegEx', value: 1 },
+							// { name: 'Template', value: 2 },
+						]}/>
+					${searchAndReplaceMode == 0 && html`
+						<${InputBox} label="Search This" type="text"
+							placeholder="Hatsune Miku"
+							readOnly=${!!cancel} value=${searchTerm} onValueChange=${setSearchTerm}/>
+						<${InputBox} label="Replace With" type="text"
+							placeholder="GUMI"
+							readOnly=${!!cancel} value=${replaceTerm} onValueChange=${setReplaceTerm}/>
+					`}
+					${searchAndReplaceMode == 1 && html`
+						<${InputBox} label="Search This RegEx" type="text"
+							placeholder="(\\w+) Miku"
+							readOnly=${!!cancel} value=${searchTerm} onValueChange=${setSearchTerm}/>
+						<div style=${{ 'flex':'0 1 min-content' }}>
+							<${InputBox} label="Flags" type="text"
+								placeholder="gi"
+								readOnly=${!!cancel} value=${searchFlags} onValueChange=${setSearchFlags}/>
+						</div>
+						<${InputBox} label="Replace With" type="text"
+							placeholder="$1 GUMI"
+							readOnly=${!!cancel} value=${replaceTerm} onValueChange=${setReplaceTerm}/>
+					`}
+				</div>
+				<div class="searchAndReplace-buttons">
+					<div class="flexfiller"/>
+					<div class="number-matches">
+						${ searchTerm != "" ? numMatches + (numMatches == 1 ? " Match" : " Matches") : ""}
+					</div>
+					<button
+						class="findButton"
+						title="Find Previous Match"
+						disabled=${!!cancel}
+						onClick=${() => handleFindPrev(searchAndReplaceMode,searchTerm,searchFlags)}>
+						<${SVG_ArrowUp}/>
+					</button>
+					<button
+						class="findButton"
+						title="Find Next Match"
+						disabled=${!!cancel}
+						onClick=${() => handleFindNext(searchAndReplaceMode,searchTerm,searchFlags)}>
+							<${SVG_ArrowDown}/>
+					</button>
+					<button
+						title="Replace All Matches"
+						disabled=${!!cancel}
+						onClick=${() => handleSearchAndReplace(searchAndReplaceMode,searchTerm,searchFlags,replaceTerm)}>
+							Replace All
+					</button>
+				</div>
+				${!!searchAndReplaceError && html`
+					<div style=${{"margin":"8px auto"}} className="error-text">${searchAndReplaceError}</div>`}
+		</${Widget}>`;
+}
+
 class IndexedDBAdapter {
 	constructor() {
 		this.dbName = 'MikuPad';
@@ -3969,6 +4430,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	const [authorNoteTokens, setAuthorNoteTokens] = useSessionState('authorNoteTokens', defaultPresets.authorNoteTokens);
 	const [authorNoteDepth, setAuthorNoteDepth] = useSessionState('authorNoteDepth', defaultPresets.authorNoteDepth);
 	const [worldInfo, setWorldInfo] = useSessionState('worldInfo', defaultPresets.worldInfo);
+
 
 
 	function replacePlaceholders(string,placeholders) {
@@ -4764,30 +5226,30 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			if (defaultPrevented)
 				return;
 			switch (`${altKey}:${ctrlKey}:${shiftKey}:${key}`) {
-			case 'false:false:true:Enter':
-			case 'false:true:false:Enter':
-				predict();
-				break;
-			case 'false:false:false:Escape':
-				cancel();
-				break;
-			case 'false:true:false:r':
-			case 'false:false:true:r':
-				undoAndPredict();
-				break;
-			case 'false:true:false:z':
-			case 'false:false:true:z':
-				if (cancel || !undo()) return;
-				break;
-			case 'false:true:true:Z':
-			case 'false:true:false:y':
-			case 'false:false:true:y':
-				if (cancel || !redo()) return;
-				break;
+				case 'false:false:true:Enter':
+				case 'false:true:false:Enter':
+					predict();
+					break;
+				case 'false:false:false:Escape':
+					cancel();
+					break;
+				case 'false:true:false:r':
+				case 'false:false:true:r':
+					undoAndPredict();
+					break;
+				case 'false:true:false:z':
+				case 'false:false:true:z':
+					if (cancel || !undo()) return;
+					break;
+				case 'false:true:true:Z':
+				case 'false:true:false:y':
+				case 'false:false:true:y':
+					if (cancel || !redo()) return;
+					break;
 
-			default:
-				keyState.current = e;
-				return;
+				default:
+					keyState.current = e;
+					return;
 			}
 			e.preventDefault();
 		}
@@ -5134,9 +5596,17 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	return html`
 		<div id="prompt-container" onMouseMove=${onPromptMouseMove} style=${{ 'margin-bottom': isMobile ? sidebarHeight + 'px' : 0 }}>
 			<button
+				title="Editor Preferences"
 				className="textAreaSettings"
 				onClick=${() => toggleModal("prompt")}>
 				<${SVG_Settings}/>
+			</button>
+			<button
+				title="Search & Replace"
+				style=${{"margin-top":"1.5em"}}
+				className="textAreaSettings"
+				onClick=${() => toggleModal("searchAndReplace")}>
+				<${SVG_SearchAndReplace} style=${{"height":"1.3em"}} />
 			</button>
 			<textarea
 				ref=${promptArea}
@@ -5173,6 +5643,12 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 							</span>`;
 					})}` : null}
 			</div>
+			<${SearchAndReplaceWidget}
+				isOpen=${modalState.searchAndReplace}
+				closeWidget=${() => closeModal("searchAndReplace")}
+				id="searchAndReplace"
+				promptArea=${promptArea}
+				cancel=${cancel}/>
 		</div>
 		${probs ? html`
 			<div
