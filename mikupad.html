@@ -4184,13 +4184,13 @@ const defaultPresets = {
 		'Mistral': {
 			'sysPre' : '<<SYS>>\\n',
 			'sysSuf' : '<</SYS>>\\n\\n',
-			'instPre': '[INST]',
+			'instPre': '</s>[INST]',
 			'instSuf': '[/INST]',
 		},
 		'Codestral': {
 			'sysPre' : '<<SYS>>\\n',
 			'sysSuf' : '<</SYS>>\\n\\n',
-			'instPre': '[INST]',
+			'instPre': '</s>[INST]',
 			'instSuf': '[/INST]',
 			'fimTemplate': '[SUFFIX]{suffix}[PREFIX]{prefix}'
 		},
@@ -4233,14 +4233,14 @@ const defaultPresets = {
 		'Vicuna': {
 			'sysPre' : '',
 			'sysSuf' : '\\n\\n',
-			'instPre': '\\nUSER: ',
+			'instPre': '</s>\\nUSER: ',
 			'instSuf': '\\nASSISTANT: ',
 		},
 		'Gemma': {
 			'sysPre' : '',
 			'sysSuf' : '',
-			'instPre': '\\n<end_of_turn><start_of_turn>user\\n',
-			'instSuf': '\\n<end_of_turn><start_of_turn>model\\n',
+			'instPre': '<end_of_turn>\\n<start_of_turn>user\\n',
+			'instSuf': '<end_of_turn>\\n<start_of_turn>model\\n',
 		},
 	},
 	scrollTop: 0
