@@ -5661,7 +5661,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 				style=${{
 					'display': 'none'
 				}}>
-				${probs.map((prob, i) => {
+				${probs.filter(prob => prob.prob > 0).map((prob, i) => {
 					const index = currentPromptChunk?.index;
 					const isCurrentToken = promptChunks[index]?.prob == prob.prob;
 					return html`<button key=${i} className=${isCurrentToken ? 'current' : ''} onClick=${() => switchCompletion(index, prob)}>
