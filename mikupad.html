@@ -136,6 +136,26 @@ html.monospace-dark {
 	color-scheme: dark;
 }
 
+html.ereader {
+	--color-base-0: #000;
+	--color-base-10: color-mix(in srgb, var(--color-base-100) 10%, var(--color-base-0));
+	--color-base-20: color-mix(in srgb, var(--color-base-100) 20%, var(--color-base-0));
+	--color-base-30: color-mix(in srgb, var(--color-base-100) 30%, var(--color-base-0));
+	--color-base-40: color-mix(in srgb, var(--color-base-100) 40%, var(--color-base-0));
+	--color-base-50: color-mix(in srgb, var(--color-base-100) 50%, var(--color-base-0));
+	--color-base-60: color-mix(in srgb, var(--color-base-100) 60%, var(--color-base-0));
+	--color-base-70: color-mix(in srgb, var(--color-base-100) 70%, var(--color-base-0));
+	--color-base-80: color-mix(in srgb, var(--color-base-100) 80%, var(--color-base-0));
+	--color-base-90: color-mix(in srgb, var(--color-base-100) 90%, var(--color-base-0));
+	--color-base-100: #fff;
+	--color-miku: #08f;
+
+	font-family: monospace;
+	font-size: 16px;
+
+	background: var(--color-base-10);
+}
+
 body {
 	margin: 0;
 	display: flex;
@@ -284,6 +304,9 @@ html.nockoffAI .wi-textarea {
 
 #prompt-container:hover #prompt-overlay > .machine {
 	background: color-mix(in srgb, var(--bg-color, var(--color-miku)) 10%, transparent);
+}
+html.ereader #prompt-container:hover #prompt-overlay > .machine {
+	background: color-mix(in srgb, var(--bg-color, var(--color-miku)) 20%, transparent);
 }
 #prompt-container #prompt-overlay > .machine.erase {
 	background: color-mix(in srgb, #FF0000 10%, transparent);
@@ -5071,6 +5094,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		document.documentElement.classList.remove('serif-dark');
 		document.documentElement.classList.remove('monospace-dark');
 		document.documentElement.classList.remove('nockoffAI');
+		document.documentElement.classList.remove('ereader');
 		switch (theme) {
 		case 1:
 			document.documentElement.classList.add('serif-dark');
@@ -5080,6 +5104,9 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			break;
 		case 3:
 			document.documentElement.classList.add('nockoffAI');
+			break;
+		case 4:
+			document.documentElement.classList.add('ereader');
 			break;
 		}
 	}, [theme]);
@@ -5680,6 +5707,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 					{ name: 'Serif Dark', value: 1 },
 					{ name: 'Monospace Dark', value: 2 },
 					{ name: 'nockoffAI', value: 3 },
+					{ name: 'eReader', value: 4 },
 				]}/>
 			<div class="horz-separator"/>
 			<${CollapsibleGroup} label="Sessions">
