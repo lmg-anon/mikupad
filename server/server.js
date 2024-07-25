@@ -18,6 +18,19 @@ const noOpen = (args.open !== undefined && !args.open) || process.env.MIKUPAD_NO
 const login = args.login || process.env.MIKUPAD_LOGIN || 'anon';
 const password = args.password || process.env.MIKUPAD_PASSWORD || undefined;
 
+// Headers that shouldn't be forwarded in the proxy endpoint.
+const headersToRemove = [
+    'content-length',
+    'cdn-loop',
+    'cf-connecting-ip',
+    'cf-ipcountry',
+    'cf-ray',
+    'cf-visitor',
+    'x-forwarded-for',
+    'x-forwarded-host',
+    'x-forwarded-proto'
+];
+
 app.use(cors(), bodyParser.json({limit: "100mb"}));
 
 // authentication middleware
@@ -76,9 +89,9 @@ app.post('/proxy/*', async (req, res) => {
     const targetBaseUrl = req.headers['x-real-url'];
     delete req.headers['x-real-url'];
 
-    if ('content-length' in req.headers) {
-        delete req.headers['content-length'];
-    }
+    headersToRemove.forEach(header => {
+        delete req.headers[header.toLowerCase()];
+    });
 
     try {
         const response = await axios({
@@ -127,9 +140,9 @@ app.get('/proxy/*', async (req, res) => {
     const targetBaseUrl = req.headers['x-real-url'];
     delete req.headers['x-real-url'];
 
-    if ('content-length' in req.body) {
-        delete req.body['content-length'];
-    }
+    headersToRemove.forEach(header => {
+        delete req.headers[header.toLowerCase()];
+    });
 
     try {
         const response = await axios.get(`${targetBaseUrl}/${path}`, {
