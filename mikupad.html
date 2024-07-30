@@ -4408,8 +4408,9 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	const [spellCheck, setSpellCheck] = usePersistentState('spellCheck', false);
 	const [attachSidebar, setAttachSidebar] = usePersistentState('attachSidebar', false);
 	const [showProbsMode, setShowProbsMode] = usePersistentState('showProbsMode', 0);
-	const [highlightGenTokens, setHighlightGenTokens] = usePersistentState('highlightGenTokens', true);
-	const [__colorizePerplexity, _] = usePersistentState('colorizePerplexity', false); // obsolete!
+	const [__highlightGenTokens, __1] = usePersistentState('highlightGenTokens', true); // obsolete!
+	const [tokenHighlightMode, setTokenHighlightMode] = usePersistentState('tokenHighlightMode', __highlightGenTokens ? 0 : -1);
+	const [__colorizePerplexity, __2] = usePersistentState('colorizePerplexity', false); // obsolete!
 	const [tokenColorMode, setTokenColorMode] = usePersistentState('tokenColorMode', __colorizePerplexity ? 2 : 0);
 	const [preserveCursorPosition, setPreserveCursorPosition] = usePersistentState('preserveCursorPosition', true);
 	const [promptAreaWidth, setPromptAreaWidth] = usePersistentState('promptAreaWidth', undefined);
@@ -5123,7 +5124,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	}, [stoppingStrings]);
 
 	useEffect(() => {
-		if (showProbsMode === -1 || !highlightGenTokens)
+		if (showProbsMode === -1 || tokenHighlightMode === -1)
 			return;
 
 		const adjustProbsPosition = () => {
@@ -5197,7 +5198,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		promptArea.current.scrollTarget = undefined;
 		promptArea.current.scrollTop = savedScrollTop;
 		promptOverlay.current.scrollTop = savedScrollTop;
-	}, [savedScrollTop, highlightGenTokens, showProbsMode]);
+	}, [savedScrollTop, tokenHighlightMode, showProbsMode]);
 
 	useEffect(() => {
 		if (cancel)
@@ -5484,7 +5485,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	}
 
 	function onPromptMouseMove({ clientX, clientY }) {
-		if (showProbsMode === -1 && !highlightGenTokens)
+		if (showProbsMode === -1 && tokenHighlightMode === -1)
 			return;
 		promptOverlay.current.style.pointerEvents = 'auto';
 		const elem = document.elementFromPoint(clientX, clientY);
@@ -5649,7 +5650,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 				onInput=${onInput}
 				onScroll=${onScroll}/>
 			<div ref=${promptOverlay} id="prompt-overlay" aria-hidden>
-				${highlightGenTokens ? html`
+				${tokenHighlightMode !== -1 ? html`
 					${promptChunks.map((chunk, i) => {
 						const getRatioColor = (ratio) => {
 							const sRatio = Math.max(0, Math.min(1, ratio));
@@ -5680,7 +5681,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 								key=${i}
 								data-promptchunk=${i}
 								style=${bgColor ? { '--bg-color': bgColor } : {}}
-								className=${`${chunk.type === 'user' ? 'user' : 'machine'} ${isCurrent ? 'current' : ''} ${isNextUndo ? 'erase' : ''}`}>
+								className=${`${(tokenHighlightMode === 1 && !isCurrent) || chunk.type === 'user' ? 'user' : 'machine'} ${isCurrent ? 'current' : ''} ${isNextUndo ? 'erase' : ''}`}>
 								${(chunk.content === '\n' ? ' \n' : chunk.content) + (i === promptChunks.length - 1 && chunk.content.endsWith('\n') ? '\u00a0' : '')}
 							</span>`;
 					})}` : null}
@@ -6011,11 +6012,18 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 				value=${attachSidebar} onValueChange=${setAttachSidebar}/>
 			<${Checkbox} label="Preserve cursor position after prediction (disabled in Chat Mode)"
 				value=${preserveCursorPosition} onValueChange=${setPreserveCursorPosition}/>
-			<${Checkbox} label="Highlight generated tokens"
-				value=${highlightGenTokens} onValueChange=${setHighlightGenTokens}/>
-			${highlightGenTokens && html`
+			<${SelectBox}
+				label="Token highlight"
+				value=${tokenHighlightMode}
+				onValueChange=${setTokenHighlightMode}
+				options=${[
+					{ name: 'Show on editor hover', value: 0 },
+					{ name: 'Show on token hover', value: 1 },
+					{ name: 'Hide', value: -1 },
+				]}/>
+			${tokenHighlightMode !== -1 && html`
 				<${SelectBox}
-					label="Highlight color"
+					label="Token highlight color"
 					value=${tokenColorMode}
 					onValueChange=${setTokenColorMode}
 					options=${[
@@ -6024,13 +6032,13 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 						{ name: 'Color by perplexity', value: 2 },
 					]}/>
 				<${SelectBox}
-					label="Probabilities visibility"
+					label="Token probability display"
 					value=${showProbsMode}
 					onValueChange=${setShowProbsMode}
 					options=${[
 						{ name: 'Show on hover', value: 0 },
 						{ name: 'Show on hover while holding CTRL', value: 1 },
-						{ name: 'Hidden', value: -1 },
+						{ name: 'Hide', value: -1 },
 					]}/>`}
 			<div style=${{ display: 'flex', justifyContent: 'flex-start' }}>
 				<button onClick=${() => exportText(`${sessionStorage.getProperty('name')}.txt`, promptArea.current.value)}>
