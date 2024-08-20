@@ -1,3 +1,4 @@
+
 <!doctype html>
 <meta charset="utf-8">
 <!-- mikupad by Anon
@@ -3418,7 +3419,7 @@ function Widget({ isOpen, onClose, title, id, children, ...props }) {
 			</div>
 		</div>`;
 }
-function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea, cancel, ...props }) {
+function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea, promptText, cancel, ...props }) {
 	const [searchAndReplaceError, setSearchAndReplaceError] = useState(undefined);
 	const [searchAndReplaceMode, setSearchAndReplaceMode] = usePersistentState('searchAndReplaceMode', 0);
 	const [searchTerm, setSearchTerm] = usePersistentState('searchTerm','');
@@ -3427,6 +3428,8 @@ function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea,
 	const [numMatches, setNumMatches] = useState(0);
 	const [inputElement, setInputElement] = useState(null);
 	const [replacedTrigger, setReplacedTrigger] = useState(false);
+	const positions = useRef([]);
+	const [currentIndex, setCurrentIndex] = useState(-1);
 
 	useEffect(() => {
 		if (promptArea.current) {
@@ -3467,9 +3470,6 @@ function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea,
 		}
 	}
 
-	let positions = [];
-	let currentIndex = -1;
-
 	function findAllMatches(mode, search, flags, elem) {
 		if (!inputElement)
 			return 0
@@ -3509,37 +3509,47 @@ function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea,
 		}
 		return positions;
 	}
-	function highlightCurrent(elem) {
-		if (positions.length > 0 && currentIndex >= 0 && currentIndex < positions.length) {
-			const position = positions[currentIndex];
+	function highlightIndex(elem, index) {
+		if (positions.current.length > 0 && index >= 0 && index < positions.current.length) {
+			const position = positions.current[index];
 			elem.focus();
+			elem.scrollTop = 0;
+
+			// Scroll to selection position.
+			const fullText = elem.value;
+			elem.value = fullText.substring(0, position.end);
+			elem.scrollTop = elem.scrollHeight;
+			elem.value = fullText;
+
 			elem.setSelectionRange(position.start, position.end);
 		}
 	}
 	function findNextMatch(mode,search,flags,elem) {
-		if (positions.length === 0) {
+		if (positions.current.length === 0) {
 			findAndStorePositions(mode,search,flags,elem);
 		}
-		if (positions.length > 0) {
-			currentIndex = (currentIndex + 1) % positions.length;
-			highlightCurrent(elem);
+		if (positions.current.length > 0) {
+			let index = (currentIndex + 1) % positions.current.length;
+			setCurrentIndex(index);
+			highlightIndex(inputElement, index);
 		}
 	}
 
 	function findPrevMatch(mode,search,flags,elem) {
-		if (positions.length === 0) {
+		if (positions.current.length === 0) {
 			findAndStorePositions(mode,search,flags,elem);
 		}
-		if (positions.length > 0) {
-			currentIndex = (currentIndex - 1 + positions.length) % positions.length;
-			highlightCurrent(elem);
+		if (positions.current.length > 0) {
+			let index = (currentIndex - 1 + positions.current.length) % positions.current.length;
+			setCurrentIndex(index);
+			highlightIndex(inputElement, index);
 		}
 	}
 
 	function findAndStorePositions(mode,search,flags,elem) {
-		positions = findAllMatches(mode, search, flags, elem);
-		currentIndex = -1; 
-		if (positions.length === 0)
+		positions.current = findAllMatches(mode, search, flags, elem);
+		setCurrentIndex(-1); 
+		if (positions.current.length === 0)
 			setSearchAndReplaceError(`Warning: No matches found for ${ (mode==0?"Plaintext":mode==1?"RegEx":"Template") } \'${search}\'`)
 	}
 
@@ -3549,8 +3559,8 @@ function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea,
 		setSearchAndReplaceError(undefined)
 		if (!search)
 			return
-		positions = findAllMatches(mode, search, flags, inputElement);
-		if (positions.length === 0) {
+		positions.current = findAllMatches(mode, search, flags, inputElement);
+		if (positions.current.length === 0) {
 			setSearchAndReplaceError(`Warning: No matches found for ${ (mode==0?"Plaintext":mode==1?"RegEx":"Template") } \'${search}\'`)
 			return
 		}
@@ -3595,18 +3605,21 @@ function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea,
 			setNumMatches(0)
 			return
 		}
-		positions = findAllMatches(mode, search, flags, inputElement);
+		positions.current = findAllMatches(mode, search, flags, inputElement);
 		try {
-			setNumMatches(positions.length ?? 0)
+			setNumMatches(positions.current.length ?? 0)
 		}
 		catch {
 			setNumMatches(0)
+		}
+		if (positions.current.length <= currentIndex) {
+			setCurrentIndex(positions.current.length - 1);
 		}
 	}
 
 	useEffect(() => {
 		countMatches(searchAndReplaceMode,searchTerm,searchFlags)
-	}, [searchAndReplaceMode,searchTerm,searchFlags,isOpen,replacedTrigger]);
+	}, [searchAndReplaceMode,searchTerm,searchFlags,isOpen,replacedTrigger,promptText]);
 
 	return html`
 		<${Widget} isOpen=${isOpen} onClose=${closeWidget}
@@ -3626,7 +3639,7 @@ function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea,
 					${searchAndReplaceMode == 0 && html`
 						<${InputBox} label="Search This" type="text"
 							placeholder="Hatsune Miku"
-							readOnly=${!!cancel} value=${searchTerm} onValueChange=${setSearchTerm}/>
+							value=${searchTerm} onValueChange=${setSearchTerm}/>
 						<${InputBox} label="Replace With" type="text"
 							placeholder="GUMI"
 							readOnly=${!!cancel} value=${replaceTerm} onValueChange=${setReplaceTerm}/>
@@ -3634,33 +3647,31 @@ function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea,
 					${searchAndReplaceMode == 1 && html`
 						<${InputBox} label="Search This RegEx" type="text"
 							placeholder="(\\w+) Miku"
-							readOnly=${!!cancel} value=${searchTerm} onValueChange=${setSearchTerm}/>
+							value=${searchTerm} onValueChange=${setSearchTerm}/>
 						<div style=${{ 'flex':'0 1 min-content' }}>
 							<${InputBox} label="Flags" type="text"
 								placeholder="gi"
-								readOnly=${!!cancel} value=${searchFlags} onValueChange=${setSearchFlags}/>
+								value=${searchFlags} onValueChange=${setSearchFlags}/>
 						</div>
 						<${InputBox} label="Replace With" type="text"
 							placeholder="$1 GUMI"
-							readOnly=${!!cancel} value=${replaceTerm} onValueChange=${setReplaceTerm}/>
+							value=${replaceTerm} onValueChange=${setReplaceTerm}/>
 					`}
 				</div>
 				<div class="searchAndReplace-buttons">
 					<div class="flexfiller"/>
 					<div class="number-matches">
-						${ searchTerm != "" ? numMatches + (numMatches == 1 ? " Match" : " Matches") : ""}
+						${currentIndex >= 0 ? (currentIndex+1) + " /" : ""} ${ searchTerm != "" ? numMatches + (numMatches == 1 ? " Match" : " Matches") : ""}
 					</div>
 					<button
 						class="findButton"
 						title="Find Previous Match"
-						disabled=${!!cancel}
 						onClick=${() => handleFindPrev(searchAndReplaceMode,searchTerm,searchFlags)}>
 						<${SVG_ArrowUp}/>
 					</button>
 					<button
 						class="findButton"
 						title="Find Next Match"
-						disabled=${!!cancel}
 						onClick=${() => handleFindNext(searchAndReplaceMode,searchTerm,searchFlags)}>
 							<${SVG_ArrowDown}/>
 					</button>
@@ -5691,6 +5702,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 				closeWidget=${() => closeModal("searchAndReplace")}
 				id="searchAndReplace"
 				promptArea=${promptArea}
+				promptText=${promptText}
 				cancel=${cancel}/>
 		</div>
 		${probs ? html`
