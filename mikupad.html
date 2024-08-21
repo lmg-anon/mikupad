@@ -861,6 +861,101 @@ html.nockoffAI .SelectBox > select:disabled {
 	margin-right: -8px;
 }
 
+.InputSlider-container {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+}
+
+.InputSlider-container input[type="range"] {
+	width: calc(100% + 16px);
+	height: 8px;
+	-webkit-appearance: none;
+	appearance: none;
+	padding: 0;
+	z-index: 1;
+	background: var(--color-base-20);
+	border-radius: 2px 2px 0 0;
+	outline: none;
+	border: none;
+}
+
+.InputSlider-container input[type="range"]::-webkit-slider-runnable-track {
+	height: 8px;
+	background: var(--color-base-20);
+	border-radius: 2px 2px 0 0;
+}
+
+.InputSlider-container input[type="range"]::-webkit-slider-thumb {
+	width: 12px;
+	height: 12px;
+	-webkit-appearance: none;
+	appearance: none;
+	background: var(--color-light);
+	border-radius: 50%;
+	cursor: pointer;
+	margin-top: -2px;
+}
+
+.InputSlider-container input[type="range"]::-moz-range-track {
+	height: 8px;
+	background: var(--color-base-20);
+	border-radius: 2px 2px 0 0;
+}
+
+.InputSlider-container input[type="range"]::-moz-range-thumb {
+	width: 12px;
+	height: 12px;
+	background: var(--color-light);
+	border-radius: 50%;
+	cursor: pointer;
+}
+
+.InputSlider-container input[type="range"]::-ms-track {
+	width: 100%;
+	height: 8px;
+	background: transparent;
+	border-color: transparent;
+	color: transparent;
+}
+
+.InputSlider-container input[type="range"]::-ms-fill-lower {
+	background: var(--color-base-20);
+	border-radius: 5px 5px 0 0;
+}
+
+.InputSlider-container input[type="range"]::-ms-fill-upper {
+	background: var(--color-base-20);
+	border-radius: 2px 2px 0 0;
+}
+
+.InputSlider-container input[type="range"]::-ms-thumb {
+	width: 12px;
+	height: 12px;
+	background: var(--color-light);
+	border-radius: 50%;
+	cursor: pointer;
+}
+
+.InputSlider-container input[type="number"] {
+	width: 100%;
+	margin-top: -1px;
+	position: relative;
+	z-index: 0;
+	text-align: center;
+	border: none;
+	border-radius: 0 0 2px 2px;
+	-moz-appearance: textfield;
+	-webkit-appearance: textfield;
+	appearance: textfield;
+}
+
+.InputSlider-container input[type="number"]::-webkit-outer-spin-button,
+.InputSlider-container input[type="number"]::-webkit-inner-spin-button {
+	-webkit-appearance: none;
+	margin: 0;
+}
+
 .tooltip {
 	position: relative;
 }
@@ -1833,6 +1928,38 @@ async function openaiOobaAbortCompletion({ endpoint, proxyEndpoint, ...options }
 	} catch (e) {
 		// do nothing
 	}
+}
+
+function InputSlider({ label, value, min = 0, max = 100, step = 1, readOnly, onValueChange, ...props }) {
+	const handleChange = (newValue) => {
+		//if (newValue < min) newValue = min;
+		//if (newValue > max) newValue = max;
+		onValueChange(newValue);
+	};
+
+	return html`
+		<label className="InputBox">
+			${label}
+			<div className="InputSlider-container">
+				<input
+					type="range"
+					value=${value}
+					min=${min}
+					max=${max}
+					step=${step}
+					disabled=${readOnly}
+					onInput=${({ target }) => handleChange(Number(target.value))}/>
+				<input
+					type="number"
+					value=${value}
+					min=${min}
+					max=${max}
+					step=${step}
+					readOnly=${readOnly}
+					onChange=${({ target }) => handleChange(Number(target.value))}
+					...${props}/>
+			</div>
+		</label>`;
 }
 
 function InputBox({ label, className, tooltip, tooltipSize, value, type, datalist, onValueChange, children, ...props }) {
@@ -5830,22 +5957,22 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			</${CollapsibleGroup}>
 			<${CollapsibleGroup} label="Sampling" expanded>
 				${endpointAPI == 3 && html`
-					<${Checkbox} label="Full OpenAI compliance"
+					<${Checkbox} label="Full OpenAI Compliance"
 						disabled=${!!cancel} value=${openaiPresets} onValueChange=${setOpenaiPresets}/>`}
-				<${InputBox} label="Temperature" type="number" step="0.01"
+				<${InputSlider} label="Temperature" type="number" step="0.01" max="5"
 					readOnly=${!!cancel} value=${temperature} onValueChange=${setTemperature}/>
 				${(!openaiPresets || endpointAPI != 3) && html`
 					<div className="hbox">
-						<${InputBox} label="DynaTemp Range" type="number" step="0.01"
+						<${InputSlider} label="DynaTemp Range" type="number" step="0.01"
 							readOnly=${!!cancel} value=${dynaTempRange} onValueChange=${setDynaTempRange}/>
 						${(endpointAPI != 2) && html`
-							<${InputBox} label="DynaTemp Exp" type="number" step="0.01"
+							<${InputSlider} label="DynaTemp Exp" type="number" step="0.01"
 								readOnly=${!!cancel} value=${dynaTempExp} onValueChange=${setDynaTempExp}/>`}
 					</div>
 					<div className="hbox">
-						<${InputBox} label="Repeat penalty" type="number" step="0.01"
+						<${InputSlider} label="Repeat Penalty" type="number" step="0.01" min="1" max="3"
 							readOnly=${!!cancel} value=${repeatPenalty} onValueChange=${setRepeatPenalty}/>
-						<${InputBox} label="Repeat last n" type="number" step="1"
+						<${InputSlider} label="Rep Pen Range" type="number" step="1" max="${contextLength}"
 							readOnly=${!!cancel} value=${repeatLastN} onValueChange=${setRepeatLastN}/>
 					</div>`}
 				${(endpointAPI == 0 || !openaiPresets || endpointAPI == 3) && html`
@@ -5853,9 +5980,9 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 						<${Checkbox} label="Penalize NL"
 							disabled=${!!cancel} value=${penalizeNl} onValueChange=${setPenalizeNl}/>`}
 					<div className="hbox">
-						<${InputBox} label="Presence penalty" type="number" step="0.01"
+						<${InputSlider} label="Pres. Penalty" type="number" step="0.01" min="-2" max="2"
 							readOnly=${!!cancel} value=${presencePenalty} onValueChange=${setPresencePenalty}/>
-						<${InputBox} label="Frequency penalty" type="number" step="1"
+						<${InputSlider} label="Freq. Penalty" type="number" step="0.01" min="-2" max="2"
 							readOnly=${!!cancel} value=${frequencyPenalty} onValueChange=${setFrequencyPenalty}/>
 					</div>`}
 				${temperature <= 0 ? null : html`
@@ -5872,27 +5999,27 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 							]}/>`}
 					${(mirostat && (!openaiPresets || endpointAPI != 3)) ? html`
 						<div className="hbox">
-							<${InputBox} label="Mirostat τ" type="number" step="0.01"
+							<${InputSlider} label="Mirostat τ" type="number" step="0.01" max="20"
 								readOnly=${!!cancel} value=${mirostatTau} onValueChange=${setMirostatTau}/>
-							<${InputBox} label="Mirostat η" type="number" step="0.01"
+							<${InputSlider} label="Mirostat η" type="number" step="0.01" max="1"
 								readOnly=${!!cancel} value=${mirostatEta} onValueChange=${setMirostatEta}/>
 						</div>
 					` : html`
 						<div className="hbox">
 							${(!openaiPresets || endpointAPI != 3) && html`
-								<${InputBox} label="Top K" type="number" step="1"
+								<${InputSlider} label="Top K" type="number" step="1" max="200"
 									readOnly=${!!cancel} value=${topK} onValueChange=${setTopK}/>`}
-							<${InputBox} label="Top P" type="number" step="0.01"
+							<${InputSlider} label="Top P" type="number" step="0.01" max="1"
 								readOnly=${!!cancel} value=${topP} onValueChange=${setTopP}/>
 							${(!openaiPresets || endpointAPI != 3) && html`
-								<${InputBox} label="Min P" type="number" step="0.01"
+								<${InputSlider} label="Min P" type="number" step="0.01" max="1"
 									readOnly=${!!cancel} value=${minP} onValueChange=${setMinP}/>`}
 						</div>
 						${(!openaiPresets || endpointAPI != 3) && html`
 							<div className="hbox">
-								<${InputBox} label="Typical p" type="number" step="0.01"
+								<${InputSlider} label="Typical P" type="number" step="0.01" max="1"
 									readOnly=${!!cancel} value=${typicalP} onValueChange=${setTypicalP}/>
-								<${InputBox} label="TFS z" type="number" step="0.01"
+								<${InputSlider} label="TFS z" type="number" step="0.01" max="1"
 									readOnly=${!!cancel} value=${tfsZ} onValueChange=${setTfsZ}/>
 							</div>`}
 					`}
