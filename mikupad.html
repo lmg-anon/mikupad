@@ -1310,6 +1310,31 @@ html.monospace-dark .eye-button {
 	}
 }
 
+.contextBar {
+	height:1.25em;
+	border-radius:2px;
+	overflow:hidden;
+}
+.contextBar-contextModal {
+	margin-top:.25em;
+}
+
+.contextBar .percentagebar-Prompt {
+	background-color: #fff;
+}
+.contextBar .percentagebar-Memory {
+	background-color: #8c94ff;
+}
+.contextBar .percentagebar-WorldInfo {
+	background-color: #8cff94;
+}
+.contextBar .percentagebar-AuthorsNote {
+	background-color: #ff948c;
+}
+.contextBar .percentagebar-FreeContext {
+	background-color: #fff0;
+}
+
 @media (min-width: 767.98px) {
 	#sidebar .SelectBox:first-child, .horz-separator, .collapsible-group {
 		display: block !important;
@@ -2443,6 +2468,30 @@ const SVG_Moveable = ({...props}) => {
 	</${SVG}>
 `};
 
+
+const PercentageBar = ({ values, className, colors }) => {
+	// const color = colors ? colors : ["#fff","#8c94ff","#8cff94","#ff948c"]
+	const total = Object.values(values).reduce((acc, curr) => acc + curr, 0);
+	const percentages = Object.values(values).map(value => (value / total) * 100);
+
+	return html`
+		<div className="${className}" style=${{ opacity: "80%", background: 'grey', display: 'flex', flexDirection: 'row' }}>
+		${Object.keys(values).map((name, index) =>  html`
+			<div class="tooltip"
+				key=${index}
+				title='${name} (${percentages[index].toFixed(1)}%)'
+				className='${"percentagebar-" + name.replace(/[^a-z]/ig,"")}'
+				style=${{
+					...( colors ? { backgroundColor: colors[index], } : {} ),
+					width: percentages[index] + '%',
+					height: '100%'
+				}}>
+			</div>
+		`)}
+		</div>
+	`;
+};
+
 function Modal({ isOpen, onClose, title, description, children, ...props }) {
 	if (!isOpen) {
 		return null;
@@ -2554,7 +2603,7 @@ function AuthorNoteModal({ isOpen, closeModal, authorNoteTokens, handleauthorNot
 			</${Modal}>`;
 }
 
-function ContextModal({ isOpen, closeModal, tokens, memoryTokens, authorNoteTokens, handleMemoryTokensChange, finalPromptText, defaultPresets, cancel }) {
+function ContextModal({ isOpen, closeModal, tokens, contextLength, memoryTokens, authorNoteTokens, handleMemoryTokensChange, finalPromptText, defaultPresets, cancel }) {
 	return html`
 		<${Modal} isOpen=${isOpen} onClose=${closeModal}
 			title="Context"
@@ -2564,10 +2613,10 @@ function ContextModal({ isOpen, closeModal, tokens, memoryTokens, authorNoteToke
 				<thead>
 					<tr>
 						<th></th>
+						<th>Prompt</th>
 						<th>Memory</th>
 						<th>World Info</th>
 						<th>Author's Note</th>
-						<th>Prompt</th>
 						<th></th>
 						<th>Total</th>
 					</tr>
@@ -2575,15 +2624,25 @@ function ContextModal({ isOpen, closeModal, tokens, memoryTokens, authorNoteToke
 				<tbody>
 					<tr>
 						<th>Tokens</th>
+						<td>${tokens - authorNoteTokens.tokens - memoryTokens.tokensWI - memoryTokens.tokens}</td>
 						<td>${memoryTokens.tokens}</td>
 						<td>${memoryTokens.tokensWI}</td>
 						<td>${authorNoteTokens.tokens}</td>
-						<td>${tokens - authorNoteTokens.tokens - memoryTokens.tokensWI - memoryTokens.tokens}</td>
 						<td></td>
 						<td>${tokens}</td>
 					</tr>
 				</tbody>
 			</table>
+			<${PercentageBar}
+					className="contextBar contextBar-contextModal"
+					values=${{
+						"Prompt": tokens - authorNoteTokens.tokens - memoryTokens.tokensWI - memoryTokens.tokens,
+						"Memory": memoryTokens.tokens,
+						"World Info": memoryTokens.tokensWI,
+						"Author's Note": authorNoteTokens.tokens,
+						"Free Context": Math.max(contextLength - tokens, 0)
+					}}>
+				</${PercentageBar}>
 			</div>
 			<${CollapsibleGroup} label="Advanced Context Ordering">
 				<div id="context-order-desc">
@@ -4544,6 +4603,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	const [showProbs, setShowProbs] = useState(true);
 	const [cancel, setCancel] = useState(null);
 	const [spellCheck, setSpellCheck] = usePersistentState('spellCheck', false);
+	const [showContextBar, setShowContextBar] = usePersistentState('showContextBar', false);
 	const [attachSidebar, setAttachSidebar] = usePersistentState('attachSidebar', false);
 	const [showProbsMode, setShowProbsMode] = usePersistentState('showProbsMode', 0);
 	const [__highlightGenTokens, __1] = usePersistentState('highlightGenTokens', true); // obsolete!
@@ -6085,6 +6145,18 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			</${CollapsibleGroup}>
 			${!!tokens && html`
 				<${InputBox} label="Tokens" value=${tokens} readOnly/>`}
+			${showContextBar && !!tokens && html`
+				<${PercentageBar}
+				className="contextBar"
+					values=${{
+						"Prompt": tokens - authorNoteTokens.tokens - memoryTokens.tokensWI - memoryTokens.tokens,
+						"Memory": memoryTokens.tokens,
+						"World Info": memoryTokens.tokensWI,
+						"Author's Note": authorNoteTokens.tokens,
+						"Free Context": Math.max(contextLength - tokens, 0)
+					}}>
+				</${PercentageBar}>
+			`}
 			<div className="buttons">
 				<button
 					title="Run next prediction (Ctrl + Enter)"
@@ -6147,6 +6219,8 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			closeModal=${() => closeModal("prompt")}>
 			<${Checkbox} label="Enable spell checking"
 				value=${spellCheck} onValueChange=${setSpellCheck}/>
+			<${Checkbox} label="Show Context Breakdown Bar"
+				value=${showContextBar} onValueChange=${setShowContextBar}/>
 			<${Checkbox} label="Attach sidebar"
 				value=${attachSidebar} onValueChange=${setAttachSidebar}/>
 			<${Checkbox} label="Preserve cursor position after prediction (disabled in Chat Mode)"
@@ -6206,6 +6280,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			isOpen=${modalState.context}
 			closeModal=${() => closeModal("context")}
 			tokens=${tokens}
+			contextLength=${contextLength}
 			memoryTokens=${memoryTokens}
 			authorNoteTokens=${authorNoteTokens}
 			handleMemoryTokensChange=${handleMemoryTokensChange}
