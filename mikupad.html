@@ -339,7 +339,7 @@ html.monospace-dark #probs,
 html.nockoffAI #probs {
 	background: var(--color-base-10);
 	border: 1px solid var(--token-prob-box);
-	border-radius: 4px;
+	border-radius: calc(4px * var(--font-size-multiplier));
 	box-shadow: none;
 }
 #probs > button {
@@ -347,7 +347,7 @@ html.nockoffAI #probs {
 	background: transparent;
 	color: var(--color-light);
 	border-radius: 0;
-	padding: 4px 8px;
+	padding: calc(4px * var(--font-size-multiplier)) calc(8px * var(--font-size-multiplier));
 	display: flex;
 	flex-direction: column;
 	flex: none;
@@ -357,12 +357,12 @@ html.nockoffAI #probs {
 	background: var(--color-base-40);
 }
 #probs > button:first-child {
-	border-radius: 5px 0 0 5px;
-	padding-left: 6px;
+	border-radius: calc(5px * var(--font-size-multiplier)) 0 0 calc(5px * var(--font-size-multiplier));
+	padding-left: calc(6px * var(--font-size-multiplier));
 }
 #probs > button:last-child {
-	border-radius: 0 5px 5px 0;
-	padding-right: 6px;
+	border-radius: 0 calc(5px * var(--font-size-multiplier)) calc(5px * var(--font-size-multiplier)) 0;
+	padding-right: calc(6px * var(--font-size-multiplier));
 }
 #probs > button:hover {
 	background: var(--color-base-40);
