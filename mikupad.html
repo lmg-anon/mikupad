@@ -162,6 +162,8 @@ body {
 	display: flex;
 	flex: auto;
 	flex-direction: row;
+	
+	--font-size-multiplier: 1.0;
 }
 @media (min-width: calc(40.5em + 250px)) {
 	body.attachSidebar {
@@ -172,7 +174,7 @@ body {
 
 #prompt-container {
 	position: relative;
-	font-size: 1.125rem;
+	font-size: calc(1.125rem * var(--font-size-multiplier));
 	max-width: 36em;
 	margin-right: auto;
 	margin-left: auto;
@@ -349,7 +351,7 @@ html.nockoffAI #probs {
 	display: flex;
 	flex-direction: column;
 	flex: none;
-	font-size: 1rem;
+	font-size: calc(1rem * var(--font-size-multiplier));
 }
 #probs > button.current {
 	background: var(--color-base-40);
@@ -369,7 +371,7 @@ html.nockoffAI #probs {
 	background: var(--color-base-50);
 }
 #probs > button > .prob {
-	font-size: 0.8rem;
+	font-size: calc(0.8rem * var(--font-size-multiplier));
 }
 
 .flexfiller {
@@ -4543,6 +4545,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	const [undoHovered, setUndoHovered] = useState(false);
 	const [showProbs, setShowProbs] = useState(true);
 	const [cancel, setCancel] = useState(null);
+	const [fontSizeMultiplier, setFontSizeMultiplier] = usePersistentState('fontSizeMult', 1.0);
 	const [spellCheck, setSpellCheck] = usePersistentState('spellCheck', false);
 	const [attachSidebar, setAttachSidebar] = usePersistentState('attachSidebar', false);
 	const [showProbsMode, setShowProbsMode] = usePersistentState('showProbsMode', 0);
@@ -5214,6 +5217,10 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			setTriggerPredict(false);
 		}
 	}, [triggerPredict]);
+
+	useLayoutEffect(() => {
+		document.body.style.setProperty('--font-size-multiplier', fontSizeMultiplier);
+	}, [fontSizeMultiplier]);
 
 	useLayoutEffect(() => {
 		if (attachSidebar)
@@ -6145,6 +6152,8 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		<${EditorPreferencesModal}
 			isOpen=${modalState.prompt}
 			closeModal=${() => closeModal("prompt")}>
+			<${InputSlider} label="Font size multiplier" min="0.5" max="5" step="0.01"
+				value=${fontSizeMultiplier} onValueChange=${setFontSizeMultiplier}/>
 			<${Checkbox} label="Enable spell checking"
 				value=${spellCheck} onValueChange=${setSpellCheck}/>
 			<${Checkbox} label="Attach sidebar"
