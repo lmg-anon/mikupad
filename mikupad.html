@@ -1932,10 +1932,12 @@ async function openaiOobaAbortCompletion({ endpoint, proxyEndpoint, ...options }
 	}
 }
 
-function InputSlider({ label, value, min = 0, max = 100, step = 1, readOnly, onValueChange, ...props }) {
+function InputSlider({ label, value, min = 0, max = 100, step = 1, readOnly, strict, onValueChange, ...props }) {
 	const handleChange = (newValue) => {
-		//if (newValue < min) newValue = min;
-		//if (newValue > max) newValue = max;
+		if (strict) {
+			if (newValue < min) newValue = min;
+			if (newValue > max) newValue = max;
+		}
 		onValueChange(newValue);
 	};
 
@@ -6152,7 +6154,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		<${EditorPreferencesModal}
 			isOpen=${modalState.prompt}
 			closeModal=${() => closeModal("prompt")}>
-			<${InputSlider} label="Font size multiplier" min="0.5" max="5" step="0.01"
+			<${InputSlider} label="Font size multiplier" min="0.5" max="5" step="0.01" strict="1"
 				value=${fontSizeMultiplier} onValueChange=${setFontSizeMultiplier}/>
 			<${Checkbox} label="Enable spell checking"
 				value=${spellCheck} onValueChange=${setSpellCheck}/>
