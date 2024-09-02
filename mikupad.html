@@ -1,4 +1,3 @@
-
 <!doctype html>
 <meta charset="utf-8">
 <!-- mikupad by Anon
@@ -4589,6 +4588,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	const [rejectedAPIKey, setRejectedAPIKey] = useState(false);
 	const [openaiModels, setOpenaiModels] = useState([]);
 	const [tokens, setTokens] = useState(0);
+	const [tokensPerSec, setTokensPerSec] = useState(0.0);
 	const [predictStartTokens, setPredictStartTokens] = useState(0);
 	const [lastError, setLastError] = useState(undefined);
 	const [stoppingStrings, setStoppingStrings] = useSessionState('stoppingStrings', defaultPresets.stoppingStrings);
@@ -5044,6 +5044,8 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		setCancel(() => cancelThis);
 		setLastError(undefined);
 
+		let predictCount = 0;
+
 		try {
 			// sometimes "getTokenCount" can take a while because the server is busy
 			// so let's set the predictStartTokens beforehand.
@@ -5085,6 +5087,9 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			setRejectedAPIKey(false);
 			promptArea.current.scrollTarget = undefined;
 			useScrollSmoothing.current = true;
+
+			let startTime = 0;
+			setTokensPerSec(0.0);
 
 			for await (const chunk of completion({
 				endpoint,
@@ -5133,6 +5138,15 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 					chunk.content = chunk.stopping_word;
 				if (!chunk.content)
 					continue;
+				if (startTime === 0) {
+					startTime = performance.now();
+				} else {
+					if (predictCount === 1) {
+						startTime -= performance.now() - startTime; // compensate for the first token
+					}
+					const elapsedTime = (performance.now() - startTime) / 1000; // in seconds
+					setTokensPerSec((predictCount + 1) / elapsedTime);
+				}
 				if (callback) {
 					if (!callback(chunk))
 						break;
@@ -5140,7 +5154,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 					setPromptChunks(p => [...p, chunk]);
 					setTokens(t => t + (chunk?.completion_probabilities?.length ?? 1));
 				}
-				chunkCount += 1;
+				predictCount += 1;
 			}
 		} catch (e) {
 			if (e.name !== 'AbortError') {
@@ -5159,13 +5173,14 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		} finally {
 			setCancel(c => c === cancelThis ? null : c);
 			if (!callback) {
-				if (undoStack.current.at(-1) === chunkCount)
+				if (predictCount === 0)
 					undoStack.current.pop();
 			}
+			setTokensPerSec(0.0);
 		}
 
 		// Chat Mode
-		if (!callback && chatMode) {
+		if (!callback && chatMode && predictCount > 0) {
 			// add bot EOT template (instruct prefix)
 			const eotBot = templates[selectedTemplate]?.instPre.replace(/\\n/g, '\n')
 			setPromptChunks(p => [...p, { type: 'user', content: eotBot }])
@@ -5369,7 +5384,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		}, 500);
 		ac.signal.addEventListener('abort', () => clearTimeout(to));
 		return () => ac.abort();
-	}, [modalState["context"], promptText, cancel, endpoint, endpointAPI]);
+	}, [modalState["context"], promptText, endpoint, endpointAPI]);
 
 	useEffect(() => {
 		if (endpointAPI !== API_OPENAI_COMPAT) {
@@ -6093,7 +6108,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 
 			</${CollapsibleGroup}>
 			${!!tokens && html`
-				<${InputBox} label="Tokens" value=${tokens} readOnly/>`}
+				<${InputBox} label="Tokens" value="${tokens}${tokensPerSec ? ` (${tokensPerSec.toFixed(2)} T/s)` : ``}" readOnly/>`}
 			<div className="buttons">
 				<button
 					title="Run next prediction (Ctrl + Enter)"
