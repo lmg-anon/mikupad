@@ -1931,6 +1931,35 @@ async function openaiOobaAbortCompletion({ endpoint, proxyEndpoint, ...options }
 	}
 }
 
+function importSillyTavernWorldInfo(json, setWorldInfo, importBehavior) {
+	setWorldInfo(prevWorldInfo => {
+		let updatedEntries;
+
+		if (importBehavior === "replace") {
+			updatedEntries = [];
+		} else if (importBehavior === "append") {
+			updatedEntries = [...prevWorldInfo.entries];
+		} else {
+			throw new Error("Unknown import behavior " + importBehavior);
+			return;
+		}
+
+		Object.values(json.entries)?.forEach(entry => {
+			updatedEntries.push({
+				"displayName": entry.comment,
+				"text": entry.content,
+				"keys": [...entry.key],
+				"search": entry.scanDepth || ""
+			});
+		});
+
+		return {
+			...prevWorldInfo,
+			entries: updatedEntries
+		};
+	});
+}
+
 function InputSlider({ label, value, min = 0, max = 100, step = 1, readOnly, strict, onValueChange, ...props }) {
 	const handleChange = (newValue) => {
 		if (strict) {
@@ -2642,7 +2671,7 @@ function ContextModal({ isOpen, closeModal, tokens, memoryTokens, authorNoteToke
 		</${Modal}>`;
 }
 
-function WorldInfoModal({ isOpen, closeModal, worldInfo, setWorldInfo, cancel, toggleModal }) {
+function WorldInfoModal({ isOpen, closeModal, worldInfo, setWorldInfo, cancel, toggleModal, setSillyTarvernWorldInfoJSON }) {
 	const handleWorldInfoNew = () => {
 		setWorldInfo((prevWorldInfo) => {
 			return {
@@ -2705,12 +2734,6 @@ function WorldInfoModal({ isOpen, closeModal, worldInfo, setWorldInfo, cancel, t
 		const inputElement = document.createElement("input");
 		inputElement.type = "file";
 		inputElement.onchange = () => {
-
-			if (Object.values(worldInfo.entries)?.length) {
-				toggleModal("wiImportMode");
-				return;
-			}
-
 			const file = inputElement.files[0];
 			if (!file)
 				return;
@@ -2721,24 +2744,14 @@ function WorldInfoModal({ isOpen, closeModal, worldInfo, setWorldInfo, cancel, t
 				try {
 					const contents = e.target.result;
 					const json = JSON.parse(contents);
-					
-					setWorldInfo(prevWorldInfo => {
-						const updatedEntries = [...prevWorldInfo.entries];
 
-						Object.values(json.entries)?.forEach(entry => {
-							updatedEntries.push({
-								"displayName": entry.comment,
-								"text": entry.content,
-								"keys": [...entry.key],
-								"search": entry.scanDepth || ""
-							});
-						});
-
-						return {
-							...prevWorldInfo,
-							entries: updatedEntries
-						};
-					});
+					if (Object.values(worldInfo.entries)?.length) {
+						setSillyTarvernWorldInfoJSON(json);
+						toggleModal("wiImportMode");
+						return;
+					} else {
+						importSillyTavernWorldInfo(json, setWorldInfo, "append");
+					}
 				} catch (e) {
 					alert("The JSON data could not be parsed. Please check that it is valid JSON.");
 					console.error(e);
@@ -2904,22 +2917,24 @@ function WorldInfoModal({ isOpen, closeModal, worldInfo, setWorldInfo, cancel, t
 		</${Modal}>`;
 }
 
-function WorldInfoSelectImportBehaviorModal({ isOpen, closeModal, worldInfo, setWorldInfo, cancel }) {
-	const handleCleanSlateImportSelected = () => {
-
+function WorldInfoSelectImportBehaviorModal({ isOpen, closeModal, worldInfo, setWorldInfo, cancel, sillyTarvernWorldInfoJSON }) {
+	const handleImportReplace = () => {
+		importSillyTavernWorldInfo(sillyTarvernWorldInfoJSON, setWorldInfo, "replace");
+		closeModal();
 	};
 
-	const handleAddImportSelected = () => {
-		
+	const handleImportAppend = () => {
+		importSillyTavernWorldInfo(sillyTarvernWorldInfoJSON, setWorldInfo, "append");
+		closeModal();
 	};
 
 	return html`<${Modal} isOpen=${isOpen} onClose=${closeModal}
 		id="modal-wi-importbehavior"
-		title="Select import behavior"
-		description="There are already world info entries present. Would you like to delete them before importing the new ones? Or would you like to add the imported entries alongside the existing ones?" >
+		title="There are already world info entries present"
+		description="Would you like to delete them before importing the new ones? Or would you like to add the imported entries alongside the existing ones?" >
 		<div id="modal-wi-global">
-			<button id="button-wi-importbehavior-clean" disabled=${!!cancel} onClick=${handleCleanSlateImportSelected}>Clean slate import</button>
-			<button id="button-wi-importbehavior-add" disabled=${!!cancel} onClick=${handleAddImportSelected}>Add to existing</button>
+			<button id="button-wi-importbehavior-replace" disabled=${!!cancel} onClick=${handleImportReplace}>Delete and import</button>
+			<button id="button-wi-importbehavior-append" disabled=${!!cancel} onClick=${handleImportAppend}>Append to existing</button>
 		</div>
 	</${Modal}>`;
 }
@@ -4738,6 +4753,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	const [authorNoteTokens, setAuthorNoteTokens] = useSessionState('authorNoteTokens', defaultPresets.authorNoteTokens);
 	const [authorNoteDepth, setAuthorNoteDepth] = useSessionState('authorNoteDepth', defaultPresets.authorNoteDepth);
 	const [worldInfo, setWorldInfo] = useSessionState('worldInfo', defaultPresets.worldInfo);
+	const [sillyTarvernWorldInfoJSON, setSillyTarvernWorldInfoJSON] = useState(null);
 
 
 
@@ -6381,6 +6397,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			worldInfo=${worldInfo}
 			setWorldInfo=${setWorldInfo}
 			toggleModal=${toggleModal}
+			setSillyTarvernWorldInfoJSON=${setSillyTarvernWorldInfoJSON}
 			cancel=${cancel}/>
 
 		<${WorldInfoSelectImportBehaviorModal}
@@ -6388,6 +6405,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			closeModal=${() => closeModal("wiImportMode")}
 			worldInfo=${worldInfo}
 			setWorldInfo=${setWorldInfo}
+			sillyTarvernWorldInfoJSON=${sillyTarvernWorldInfoJSON}
 			cancel=${cancel}/>
 
 		<!-- TODO: The amount of parameters in this modal is a bit excessive... -->
