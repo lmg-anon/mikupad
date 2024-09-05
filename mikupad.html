@@ -2643,6 +2643,9 @@ function ContextModal({ isOpen, closeModal, tokens, memoryTokens, authorNoteToke
 }
 
 function WorldInfoModal({ isOpen, closeModal, worldInfo, setWorldInfo, cancel }) {
+	const [showImportEntriesField, setShowImportEntriesField] = useState(false);
+	const [importEntriesText, setImportEntriesText] = useState(null);
+
 	const handleWorldInfoNew = () => {
 		setWorldInfo((prevWorldInfo) => {
 			return {
@@ -2701,14 +2704,142 @@ function WorldInfoModal({ isOpen, closeModal, worldInfo, setWorldInfo, cancel })
 		}));
 	};
 
+	const handleWorldInfoImport = () => {
+		if (showImportEntriesField) {
+			if (!importEntriesText) {
+				alert("Please enter the contents of the exported JSON file by copying and pasting or dragging and dropping the file into the text area.");
+				return;
+			}
+
+			try {
+				const json = JSON.parse(importEntriesText);
+				
+				setWorldInfo(prevWorldInfo => {
+					const updatedEntries = [...prevWorldInfo.entries];
+
+					Object.values(json.entries)?.forEach(entry => {
+						updatedEntries.push({
+							"displayName": entry.comment,
+							"text": entry.content,
+							"keys": [...entry.key],
+							"search": entry.scanDepth || ""
+						});
+					});
+
+					return {
+						...prevWorldInfo,
+						entries: updatedEntries
+					};
+				});
+
+				setShowImportEntriesField(false);
+				setImportEntriesText("");
+			} catch (e) {
+				alert("The JSON data could not be parsed. Please check that it is valid JSON.");
+				console.error(e);
+			}
+		} else {
+			setShowImportEntriesField(true);
+		}
+	};
+
+	const handleWorldInfoExport = () => {
+		const exportedObject = { "entries": {} };
+
+		worldInfo.entries.forEach((entry, entryIndex) => {
+			exportedObject.entries[entryIndex] = {
+				"uid": entryIndex,
+				"key": [...entry.keys],
+				"keysecondary": [],
+				"comment": entry.displayName,
+				"content": entry.text,
+				"constant": false,
+				"vectorized": false,
+				"selective": true,
+				"selectiveLogic": 0,
+				"addMemo": true,
+				"order": 100,
+				"position": 0,
+				"disable": false,
+				"excludeRecursion": false,
+				"preventRecursion": false,
+				"delayUntilRecursion": false,
+				"probability": 100,
+				"useProbability": true,
+				"depth": 4,
+				"group": "",
+				"groupOverride": false,
+				"groupWeight": 100,
+				"scanDepth": entry.search || null,
+				"caseSensitive": null,
+				"matchWholeWords": null,
+				"useGroupScoring": null,
+				"automationId": "",
+				"role": null,
+				"sticky": 0,
+				"cooldown": 0,
+				"delay": 0,
+				"displayIndex": 0
+			};
+		});
+
+		const blob = new Blob([JSON.stringify(exportedObject)], { type: "application/json" });
+		const anchor = document.createElement("a");
+
+		const now = new Date();
+		anchor.download = `mikupad-lorebook-${now.getFullYear()}-${(now.getMonth() + 1).padStart(2, "0")}-${now.getDate().padStart(2, "0")}.json`;
+		anchor.href = (window.webkitURL || window.URL).createObjectURL(blob);
+		anchor.dataset.downloadurl = ["application/json", anchor.download, anchor.href].join(":");
+		anchor.click();
+	};
+
+	const handleImportedJSONChange = (text) => {
+		setImportEntriesText(text);
+	}
+
+	const handleOnDropImportJSON = e => {
+		e.preventDefault();
+		try {
+			const file = e.dataTransfer.files[0];
+			const reader = new FileReader();
+			reader.onload = loadEvent => {
+				setImportEntriesText(loadEvent.target.result);
+			};
+			reader.readAsText(file, "UTF-8");
+		} catch (err) {
+			alert("Error reading file. Please try copying and pasting its contents manually.");
+			console.error(err);
+		}
+	};
+
+	const handleCloseModal = () => {
+		setImportEntriesText("");
+		setShowImportEntriesField(false);
+		closeModal();
+	};
+
 	return html`
-		<${Modal} isOpen=${isOpen} onClose=${closeModal}
+		<${Modal} isOpen=${isOpen} onClose=${handleCloseModal}
 			title="World Info"
 			description="Additional information that is added when specific keywords are found in context.
 			World info will be added at the top of your memory, in the order specified here.
 
 			Each entry will begin on a newline. Keys will be interpreted as case-insensitive regular expressions. Search Range specifies how many tokens back into the context will be searched for activation keys. Search range 0 to disable an entry.">
 			<div id="modal-wi-global">
+				${showImportEntriesField ?
+					html`<label class="TextArea">
+						<textarea
+							readOnly=${!!cancel}
+							placeholder="Drag and drop the exported JSON file here, or copy and paste its contents."
+							value=${importEntriesText}
+							onChange=${(e) => handleImportedJSONChange(e.target.value)}
+							onDrop=${(e) => handleOnDropImportJSON(e)}
+							class="wi-textarea" />
+					</label>`
+				: null}
+				<button id="button-wi-import" disabled=${!!cancel} onClick=${handleWorldInfoImport}>${showImportEntriesField ? "Import" : "Import entries"}</button>
+				<button id="button-wi-export" disabled=${!!cancel} onClick=${handleWorldInfoExport}>Export entries</button>
+				<br/>
 				<${CollapsibleGroup} label="Prefix/Suffix" stateLabel="Prefix/Suffix-WI">
 					The prefix and suffix will be added at the beginning or end of all your active World Info entries respectively.
 					<br />
