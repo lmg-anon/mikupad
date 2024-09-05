@@ -2793,10 +2793,6 @@ function WorldInfoModal({ isOpen, closeModal, worldInfo, setWorldInfo, cancel })
 		anchor.click();
 	};
 
-	const handleImportedJSONChange = (text) => {
-		setImportEntriesText(text);
-	}
-
 	const handleOnDropImportJSON = e => {
 		e.preventDefault();
 		try {
