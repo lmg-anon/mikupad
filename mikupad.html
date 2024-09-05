@@ -2902,7 +2902,7 @@ function WorldInfoModal({ isOpen, closeModal, worldInfo, setWorldInfo, cancel, t
 		</${Modal}>`;
 }
 
-function WorldInfoSelectImportBehaviorModal({ isOpen, closeModal, worldInfo, setWorldInfo, cancel, sillyTarvernWorldInfoJSON }) {
+function WorldInfoSelectImportBehaviorModal({ isOpen, closeModal, setWorldInfo, cancel, sillyTarvernWorldInfoJSON }) {
 	const handleImportReplace = () => {
 		importSillyTavernWorldInfo(sillyTarvernWorldInfoJSON, setWorldInfo, "replace");
 		closeModal();
@@ -6388,7 +6388,6 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		<${WorldInfoSelectImportBehaviorModal}
 			isOpen=${modalState.wiImportMode}
 			closeModal=${() => closeModal("wiImportMode")}
-			worldInfo=${worldInfo}
 			setWorldInfo=${setWorldInfo}
 			sillyTarvernWorldInfoJSON=${sillyTarvernWorldInfoJSON}
 			cancel=${cancel}/>
