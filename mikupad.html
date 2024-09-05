@@ -2812,21 +2812,6 @@ function WorldInfoModal({ isOpen, closeModal, worldInfo, setWorldInfo, cancel, t
 		anchor.click();
 	};
 
-	const handleOnDropImportJSON = e => {
-		e.preventDefault();
-		try {
-			const file = e.dataTransfer.files[0];
-			const reader = new FileReader();
-			reader.onload = loadEvent => {
-				setImportEntriesText(loadEvent.target.result);
-			};
-			reader.readAsText(file, "UTF-8");
-		} catch (err) {
-			alert("Error reading file. Please try copying and pasting its contents manually.");
-			console.error(err);
-		}
-	};
-
 	return html`
 		<${Modal} isOpen=${isOpen} onClose=${closeModal}
 			title="World Info"
