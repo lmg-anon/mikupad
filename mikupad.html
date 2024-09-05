@@ -2642,7 +2642,7 @@ function ContextModal({ isOpen, closeModal, tokens, memoryTokens, authorNoteToke
 		</${Modal}>`;
 }
 
-function WorldInfoModal({ isOpen, closeModal, worldInfo, setWorldInfo, cancel }) {
+function WorldInfoModal({ isOpen, closeModal, worldInfo, setWorldInfo, cancel, toggleModal }) {
 	const handleWorldInfoNew = () => {
 		setWorldInfo((prevWorldInfo) => {
 			return {
@@ -2705,6 +2705,12 @@ function WorldInfoModal({ isOpen, closeModal, worldInfo, setWorldInfo, cancel })
 		const inputElement = document.createElement("input");
 		inputElement.type = "file";
 		inputElement.onchange = () => {
+
+			if (Object.values(worldInfo.entries)?.length) {
+				toggleModal("wiImportMode");
+				return;
+			}
+
 			const file = inputElement.files[0];
 			if (!file)
 				return;
@@ -2896,6 +2902,26 @@ function WorldInfoModal({ isOpen, closeModal, worldInfo, setWorldInfo, cancel })
 					</div>`)}
 			</div>
 		</${Modal}>`;
+}
+
+function WorldInfoSelectImportBehaviorModal({ isOpen, closeModal, worldInfo, setWorldInfo, cancel }) {
+	const handleCleanSlateImportSelected = () => {
+
+	};
+
+	const handleAddImportSelected = () => {
+		
+	};
+
+	return html`<${Modal} isOpen=${isOpen} onClose=${closeModal}
+		id="modal-wi-importbehavior"
+		title="Select import behavior"
+		description="There are already world info entries present. Would you like to delete them before importing the new ones? Or would you like to add the imported entries alongside the existing ones?" >
+		<div id="modal-wi-global">
+			<button id="button-wi-importbehavior-clean" disabled=${!!cancel} onClick=${handleCleanSlateImportSelected}>Clean slate import</button>
+			<button id="button-wi-importbehavior-add" disabled=${!!cancel} onClick=${handleAddImportSelected}>Add to existing</button>
+		</div>
+	</${Modal}>`;
 }
 
 function LogitBiasModal({ isOpen, closeModal, logitBias, setLogitBias, logitBiasParam, setLogitBiasParam, sessionStorage, endpoint, endpointAPI, endpointAPIKey, isMikupadEndpoint, cancel }) {
@@ -6352,6 +6378,14 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		<${WorldInfoModal}
 			isOpen=${modalState.wi}
 			closeModal=${() => closeModal("wi")}
+			worldInfo=${worldInfo}
+			setWorldInfo=${setWorldInfo}
+			toggleModal=${toggleModal}
+			cancel=${cancel}/>
+
+		<${WorldInfoSelectImportBehaviorModal}
+			isOpen=${modalState.wiImportMode}
+			closeModal=${() => closeModal("wiImportMode")}
 			worldInfo=${worldInfo}
 			setWorldInfo=${setWorldInfo}
 			cancel=${cancel}/>
