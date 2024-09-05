@@ -2643,9 +2643,6 @@ function ContextModal({ isOpen, closeModal, tokens, memoryTokens, authorNoteToke
 }
 
 function WorldInfoModal({ isOpen, closeModal, worldInfo, setWorldInfo, cancel }) {
-	const [showImportEntriesField, setShowImportEntriesField] = useState(false);
-	const [importEntriesText, setImportEntriesText] = useState(null);
-
 	const handleWorldInfoNew = () => {
 		setWorldInfo((prevWorldInfo) => {
 			return {
@@ -2705,42 +2702,45 @@ function WorldInfoModal({ isOpen, closeModal, worldInfo, setWorldInfo, cancel })
 	};
 
 	const handleWorldInfoImport = () => {
-		if (showImportEntriesField) {
-			if (!importEntriesText) {
-				alert("Please enter the contents of the exported JSON file by copying and pasting or dragging and dropping the file into the text area.");
+		const inputElement = document.createElement("input");
+		inputElement.type = "file";
+		inputElement.onchange = () => {
+			const file = inputElement.files[0];
+			if (!file)
 				return;
-			}
 
-			try {
-				const json = JSON.parse(importEntriesText);
-				
-				setWorldInfo(prevWorldInfo => {
-					const updatedEntries = [...prevWorldInfo.entries];
+			const reader = new FileReader();
+			
+			reader.onload = (e) => {
+				try {
+					const contents = e.target.result;
+					const json = JSON.parse(contents);
+					
+					setWorldInfo(prevWorldInfo => {
+						const updatedEntries = [...prevWorldInfo.entries];
 
-					Object.values(json.entries)?.forEach(entry => {
-						updatedEntries.push({
-							"displayName": entry.comment,
-							"text": entry.content,
-							"keys": [...entry.key],
-							"search": entry.scanDepth || ""
+						Object.values(json.entries)?.forEach(entry => {
+							updatedEntries.push({
+								"displayName": entry.comment,
+								"text": entry.content,
+								"keys": [...entry.key],
+								"search": entry.scanDepth || ""
+							});
 						});
+
+						return {
+							...prevWorldInfo,
+							entries: updatedEntries
+						};
 					});
-
-					return {
-						...prevWorldInfo,
-						entries: updatedEntries
-					};
-				});
-
-				setShowImportEntriesField(false);
-				setImportEntriesText("");
-			} catch (e) {
-				alert("The JSON data could not be parsed. Please check that it is valid JSON.");
-				console.error(e);
-			}
-		} else {
-			setShowImportEntriesField(true);
+				} catch (e) {
+					alert("The JSON data could not be parsed. Please check that it is valid JSON.");
+					console.error(e);
+				}
+			};
+			reader.readAsText(file);
 		}
+		inputElement.click();
 	};
 
 	const handleWorldInfoExport = () => {
@@ -2812,32 +2812,15 @@ function WorldInfoModal({ isOpen, closeModal, worldInfo, setWorldInfo, cancel })
 		}
 	};
 
-	const handleCloseModal = () => {
-		setImportEntriesText("");
-		setShowImportEntriesField(false);
-		closeModal();
-	};
-
 	return html`
-		<${Modal} isOpen=${isOpen} onClose=${handleCloseModal}
+		<${Modal} isOpen=${isOpen} onClose=${closeModal}
 			title="World Info"
 			description="Additional information that is added when specific keywords are found in context.
 			World info will be added at the top of your memory, in the order specified here.
 
 			Each entry will begin on a newline. Keys will be interpreted as case-insensitive regular expressions. Search Range specifies how many tokens back into the context will be searched for activation keys. Search range 0 to disable an entry.">
 			<div id="modal-wi-global">
-				${showImportEntriesField ?
-					html`<label class="TextArea">
-						<textarea
-							readOnly=${!!cancel}
-							placeholder="Drag and drop the exported JSON file here, or copy and paste its contents."
-							value=${importEntriesText}
-							onChange=${(e) => handleImportedJSONChange(e.target.value)}
-							onDrop=${(e) => handleOnDropImportJSON(e)}
-							class="wi-textarea" />
-					</label>`
-				: null}
-				<button id="button-wi-import" disabled=${!!cancel} onClick=${handleWorldInfoImport}>${showImportEntriesField ? "Import" : "Import entries"}</button>
+				<button id="button-wi-import" disabled=${!!cancel} onClick=${handleWorldInfoImport}>Import entries</button>
 				<button id="button-wi-export" disabled=${!!cancel} onClick=${handleWorldInfoExport}>Export entries</button>
 				<br/>
 				<${CollapsibleGroup} label="Prefix/Suffix" stateLabel="Prefix/Suffix-WI">
