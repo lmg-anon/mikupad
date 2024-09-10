@@ -1931,6 +1931,35 @@ async function openaiOobaAbortCompletion({ endpoint, proxyEndpoint, ...options }
 	}
 }
 
+function importSillyTavernWorldInfo(json, setWorldInfo, importBehavior) {
+	setWorldInfo(prevWorldInfo => {
+		let updatedEntries;
+
+		if (importBehavior === "replace") {
+			updatedEntries = [];
+		} else if (importBehavior === "append") {
+			updatedEntries = [...prevWorldInfo.entries];
+		} else {
+			throw new Error("Unknown import behavior " + importBehavior);
+			return;
+		}
+
+		Object.values(json.entries)?.forEach(entry => {
+			updatedEntries.push({
+				"displayName": entry.comment,
+				"text": entry.content,
+				"keys": [...entry.key],
+				"search": entry.scanDepth || ""
+			});
+		});
+
+		return {
+			...prevWorldInfo,
+			entries: updatedEntries
+		};
+	});
+}
+
 function InputSlider({ label, value, min = 0, max = 100, step = 1, readOnly, strict, onValueChange, ...props }) {
 	const handleChange = (newValue) => {
 		if (strict) {
@@ -2642,7 +2671,7 @@ function ContextModal({ isOpen, closeModal, tokens, memoryTokens, authorNoteToke
 		</${Modal}>`;
 }
 
-function WorldInfoModal({ isOpen, closeModal, worldInfo, setWorldInfo, cancel }) {
+function WorldInfoModal({ isOpen, closeModal, worldInfo, setWorldInfo, cancel, toggleModal, setSillyTarvernWorldInfoJSON }) {
 	const handleWorldInfoNew = () => {
 		setWorldInfo((prevWorldInfo) => {
 			return {
@@ -2701,6 +2730,88 @@ function WorldInfoModal({ isOpen, closeModal, worldInfo, setWorldInfo, cancel })
 		}));
 	};
 
+	const handleWorldInfoImport = () => {
+		const inputElement = document.createElement("input");
+		inputElement.type = "file";
+		inputElement.onchange = () => {
+			const file = inputElement.files[0];
+			if (!file)
+				return;
+
+			const reader = new FileReader();
+			
+			reader.onload = (e) => {
+				try {
+					const contents = e.target.result;
+					const json = JSON.parse(contents);
+
+					if (Object.values(worldInfo.entries)?.length) {
+						setSillyTarvernWorldInfoJSON(json);
+						toggleModal("wiImportMode");
+						return;
+					} else {
+						importSillyTavernWorldInfo(json, setWorldInfo, "append");
+					}
+				} catch (e) {
+					alert("The JSON data could not be parsed. Please check that it is valid JSON.");
+					console.error(e);
+				}
+			};
+			reader.readAsText(file);
+		}
+		inputElement.click();
+	};
+
+	const handleWorldInfoExport = () => {
+		const exportedObject = { "entries": {} };
+
+		worldInfo.entries.forEach((entry, entryIndex) => {
+			exportedObject.entries[entryIndex] = {
+				"uid": entryIndex,
+				"key": [...entry.keys],
+				"keysecondary": [],
+				"comment": entry.displayName,
+				"content": entry.text,
+				"constant": false,
+				"vectorized": false,
+				"selective": true,
+				"selectiveLogic": 0,
+				"addMemo": true,
+				"order": 100,
+				"position": 0,
+				"disable": false,
+				"excludeRecursion": false,
+				"preventRecursion": false,
+				"delayUntilRecursion": false,
+				"probability": 100,
+				"useProbability": true,
+				"depth": 4,
+				"group": "",
+				"groupOverride": false,
+				"groupWeight": 100,
+				"scanDepth": entry.search || null,
+				"caseSensitive": null,
+				"matchWholeWords": null,
+				"useGroupScoring": null,
+				"automationId": "",
+				"role": null,
+				"sticky": 0,
+				"cooldown": 0,
+				"delay": 0,
+				"displayIndex": 0
+			};
+		});
+
+		const blob = new Blob([JSON.stringify(exportedObject)], { type: "application/json" });
+		const anchor = document.createElement("a");
+
+		const now = new Date();
+		anchor.download = `MikuPad-WorldInfo-${now.getFullYear()}-${(""+(now.getMonth() + 1)).padStart(2, "0")}-${(""+now.getDate()).padStart(2, "0")}.json`;
+		anchor.href = (window.webkitURL || window.URL).createObjectURL(blob);
+		anchor.dataset.downloadurl = ["application/json", anchor.download, anchor.href].join(":");
+		anchor.click();
+	};
+
 	return html`
 		<${Modal} isOpen=${isOpen} onClose=${closeModal}
 			title="World Info"
@@ -2709,6 +2820,9 @@ function WorldInfoModal({ isOpen, closeModal, worldInfo, setWorldInfo, cancel })
 
 			Each entry will begin on a newline. Keys will be interpreted as case-insensitive regular expressions. Search Range specifies how many tokens back into the context will be searched for activation keys. Search range 0 to disable an entry.">
 			<div id="modal-wi-global">
+				<button id="button-wi-import" disabled=${!!cancel} onClick=${handleWorldInfoImport}>Import entries</button>
+				<button id="button-wi-export" disabled=${!!cancel} onClick=${handleWorldInfoExport}>Export entries</button>
+				<br/>
 				<${CollapsibleGroup} label="Prefix/Suffix" stateLabel="Prefix/Suffix-WI">
 					The prefix and suffix will be added at the beginning or end of all your active World Info entries respectively.
 					<br />
@@ -2786,6 +2900,28 @@ function WorldInfoModal({ isOpen, closeModal, worldInfo, setWorldInfo, cancel })
 					</div>`)}
 			</div>
 		</${Modal}>`;
+}
+
+function WorldInfoSelectImportBehaviorModal({ isOpen, closeModal, setWorldInfo, cancel, sillyTarvernWorldInfoJSON }) {
+	const handleImportReplace = () => {
+		importSillyTavernWorldInfo(sillyTarvernWorldInfoJSON, setWorldInfo, "replace");
+		closeModal();
+	};
+
+	const handleImportAppend = () => {
+		importSillyTavernWorldInfo(sillyTarvernWorldInfoJSON, setWorldInfo, "append");
+		closeModal();
+	};
+
+	return html`<${Modal} isOpen=${isOpen} onClose=${closeModal}
+		id="modal-wi-importbehavior"
+		title="There are already world info entries present"
+		description="Would you like to delete them before importing the new ones? Or would you like to add the imported entries alongside the existing ones?" >
+		<div id="modal-wi-global">
+			<button id="button-wi-importbehavior-replace" disabled=${!!cancel} onClick=${handleImportReplace}>Delete and import</button>
+			<button id="button-wi-importbehavior-append" disabled=${!!cancel} onClick=${handleImportAppend}>Append to existing</button>
+		</div>
+	</${Modal}>`;
 }
 
 function LogitBiasModal({ isOpen, closeModal, logitBias, setLogitBias, logitBiasParam, setLogitBiasParam, sessionStorage, endpoint, endpointAPI, endpointAPIKey, isMikupadEndpoint, cancel }) {
@@ -4602,6 +4738,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	const [authorNoteTokens, setAuthorNoteTokens] = useSessionState('authorNoteTokens', defaultPresets.authorNoteTokens);
 	const [authorNoteDepth, setAuthorNoteDepth] = useSessionState('authorNoteDepth', defaultPresets.authorNoteDepth);
 	const [worldInfo, setWorldInfo] = useSessionState('worldInfo', defaultPresets.worldInfo);
+	const [sillyTarvernWorldInfoJSON, setSillyTarvernWorldInfoJSON] = useState(null);
 
 
 
@@ -6244,6 +6381,15 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			closeModal=${() => closeModal("wi")}
 			worldInfo=${worldInfo}
 			setWorldInfo=${setWorldInfo}
+			toggleModal=${toggleModal}
+			setSillyTarvernWorldInfoJSON=${setSillyTarvernWorldInfoJSON}
+			cancel=${cancel}/>
+
+		<${WorldInfoSelectImportBehaviorModal}
+			isOpen=${modalState.wiImportMode}
+			closeModal=${() => closeModal("wiImportMode")}
+			setWorldInfo=${setWorldInfo}
+			sillyTarvernWorldInfoJSON=${sillyTarvernWorldInfoJSON}
 			cancel=${cancel}/>
 
 		<!-- TODO: The amount of parameters in this modal is a bit excessive... -->
