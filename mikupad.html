@@ -3738,7 +3738,7 @@ function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea,
 
 	function findAllMatches(mode, search, flags, elem) {
 		if (!inputElement)
-			return 0
+			return [];
 		setSearchAndReplaceError(undefined)
 		let startIndex = 0;
 		let index;
@@ -3768,9 +3768,9 @@ function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea,
 			}
 			catch (e) {
 				reportError(e);
-				const errStr = e.toString()
-				setSearchAndReplaceError(errStr)
-				return null
+				const errStr = e.toString();
+				setSearchAndReplaceError(errStr);
+				return [];
 			}
 		}
 		return positions;
@@ -3815,7 +3815,7 @@ function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea,
 	function findAndStorePositions(mode,search,flags,elem) {
 		positions.current = findAllMatches(mode, search, flags, elem);
 		setCurrentIndex(-1); 
-		if (positions.current.length === 0)
+		if (!searchAndReplaceError && positions.current.length === 0)
 			setSearchAndReplaceError(`Warning: No matches found for ${ (mode==0?"Plaintext":mode==1?"RegEx":"Template") } \'${search}\'`)
 	}
 
@@ -3826,7 +3826,7 @@ function SearchAndReplaceWidget({ isOpen, closeWidget, id, children, promptArea,
 		if (!search)
 			return
 		positions.current = findAllMatches(mode, search, flags, inputElement);
-		if (positions.current.length === 0) {
+		if (!searchAndReplaceError && positions.current.length === 0) {
 			setSearchAndReplaceError(`Warning: No matches found for ${ (mode==0?"Plaintext":mode==1?"RegEx":"Template") } \'${search}\'`)
 			return
 		}
