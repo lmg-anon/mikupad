@@ -1364,9 +1364,9 @@ function normalizeEndpoint(endpoint, endpointAPI) {
 	url.pathname = url.pathname.replace(/\/+/g, "/"); // normalize consecutive slashes
 
 	let urlString = url.toString();
-	if (endpointAPI == 3) // openai
+	if (endpointAPI == API_OPENAI_COMPAT)
 		urlString = urlString.replace(/\/v1\/?$/, ""); // remove "/v1" from the end of the string
-	if (endpointAPI == 2) // koboldcpp
+	if (endpointAPI == API_KOBOLD_CPP)
 		urlString = urlString.replace(/\/api\/?$/, ""); // remove "/api" from the end of the string
 	urlString = urlString.replace(/\/$/, ""); // remove "/" from the end of the string
 
@@ -1376,11 +1376,11 @@ function normalizeEndpoint(endpoint, endpointAPI) {
 export async function getTokenCount({ endpoint, endpointAPI, endpointAPIKey, signal, ...options }) {
 	endpoint = normalizeEndpoint(endpoint, endpointAPI);
 	switch (endpointAPI) {
-		case 0: // llama.cpp
+		case API_LLAMA_CPP:
 			return await llamaCppTokenCount({ endpoint, endpointAPIKey, signal, ...options });
-		case 2: // koboldcpp
+		case API_KOBOLD_CPP:
 			return await koboldCppTokenCount({ endpoint, signal, ...options });
-		case 3: // openai
+		case API_OPENAI_COMPAT:
 			// These endpoints don't have a token count endpoint...
 			if (new URL(endpoint).host === 'api.openai.com' || new URL(endpoint).host === 'api.together.xyz')
 				return 0;
@@ -1442,9 +1442,9 @@ export async function* completion({ endpoint, endpointAPI, endpointAPIKey, signa
 export async function abortCompletion({ endpoint, endpointAPI, ...options }) {
 	endpoint = normalizeEndpoint(endpoint, endpointAPI);
 	switch (endpointAPI) {
-		case 2: // koboldcpp
+		case API_KOBOLD_CPP:
 			return await koboldCppAbortCompletion({ endpoint, ...options });
-		case 3: // openai (ooba)
+		case API_OPENAI_COMPAT:
 			return await openaiOobaAbortCompletion({ endpoint, ...options });
 	}
 }
@@ -3004,7 +3004,7 @@ function LogitBiasModal({ isOpen, closeModal, logitBias, setLogitBias, logitBias
 				tokens = await getTokens({
 					endpoint,
 					endpointAPI,
-					...(endpointAPI == 3 || endpointAPI == 0 ? { endpointAPIKey } : {}),
+					...(endpointAPI == API_OPENAI_COMPAT || endpointAPI == API_LLAMA_CPP ? { endpointAPIKey } : {}),
 					content: `!==${biasString}`.replace(/\\n/g,'\n'),
 					signal: ac.signal,
 					...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {})
@@ -3012,7 +3012,7 @@ function LogitBiasModal({ isOpen, closeModal, logitBias, setLogitBias, logitBias
 				const logitBiasWorkaround = await getTokens({
 					endpoint,
 					endpointAPI,
-					...(endpointAPI == 3 || endpointAPI == 0 ? { endpointAPIKey } : {}),
+					...(endpointAPI == API_OPENAI_COMPAT || endpointAPI == API_LLAMA_CPP ? { endpointAPIKey } : {}),
 					content: `!==`,
 					signal: ac.signal,
 					...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {})
@@ -3044,10 +3044,10 @@ function LogitBiasModal({ isOpen, closeModal, logitBias, setLogitBias, logitBias
 			if (e.name !== 'AbortError') {
 				reportError(e);
 				const errStr = e.toString();
-				if ((endpointAPI == 3 || endpointAPI == 0) && errStr.includes("401")) {
+				if ((endpointAPI == API_OPENAI_COMPAT || endpointAPI == API_LLAMA_CPP) && errStr.includes("401")) {
 					setLastBiasError("Error: Rejected API Key");
 					setRejectedAPIKey(true);
-				} else if (endpointAPI == 3 && errStr.includes("429")) {
+				} else if (endpointAPI == API_OPENAI_COMPAT && errStr.includes("429")) {
 					setLastBiasError("Error: Insufficient Quota");
 				} else {
 					setLastBiasError(errStr);
@@ -3093,13 +3093,13 @@ function LogitBiasModal({ isOpen, closeModal, logitBias, setLogitBias, logitBias
 	useMemo(() => {
 		// set the parameters sent to the model in the format expected by the endpoint
 		switch (endpointAPI) {
-			case 0:
+			case API_LLAMA_CPP:
 				llamaCppSetLogitBiasParams();
 				break;
-			case 2:
+			case API_KOBOLD_CPP:
 				koboldCppSetLogitBiasParams();
 				break;
-			case 3:
+			case API_OPENAI_COMPAT:
 				//openaiSetLogitBiasParams()
 				// for some reason this causes an error
 				break;
@@ -3214,7 +3214,7 @@ function LogitBiasModal({ isOpen, closeModal, logitBias, setLogitBias, logitBias
 												onInput=${(e) => handleBiasTempChange(key,"value", index, e.target.value) }
 												/>
 											<div class="lb-modal-tokenized">
-												${endpointAPI == 0 && bias.strings != ""
+												${endpointAPI == API_LLAMA_CPP && bias.strings != ""
 													? "["+bias.strings.join("|")+"] "
 													: "["+bias.tokens+"]" } 
 
@@ -4778,7 +4778,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		const assembled = authorNoteTokens.text && authorNoteTokens.text !== ""
 			? order.map(key => authorNoteTokens[key]).join("")
 			: "";	
-		if (assembled == "" || endpointAPI == 3) {
+		if (assembled == "" || endpointAPI == API_OPENAI_COMPAT) {
 			setAuthorNoteTokens((prevauthorNoteTokens) => ({ ...prevauthorNoteTokens, "tokens": 0 }))
 			return
 		}
@@ -4788,7 +4788,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 				const tokenCount = await getTokenCount({
 					endpoint,
 					endpointAPI,
-					...(endpointAPI == 3 || endpointAPI == 0 ? { endpointAPIKey } : {}),
+					...(endpointAPI == API_OPENAI_COMPAT || endpointAPI == API_LLAMA_CPP ? { endpointAPIKey } : {}),
 					content: `${replacePlaceholders(assembled,templateReplacements)}`,
 					signal: ac.signal,
 					...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {})
@@ -4807,7 +4807,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 
 		ac.signal.addEventListener('abort', () => clearTimeout(to));
 		return () => ac.abort();
-	},[modalState["context"],authorNoteTokens.text,authorNoteTokens.prefix,authorNoteTokens.suffix,cancel,endpoint,endpointAPI])
+	},[modalState["context"],authorNoteTokens.text,authorNoteTokens.prefix,authorNoteTokens.suffix,contextLength,cancel,endpoint,endpointAPI])
 
 	function handleMemoryTokensChange(key,value) {
 		setMemoryTokens((prevMemoryTokens) => ({ ...prevMemoryTokens, [key]: value }));
@@ -4818,7 +4818,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		const assembled = memoryTokens.text && memoryTokens.text !== ""
 			? order.map(key => memoryTokens[key]).join("")
 			: "";	
-		if (assembled == "" || endpointAPI == 3){
+		if (assembled == "" || endpointAPI == API_OPENAI_COMPAT){
 			setMemoryTokens((prevMemoryTokens) => ({ ...prevMemoryTokens, "tokens": 0 }));
 			return
 		}
@@ -4829,7 +4829,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 				const tokenCount = await getTokenCount({
 					endpoint,
 					endpointAPI,
-					...(endpointAPI == 3 || endpointAPI == 0 ? { endpointAPIKey } : {}),
+					...(endpointAPI == API_OPENAI_COMPAT || endpointAPI == API_LLAMA_CPP ? { endpointAPIKey } : {}),
 					content: `${replacePlaceholders(assembled,templateReplacements)}`,
 					signal: ac.signal,
 					...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {})
@@ -4854,7 +4854,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		const assembled = memoryTokens.worldInfo && memoryTokens.worldInfo !== ""
 			? [worldInfo.prefix,memoryTokens.worldInfo,worldInfo.suffix].join("")
 			: "";
-		if (assembled == "" || endpointAPI == 3){
+		if (assembled == "" || endpointAPI == API_OPENAI_COMPAT){
 			setMemoryTokens((prevMemoryTokens) => ({ ...prevMemoryTokens, "tokensWI": 0 }));
 			return
 		}
@@ -4865,7 +4865,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 				const tokenCount = await getTokenCount({
 					endpoint,
 					endpointAPI,
-					...(endpointAPI == 3 || endpointAPI == 0 ? { endpointAPIKey } : {}),
+					...(endpointAPI == API_OPENAI_COMPAT || endpointAPI == API_LLAMA_CPP ? { endpointAPIKey } : {}),
 					content: `${replacePlaceholders(assembled,templateReplacements)}`,
 					signal: ac.signal,
 					...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {})
@@ -5192,7 +5192,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 				const tokenCount = await getTokenCount({
 					endpoint,
 					endpointAPI,
-					...(endpointAPI == 3 || endpointAPI == 0 ? { endpointAPIKey } : {}),
+					...(endpointAPI == API_OPENAI_COMPAT || endpointAPI == API_LLAMA_CPP ? { endpointAPIKey } : {}),
 					content: prompt,
 					signal: ac.signal,
 					...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {})
@@ -5231,14 +5231,14 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			for await (const chunk of completion({
 				endpoint,
 				endpointAPI,
-				...(endpointAPI == 3 || endpointAPI == 0 ? {
+				...(endpointAPI == API_OPENAI_COMPAT || endpointAPI == API_LLAMA_CPP ? {
 					endpointAPIKey,
 					model: endpointModel
 				} : {}),
 				prompt,
 				...(seed != -1 ? { seed } : {}),
 				temperature,
-				...(!openaiPresets || endpointAPI != 3 ? {
+				...(!openaiPresets || endpointAPI != API_OPENAI_COMPAT ? {
 					dynatemp_range: dynaTempRange,
 					dynatemp_exponent: dynaTempExp,
 					repeat_penalty: repeatPenalty,
@@ -5246,18 +5246,18 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 					penalize_nl: penalizeNl,
 					ignore_eos: ignoreEos,
 				} : {}),
-				...(Object.keys(logitBias.bias).length > 0 && endpointAPI != 3 ? {
+				...(Object.keys(logitBias.bias).length > 0 && endpointAPI != API_OPENAI_COMPAT ? {
 					logit_bias: logitBiasParam,
 				} : {}),
 				presence_penalty: presencePenalty,
 				frequency_penalty: frequencyPenalty,
-				...((mirostat && (!openaiPresets || endpointAPI != 3)) ? {
+				...((mirostat && (!openaiPresets || endpointAPI != API_OPENAI_COMPAT)) ? {
 					mirostat,
 					mirostat_tau: mirostatTau,
 					mirostat_eta: mirostatEta,
 				} : {
 					top_p: topP,
-					...(!openaiPresets || endpointAPI != 3 ? {
+					...(!openaiPresets || endpointAPI != API_OPENAI_COMPAT ? {
 						top_k: topK,
 						typical_p: typicalP,
 						min_p: minP,
@@ -5297,10 +5297,10 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			if (e.name !== 'AbortError') {
 				reportError(e);
 				const errStr = e.toString();
-				if ((endpointAPI == 3 || endpointAPI == 0) && errStr.includes("401")) {
+				if ((endpointAPI == API_OPENAI_COMPAT || endpointAPI == API_LLAMA_CPP) && errStr.includes("401")) {
 					setLastError("Error: Rejected API Key");
 					setRejectedAPIKey(true);
-				} else if (endpointAPI == 3 && errStr.includes("429")) {
+				} else if (endpointAPI == API_OPENAI_COMPAT && errStr.includes("429")) {
 					setLastError("Error: Insufficient Quota");
 				} else {
 					setLastError(errStr);
@@ -5508,7 +5508,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 				const tokenCount = await getTokenCount({
 					endpoint,
 					endpointAPI,
-					...(endpointAPI == 3 || endpointAPI == 0 ? { endpointAPIKey } : {}),
+					...(endpointAPI == API_OPENAI_COMPAT || endpointAPI == API_LLAMA_CPP ? { endpointAPIKey } : {}),
 					content: finalPromptText,
 					signal: ac.signal,
 					...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {})
@@ -5534,7 +5534,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 				const models = await getModels({
 					endpoint,
 					endpointAPI,
-					...(endpointAPI == 3 ? { endpointAPIKey } : {}),
+					...(endpointAPI == API_OPENAI_COMPAT ? { endpointAPIKey } : {}),
 					signal: ac.signal,
 					...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {})
 				});
@@ -5543,7 +5543,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 				if (e.name !== 'AbortError') {
 					reportError(e);
 					const errStr = e.toString();
-					if (endpointAPI == 3 && errStr.includes("401")) {
+					if (endpointAPI == API_OPENAI_COMPAT && errStr.includes("401")) {
 						setRejectedAPIKey(true);
 					}
 				}
@@ -5846,17 +5846,17 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			return;
 		}
 		switch (value) {
-			case 0: // llama.cpp
+			case API_LLAMA_CPP:
 				if (url.protocol != 'http:' && url.protocol != 'https:')
 					url.protocol = "http:";
 				url.port = 8080;
 				break;
-			case 2: // koboldcpp
+			case API_KOBOLD_CPP:
 				if (url.protocol != 'http:' && url.protocol != 'https:')
 					url.protocol = "http:";
 				url.port = 5001;
 				break;
-			case 3:
+			case API_OPENAI_COMPAT:
 				if (url.protocol != 'http:' && url.protocol != 'https:')
 					url.protocol = "http:";
 				break;
@@ -6058,7 +6058,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 										  : html`<${SVG_HideKey}/>`}
 						</button>
 					</div>`}
-				${endpointAPI == 3 && html`
+				${endpointAPI == API_OPENAI_COMPAT && html`
 					<${InputBox} label="Model"
 						datalist=${openaiModels}
 						readOnly=${!!cancel}
@@ -6107,7 +6107,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 					readOnly=${!!cancel} value=${seed} onValueChange=${setSeed}/>
 				<${InputBox} tooltip="Currently not accurate to the token count, it will be used as an estimate." label="Max Context Length" type="text" inputmode="numeric"
 					readOnly=${!!cancel} value=${contextLength} onValueChange=${setContextLength}/>
-				<${InputBox} label="Max Predict Tokens${endpointAPI != 0 ? ' (-1 = 1024)' : ' (-1 = infinite)'}" type="text" inputmode="numeric"
+				<${InputBox} label="Max Predict Tokens${endpointAPI != API_LLAMA_CPP ? ' (-1 = 1024)' : ' (-1 = infinite)'}" type="text" inputmode="numeric"
 					readOnly=${!!cancel} value=${maxPredictTokens} onValueChange=${setMaxPredictTokens}/>
 				<${InputBox} label="Stopping Strings (JSON array)" type="text" pattern="^\\[.*?\\]$"
 					className="${stoppingStringsError ? 'rejected' : ''}"
@@ -6117,16 +6117,16 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 					onValueChange=${setStoppingStrings}/>
 			</${CollapsibleGroup}>
 			<${CollapsibleGroup} label="Sampling" expanded>
-				${endpointAPI == 3 && html`
+				${endpointAPI == API_OPENAI_COMPAT && html`
 					<${Checkbox} label="Full OpenAI Compliance"
 						disabled=${!!cancel} value=${openaiPresets} onValueChange=${setOpenaiPresets}/>`}
 				<${InputSlider} label="Temperature" type="number" step="0.01" max="5"
 					readOnly=${!!cancel} value=${temperature} onValueChange=${setTemperature}/>
-				${(!openaiPresets || endpointAPI != 3) && html`
+				${(!openaiPresets || endpointAPI != API_OPENAI_COMPAT) && html`
 					<div className="hbox">
 						<${InputSlider} label="DynaTemp Range" type="number" step="0.01"
 							readOnly=${!!cancel} value=${dynaTempRange} onValueChange=${setDynaTempRange}/>
-						${(endpointAPI != 2) && html`
+						${(endpointAPI != API_KOBOLD_CPP) && html`
 							<${InputSlider} label="DynaTemp Exp" type="number" step="0.01"
 								readOnly=${!!cancel} value=${dynaTempExp} onValueChange=${setDynaTempExp}/>`}
 					</div>
@@ -6136,8 +6136,8 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 						<${InputSlider} label="Rep Pen Range" type="number" step="1" max="${contextLength}"
 							readOnly=${!!cancel} value=${repeatLastN} onValueChange=${setRepeatLastN}/>
 					</div>`}
-				${(endpointAPI == 0 || !openaiPresets || endpointAPI == 3) && html`
-					${(endpointAPI != 1 && (!openaiPresets || endpointAPI != 3)) && html`
+				${(endpointAPI == API_LLAMA_CPP || !openaiPresets || endpointAPI == API_OPENAI_COMPAT) && html`
+					${(!openaiPresets || endpointAPI != API_OPENAI_COMPAT) && html`
 						<${Checkbox} label="Penalize NL"
 							disabled=${!!cancel} value=${penalizeNl} onValueChange=${setPenalizeNl}/>`}
 					<div className="hbox">
@@ -6147,7 +6147,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 							readOnly=${!!cancel} value=${frequencyPenalty} onValueChange=${setFrequencyPenalty}/>
 					</div>`}
 				${temperature <= 0 ? null : html`
-					${(!openaiPresets || endpointAPI != 3) && html`
+					${(!openaiPresets || endpointAPI != API_OPENAI_COMPAT) && html`
 						<${SelectBox}
 							label="Mirostat"
 							disabled=${!!cancel}
@@ -6158,7 +6158,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 								{ name: 'Mirostat', value: 1 },
 								{ name: 'Mirostat 2.0', value: 2 },
 							]}/>`}
-					${(mirostat && (!openaiPresets || endpointAPI != 3)) ? html`
+					${(mirostat && (!openaiPresets || endpointAPI != API_OPENAI_COMPAT)) ? html`
 						<div className="hbox">
 							<${InputSlider} label="Mirostat τ" type="number" step="0.01" max="20"
 								readOnly=${!!cancel} value=${mirostatTau} onValueChange=${setMirostatTau}/>
@@ -6167,16 +6167,16 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 						</div>
 					` : html`
 						<div className="hbox">
-							${(!openaiPresets || endpointAPI != 3) && html`
+							${(!openaiPresets || endpointAPI != API_OPENAI_COMPAT) && html`
 								<${InputSlider} label="Top K" type="number" step="1" max="200"
 									readOnly=${!!cancel} value=${topK} onValueChange=${setTopK}/>`}
 							<${InputSlider} label="Top P" type="number" step="0.01" max="1"
 								readOnly=${!!cancel} value=${topP} onValueChange=${setTopP}/>
-							${(!openaiPresets || endpointAPI != 3) && html`
+							${(!openaiPresets || endpointAPI != API_OPENAI_COMPAT) && html`
 								<${InputSlider} label="Min P" type="number" step="0.01" max="1"
 									readOnly=${!!cancel} value=${minP} onValueChange=${setMinP}/>`}
 						</div>
-						${(!openaiPresets || endpointAPI != 3) && html`
+						${(!openaiPresets || endpointAPI != API_OPENAI_COMPAT) && html`
 							<div className="hbox">
 								<${InputSlider} label="Typical P" type="number" step="0.01" max="1"
 									readOnly=${!!cancel} value=${typicalP} onValueChange=${setTypicalP}/>
@@ -6185,13 +6185,13 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 							</div>`}
 					`}
 				`}
-				${(endpointAPI != 3) && html`
+				${(endpointAPI != API_OPENAI_COMPAT) && html`
 					<button
 						disabled=${!!cancel}
 						onClick=${() => toggleModal("bias")}>
 						Logit Bias
 						</button>`}
-				${(!openaiPresets || endpointAPI != 3) && html`
+				${(!openaiPresets || endpointAPI != API_OPENAI_COMPAT) && html`
 					<${Checkbox} label="Ignore <eos>"
 						disabled=${!!cancel} value=${ignoreEos} onValueChange=${setIgnoreEos}/>`}
 
