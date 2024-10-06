@@ -1413,7 +1413,20 @@ export async function getTokens({ endpoint, endpointAPI, endpointAPIKey, signal,
 		case API_KOBOLD_CPP:
 			return await koboldCppTokenize({ endpoint, signal, ...options });
 		case API_OPENAI_COMPAT:
-			return await openaiTokenize({ endpoint, endpointAPIKey, signal, ...options });
+			// These endpoints don't have a tokenenizer endpoint...
+			if (new URL(endpoint).host === 'api.openai.com' || new URL(endpoint).host === 'api.together.xyz')
+				return [];
+			
+			// Each backend that exposes an OpenAI-compatible API may have a different tokenizer endpoint.
+			// Instead of asking the user which backend they are using, let's try each one.
+			let tokens = null;
+			tokens = await openaiOobaTokenize({ endpoint, endpointAPIKey, signal, ...options });
+			if (tokens !== null)
+				return tokens;
+			tokens = await openaiTabbyTokenize({ endpoint, endpointAPIKey, signal, ...options });
+			if (tokens !== null)
+				return tokens;
+			return [];
 	}
 }
 
@@ -1756,7 +1769,7 @@ async function openaiTabbyTokenCount({ endpoint, endpointAPIKey, proxyEndpoint, 
 	}
 }
 
-async function openaiTokenize({ endpoint, endpointAPIKey, proxyEndpoint, signal, ...options }) {
+async function openaiOobaTokenize({ endpoint, endpointAPIKey, proxyEndpoint, signal, ...options }) {
 	try {
 		const res = await fetch(`${proxyEndpoint ?? endpoint}/v1/internal/encode`, {
 			method: 'POST',
@@ -1775,7 +1788,7 @@ async function openaiTokenize({ endpoint, endpointAPIKey, proxyEndpoint, signal,
 
 		const strings = [];
 		for (let i=0; i<tokens.length; i++) {
-			const string = await openaiDetokenize({
+			const string = await openaiOobaDetokenize({
 					endpoint,
 					...(endpointAPIKey ? {
 						endpointAPIKey,
@@ -1786,27 +1799,84 @@ async function openaiTokenize({ endpoint, endpointAPIKey, proxyEndpoint, signal,
 			strings.push(string);
 		};
 		return {ids:tokens,str:strings};
-
 	} catch (e) {
-		reportError(e);
-		return -1;
+		return null;
 	}
 }
-async function openaiDetokenize({ endpoint, endpointAPIKey, proxyEndpoint, signal, ...options }) {
+async function openaiOobaDetokenize({ endpoint, endpointAPIKey, proxyEndpoint, signal, ...options }) {
+	try {
+		const res = await fetch(`${proxyEndpoint ?? endpoint}/v1/internal/decode`, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
+			},
+			body: JSON.stringify(options),
+			signal,
+		});
+		if (!res.ok)
+			throw new Error(`HTTP ${res.status}`);
+		const { text } = await res.json();
+		return text;
+	} catch (e) {
+		reportError(e);
+		return null;
+	}
+}
 
-	const res = await fetch(`${proxyEndpoint ?? endpoint}/v1/internal/decode`, {
-		method: 'POST',
-		headers: {
-			'Content-Type': 'application/json',
-			...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
-		},
-		body: JSON.stringify(options),
-		signal,
-	});
-	if (!res.ok)
-		throw new Error(`HTTP ${res.status}`);
-	const { text } = await res.json();
-	return text
+async function openaiTabbyTokenize({ endpoint, endpointAPIKey, proxyEndpoint, signal, ...options }) {
+	try {
+		const res = await fetch(`${proxyEndpoint ?? endpoint}/v1/token/encode`, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
+			},
+			body: JSON.stringify({
+				text: options.content
+			}),
+			signal,
+		});
+		if (!res.ok)
+			throw new Error(`HTTP ${res.status}`);
+		const { tokens } = await res.json();
+
+		const strings = [];
+		for (let i=0; i<tokens.length; i++) {
+			const string = await openaiTabbyDetokenize({
+					endpoint,
+					...(endpointAPIKey ? {
+						endpointAPIKey,
+					} : {}),
+					tokens: [ tokens[i] ],
+					signal: signal,
+			});
+			strings.push(string);
+		};
+		return {ids:tokens,str:strings};
+	} catch (e) {
+		return null;
+	}
+}
+async function openaiTabbyDetokenize({ endpoint, endpointAPIKey, proxyEndpoint, signal, ...options }) {
+	try {
+		const res = await fetch(`${proxyEndpoint ?? endpoint}/v1/token/decode`, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
+			},
+			body: JSON.stringify(options),
+			signal,
+		});
+		if (!res.ok)
+			throw new Error(`HTTP ${res.status}`);
+		const { text } = await res.json();
+		return text;
+	} catch (e) {
+		reportError(e);
+		return null;
+	}
 }
 
 async function openaiModels({ endpoint, endpointAPIKey, proxyEndpoint, signal, ...options }) {
@@ -2979,7 +3049,7 @@ function LogitBiasModal({ isOpen, closeModal, logitBias, setLogitBias, logitBias
 		const ac = new AbortController();
 		try {
 			// if the string is a comma separated list of numbers wrapped in /
-			var tokens
+			var tokens;
 			const isTokenIds = biasString.match(/^(?<!\\)\/(\s*\d+\s*,?\s*)+(?<!\\)\/$/g);
 			if ( isTokenIds != null ) {
 				// split by "," and use it as token ids directly
@@ -3009,6 +3079,10 @@ function LogitBiasModal({ isOpen, closeModal, logitBias, setLogitBias, logitBias
 					signal: ac.signal,
 					...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {})
 				});
+				if (tokens.length === 0) {
+					setLastBiasError("Error: Tokenizer endpoint unavailable.");
+					return;
+				}
 				const logitBiasWorkaround = await getTokens({
 					endpoint,
 					endpointAPI,
@@ -3085,7 +3159,7 @@ function LogitBiasModal({ isOpen, closeModal, logitBias, setLogitBias, logitBias
 		const param = {};
 		Object.keys(logitBias.bias).forEach(entry => {
 			// -100 to 100
-			param[Number(logitBias.bias[entry].ids[0])] = clamp(Number(logitBias.bias[entry].power),-100,100).toFixed(1)
+			param[String(logitBias.bias[entry].ids[0])] = Number(clamp(Number(logitBias.bias[entry].power),-100,100).toFixed(1))
 		});
 		setLogitBiasParam(param);
 	};
@@ -3100,8 +3174,7 @@ function LogitBiasModal({ isOpen, closeModal, logitBias, setLogitBias, logitBias
 				koboldCppSetLogitBiasParams();
 				break;
 			case API_OPENAI_COMPAT:
-				//openaiSetLogitBiasParams()
-				// for some reason this causes an error
+				openaiSetLogitBiasParams();
 				break;
 		}
 	}, [logitBias, endpointAPI]);
@@ -5246,7 +5319,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 					penalize_nl: penalizeNl,
 					ignore_eos: ignoreEos,
 				} : {}),
-				...(Object.keys(logitBias.bias).length > 0 && endpointAPI != API_OPENAI_COMPAT ? {
+				...(Object.keys(logitBias.bias).length > 0 ? {
 					logit_bias: logitBiasParam,
 				} : {}),
 				presence_penalty: presencePenalty,
@@ -6185,12 +6258,11 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 							</div>`}
 					`}
 				`}
-				${(endpointAPI != API_OPENAI_COMPAT) && html`
-					<button
-						disabled=${!!cancel}
-						onClick=${() => toggleModal("bias")}>
-						Logit Bias
-						</button>`}
+				<button
+					disabled=${!!cancel}
+					onClick=${() => toggleModal("bias")}>
+					Logit Bias
+					</button>
 				${(!openaiPresets || endpointAPI != API_OPENAI_COMPAT) && html`
 					<${Checkbox} label="Ignore <eos>"
 						disabled=${!!cancel} value=${ignoreEos} onValueChange=${setIgnoreEos}/>`}
