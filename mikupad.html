@@ -4632,6 +4632,13 @@ const defaultPresets = {
 	mirostat: 0,
 	mirostatTau: 5.0,
 	mirostatEta: 0.1,
+	xtcThreshold: 0.1,
+	xtcProbability: 0,
+	dryMultiplier: 0,
+	dryBase: 1.75,
+	dryAllowedLength: 2,
+	dryPenaltyRange: 1024,
+	drySequenceBreakers: "[\"\\n\", \":\", \"\\\"\", \"*\"]",
 	stoppingStrings: "[]",
 	ignoreEos: false,
 	openaiPresets: false,
@@ -4892,6 +4899,14 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	const [mirostat, setMirostat] = useSessionState('mirostat', defaultPresets.mirostat);
 	const [mirostatTau, setMirostatTau] = useSessionState('mirostatTau', defaultPresets.mirostatTau);
 	const [mirostatEta, setMirostatEta] = useSessionState('mirostatEta', defaultPresets.mirostatEta);
+	const [xtcThreshold, setXtcThreshold] = useSessionState('xtcThreshold', defaultPresets.xtcThreshold);
+	const [xtcProbability, setXtcProbability] = useSessionState('xtcProbability', defaultPresets.xtcProbability);
+	const [dryMultiplier, setDryMultiplier] = useSessionState('dryMultiplier', defaultPresets.dryMultiplier);
+	const [dryBase, setDryBase] = useSessionState('dryBase', defaultPresets.dryBase);
+	const [dryAllowedLength, setDryAllowedLength] = useSessionState('dryAllowedLength', defaultPresets.dryAllowedLength);
+	const [dryPenaltyRange, setDryPenaltyRange] = useSessionState('dryPenaltyRange', defaultPresets.dryPenaltyRange);
+	const [drySequenceBreakers, setDrySequenceBreakers] = useSessionState('drySequenceBreakers', defaultPresets.drySequenceBreakers);
+	const [drySequenceBreakersError, setDrySequenceBreakersError] = useState(undefined);
 	const [ignoreEos, setIgnoreEos] = useSessionState('ignoreEos', defaultPresets.ignoreEos);
 	const [openaiPresets, setOpenaiPresets] = useSessionState('openaiPresets', defaultPresets.openaiPresets);
 	const [rejectedAPIKey, setRejectedAPIKey] = useState(false);
@@ -5424,12 +5439,12 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 						repeat_last_n: repeatLastN,
 					} : {}),
 					penalize_nl: penalizeNl,
-					ignore_eos: ignoreEos,
 				} : {}),
+				ignore_eos: ignoreEos,
 				...(Object.keys(logitBias.bias).length > 0 ? {
 					logit_bias: logitBiasParam,
 				} : {}),
-				...(grammar.length ? { grammar } : {}),
+				...((!openaiPresets || endpointAPI != API_OPENAI_COMPAT) && grammar.length ? { grammar } : {}),
 				...(enabledSamplers.includes('pres_pen') ? {
 					presence_penalty: presencePenalty,
 				} : {}),
@@ -5457,6 +5472,17 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 						...(enabledSamplers.includes('tfs_z') ? {
 							tfs_z: tfsZ
 						} : {}),
+						...(enabledSamplers.includes('xtc') ? {
+							xtc_threshold: xtcThreshold,
+							xtc_probability: xtcProbability,
+						}: {}),
+						...(enabledSamplers.includes('dry') ? {
+							dry_multiplier: dryMultiplier,
+							dry_base: dryBase,
+							dry_allowed_length: dryAllowedLength,
+							dry_penalty_last_n: dryPenaltyRange,
+							dry_sequence_breakers: JSON.parse(drySequenceBreakers),
+						}: {}),
 					} : {})
 				}),
 				n_predict: maxPredictTokens,
@@ -5616,6 +5642,15 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			setStoppingStringsError(e.toString());
 		}
 	}, [stoppingStrings]);
+
+	useEffect(() => {
+		try {
+			JSON.parse(drySequenceBreakers);
+			setDrySequenceBreakersError(undefined);
+		} catch (e) {
+			setDrySequenceBreakersError(e.toString());
+		}
+	}, [drySequenceBreakers]);
 
 	useEffect(() => {
 		if (showProbsMode === -1 || tokenHighlightMode === -1)
@@ -6348,6 +6383,18 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 						onValueChange=${(v) => enabledSamplers.indexOf('mirostat') === -1
 											  ? setEnabledSamplers((es) => [...es, 'mirostat'])
 											  : setEnabledSamplers((es) => es.filter((s) => s !== 'mirostat'))}/>
+					<${Checkbox} label="XTC"
+						disabled=${!!cancel}
+						value=${enabledSamplers.includes('xtc')}
+						onValueChange=${(v) => enabledSamplers.indexOf('xtc') === -1
+											  ? setEnabledSamplers((es) => [...es, 'xtc'])
+											  : setEnabledSamplers((es) => es.filter((s) => s !== 'xtc'))}/>
+					<${Checkbox} label="DRY"
+						disabled=${!!cancel}
+						value=${enabledSamplers.includes('dry')}
+						onValueChange=${(v) => enabledSamplers.indexOf('dry') === -1
+											  ? setEnabledSamplers((es) => [...es, 'dry'])
+											  : setEnabledSamplers((es) => es.filter((s) => s !== 'dry'))}/>
 					<${Checkbox} label="Top K"
 						disabled=${!!cancel}
 						value=${enabledSamplers.includes('top_k')}
@@ -6429,13 +6476,37 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 					${(enabledSamplers.includes('mirostat') && mirostat && (!openaiPresets || endpointAPI != API_OPENAI_COMPAT)) ? html`
 						<div className="hbox">
 							<${InputSlider} label="Mirostat τ" type="number" step="0.01" max="20"
-								hidden=${!enabledSamplers.includes('mirostat')}
 								readOnly=${!!cancel} value=${mirostatTau} onValueChange=${setMirostatTau}/>
 							<${InputSlider} label="Mirostat η" type="number" step="0.01" max="1"
-								hidden=${!enabledSamplers.includes('mirostat')}
 								readOnly=${!!cancel} value=${mirostatEta} onValueChange=${setMirostatEta}/>
 						</div>
 					` : html`
+						${(!openaiPresets || endpointAPI != API_OPENAI_COMPAT) && html`
+							${enabledSamplers.includes('xtc') && html`
+								<div className="hbox">
+									<${InputSlider} label="XTC Threshold" type="number" step="0.01" max="0.5"
+										readOnly=${!!cancel} value=${xtcThreshold} onValueChange=${setXtcThreshold}/>
+									<${InputSlider} label="XTC Probability" type="number" step="0.01" max="1"
+										readOnly=${!!cancel} value=${xtcProbability} onValueChange=${setXtcProbability}/>
+								</div>`}
+							${enabledSamplers.includes('dry') && html`
+								<div className="hbox">
+									<${InputSlider} label="DRY Multip." type="number" step="0.01" max="5"
+										readOnly=${!!cancel} value=${dryMultiplier} onValueChange=${setDryMultiplier}/>
+									<${InputSlider} label=${html`<br/>Base`} type="number" step="0.01" min="1" max="4"
+										readOnly=${!!cancel} value=${dryBase} onValueChange=${setDryBase}/>
+									<${InputSlider} label="Allowed Length" type="number" step="1" max="20"
+										readOnly=${!!cancel} value=${dryAllowedLength} onValueChange=${setDryAllowedLength}/>
+									<${InputSlider} label="Penalty Range" type="number" step="1" max="${contextLength}"
+										readOnly=${!!cancel} value=${dryPenaltyRange} onValueChange=${setDryPenaltyRange}/>
+								</div>
+								<${InputBox} label="DRY Sequence Breakers (JSON array)" type="text" pattern="^\\[.*?\\]$"
+									className="${drySequenceBreakersError ? 'rejected' : ''}"
+									tooltip="${drySequenceBreakersError ? drySequenceBreakersError : ''}"
+									readOnly=${!!cancel}
+									value=${drySequenceBreakers}
+									onValueChange=${setDrySequenceBreakers}/>`}
+						`}
 						${(enabledSamplers.includes('top_k') || enabledSamplers.includes('top_p') || enabledSamplers.includes('min_p')) && html`
 							<div className="hbox">
 								${(!openaiPresets || endpointAPI != API_OPENAI_COMPAT) && html`
@@ -6461,11 +6532,12 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 							</div>`}
 					`}
 				`}
-				<button
-					disabled=${!!cancel}
-					onClick=${() => toggleModal("grammar")}>
-					Grammar
-					</button>
+				${(!openaiPresets || endpointAPI != API_OPENAI_COMPAT) && html`
+					<button
+						disabled=${!!cancel}
+						onClick=${() => toggleModal("grammar")}>
+						Grammar
+						</button>`}
 				<button
 					disabled=${!!cancel}
 					onClick=${() => toggleModal("bias")}>
@@ -6530,7 +6602,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 				<button
 					title="Run next prediction (Ctrl + Enter)"
 					className=${cancel && !sessionEndpointConnecting ? (predictStartTokens === tokens ? 'processing' : 'completing') : ''}
-					disabled=${!!cancel || stoppingStringsError}
+					disabled=${!!cancel || stoppingStringsError || drySequenceBreakersError}
 					onClick=${() => predict()}>
 					Predict
 				</button>
