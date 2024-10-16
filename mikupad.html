@@ -1317,6 +1317,28 @@ html.monospace-dark .eye-button {
 	}
 }
 
+.floating-menu {
+	position: absolute;
+	top: 30px;
+	right: 0px;
+	background-color: var(--color-base-40);
+	border: 1px solid var(--color-base-30);
+	border-radius: 4px;
+	box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
+	padding: 10px;
+	z-index: 1000;
+	display: flex;
+	flex-direction: column;
+	cursor: default;
+}
+html.monospace-dark .floating-menu {
+	background: var(--color-base-20);
+	border: 1px solid var(--color-base-10);
+}
+html.nockoffAI .floating-menu {
+	background: var(--color-input);
+}
+
 </style>
 <script type="module">
 
@@ -2030,7 +2052,7 @@ function importSillyTavernWorldInfo(json, setWorldInfo, importBehavior) {
 	});
 }
 
-function InputSlider({ label, value, min = 0, max = 100, step = 1, readOnly, strict, onValueChange, ...props }) {
+function InputSlider({ label, value, min = 0, max = 100, step = 1, readOnly, hidden, strict, onValueChange, ...props }) {
 	const handleChange = (newValue) => {
 		if (strict) {
 			if (newValue < min) newValue = min;
@@ -2040,7 +2062,7 @@ function InputSlider({ label, value, min = 0, max = 100, step = 1, readOnly, str
 	};
 
 	return html`
-		<label className="InputBox">
+		<label className="InputBox" style=${hidden ? {'display': 'none'} : {}}>
 			${label}
 			<div className="InputSlider-container">
 				<input
@@ -2103,9 +2125,9 @@ function InputBox({ label, className, tooltip, tooltipSize, value, type, datalis
 		</label>`;
 }
 
-function SelectBox({ label, value, onValueChange, options, ...props }) {
+function SelectBox({ label, value, hidden, onValueChange, options, ...props }) {
 	return html`
-		<label className="SelectBox">
+		<label className="SelectBox" style=${hidden ? {'display': 'none'} : {}}>
 			${label}
 			<select
 				value=${value}
@@ -2132,9 +2154,9 @@ function SelectBoxTemplate({ label, value, onValueChange, options, ...props }) {
 		</label>`;
 }
 
-function Checkbox({ label, value, onValueChange, ...props }) {
+function Checkbox({ label, value, hidden, onValueChange, ...props }) {
 	return html`
-		<label className="Checkbox">
+		<label className="Checkbox" style=${hidden ? {'display': 'none'} : {}}>
 			<input
 				type="checkbox"
 				checked=${value}
@@ -2144,10 +2166,12 @@ function Checkbox({ label, value, onValueChange, ...props }) {
 		</label>`;
 }
 
-function CollapsibleGroup({ label, stateLabel, expanded, children }) {
+function CollapsibleGroup({ label, stateLabel, menu, expanded, children }) {
 	const contentArea = useRef(null);
+	const menuRef = useRef(null);
 	const [isCollapsed, setIsCollapsed] = usePersistentState(`(${stateLabel ? stateLabel : label}).isCollapsed`, !expanded);
 	const [contentHeight, setContentHeight] = useState(isCollapsed ? 0 : '');
+	const [isMenuVisible, setIsMenuVisible] = useState(false);
 
 	useEffect(() => {
 		setContentHeight(contentArea.current.scrollHeight);
@@ -2162,14 +2186,41 @@ function CollapsibleGroup({ label, stateLabel, expanded, children }) {
 		setContentHeight(contentArea.current.scrollHeight);
 	}, [isCollapsed]);
 
+	if (menu) {
+		// Close the menu when clicking outside of it
+		useEffect(() => {
+			const handleClickOutside = (e) => {
+				if (!isMenuVisible)
+					return;
+				if (menuRef.current && !menuRef.current.contains(e.target)) {
+					setTimeout(() => {
+						setIsMenuVisible(false);
+					}, 150);
+				}
+			}
+			document.addEventListener('mousedown', handleClickOutside);
+			return () => document.removeEventListener('mousedown', handleClickOutside);
+		}, [isMenuVisible]);
+	}
+
 	const expandSvg = html`<${SVG_ArrowDown}/>`;
 	const collapseSvg = html`<${SVG_ArrowUp}/>`;
 
 	return html`
-		<div className="collapsible-group">
+		<div className="collapsible-group" style=${{'position': 'relative'}}>
 			<div className="collapsible-header" onClick=${() => setIsCollapsed(!isCollapsed)}>
 				${isCollapsed ? expandSvg : collapseSvg}
 				${label}
+				<div class="flex-separator"></div>
+				${menu && html`
+					<button style=${{ 'padding': '0px 7px'}} onClick=${(e) => (setIsMenuVisible(!isMenuVisible), e.stopPropagation())}>
+						⋮
+					</button>
+					${isMenuVisible && html`
+						<div ref=${menuRef} className="floating-menu" onClick=${(e) => e.stopPropagation()}>
+							${menu}
+						</div>`}
+					`}
 			</div>
 			<div
 				ref=${contentArea}
@@ -4812,6 +4863,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	const [authorNoteDepth, setAuthorNoteDepth] = useSessionState('authorNoteDepth', defaultPresets.authorNoteDepth);
 	const [worldInfo, setWorldInfo] = useSessionState('worldInfo', defaultPresets.worldInfo);
 	const [sillyTarvernWorldInfoJSON, setSillyTarvernWorldInfoJSON] = useState(null);
+	const [enabledSamplers, setEnabledSamplers] = usePersistentState('enabledSamplers', ['temperature', 'rep_pen', 'pres_pen', 'freq_pen', 'mirostat', 'top_k', 'top_p', 'min_p']);
 
 
 
@@ -5310,31 +5362,51 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 				} : {}),
 				prompt,
 				...(seed != -1 ? { seed } : {}),
-				temperature,
+				...(enabledSamplers.includes('temperature') ? {
+					temperature
+				} : {}),
 				...(!openaiPresets || endpointAPI != API_OPENAI_COMPAT ? {
-					dynatemp_range: dynaTempRange,
-					dynatemp_exponent: dynaTempExp,
-					repeat_penalty: repeatPenalty,
-					repeat_last_n: repeatLastN,
+					...(enabledSamplers.includes('dynatemp') ? {
+						dynatemp_range: dynaTempRange,
+						dynatemp_exponent: dynaTempExp,
+					} : {}),
+					...(enabledSamplers.includes('rep_pen') ? {
+						repeat_penalty: repeatPenalty,
+						repeat_last_n: repeatLastN,
+					} : {}),
 					penalize_nl: penalizeNl,
 					ignore_eos: ignoreEos,
 				} : {}),
 				...(Object.keys(logitBias.bias).length > 0 ? {
 					logit_bias: logitBiasParam,
 				} : {}),
-				presence_penalty: presencePenalty,
-				frequency_penalty: frequencyPenalty,
-				...((mirostat && (!openaiPresets || endpointAPI != API_OPENAI_COMPAT)) ? {
+				...(enabledSamplers.includes('pres_pen') ? {
+					presence_penalty: presencePenalty,
+				} : {}),
+				...(enabledSamplers.includes('freq_pen') ? {
+					frequency_penalty: frequencyPenalty,
+				} : {}),
+				...((enabledSamplers.includes('mirostat') && mirostat && (!openaiPresets || endpointAPI != API_OPENAI_COMPAT)) ? {
 					mirostat,
 					mirostat_tau: mirostatTau,
 					mirostat_eta: mirostatEta,
 				} : {
-					top_p: topP,
+					...(enabledSamplers.includes('top_p') ? {
+						top_p: topP,
+					} : {}),
 					...(!openaiPresets || endpointAPI != API_OPENAI_COMPAT ? {
-						top_k: topK,
-						typical_p: typicalP,
-						min_p: minP,
-						tfs_z: tfsZ
+						...(enabledSamplers.includes('top_k') ? {
+							top_k: topK,
+						} : {}),
+						...(enabledSamplers.includes('typical_p') ? {
+							typical_p: typicalP,
+						} : {}),
+						...(enabledSamplers.includes('min_p') ? {
+							min_p: minP,
+						} : {}),
+						...(enabledSamplers.includes('tfs_z') ? {
+							tfs_z: tfsZ
+						} : {}),
 					} : {})
 				}),
 				n_predict: maxPredictTokens,
@@ -6189,34 +6261,106 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 					value=${stoppingStrings}
 					onValueChange=${setStoppingStrings}/>
 			</${CollapsibleGroup}>
-			<${CollapsibleGroup} label="Sampling" expanded>
+			<${CollapsibleGroup} label="Sampling" expanded menu=${html`
+					<${Checkbox} label="Temperature"
+						disabled=${!!cancel}
+						value=${enabledSamplers.includes('temperature')}
+						onValueChange=${(v) => enabledSamplers.indexOf('temperature') === -1
+											  ? setEnabledSamplers((es) => [...es, 'temperature'])
+											  : setEnabledSamplers((es) => es.filter((s) => s !== 'temperature'))}/>
+					<${Checkbox} label="Dynamic Temperature"
+						disabled=${!!cancel}
+						value=${enabledSamplers.includes('dynatemp')}
+						onValueChange=${(v) => enabledSamplers.indexOf('dynatemp') === -1
+											  ? setEnabledSamplers((es) => [...es, 'dynatemp'])
+											  : setEnabledSamplers((es) => es.filter((s) => s !== 'dynatemp'))}/>
+					<${Checkbox} label="Repetition Penalty"
+						disabled=${!!cancel}
+						value=${enabledSamplers.includes('rep_pen')}
+						onValueChange=${(v) => enabledSamplers.indexOf('rep_pen') === -1
+											  ? setEnabledSamplers((es) => [...es, 'rep_pen'])
+											  : setEnabledSamplers((es) => es.filter((s) => s !== 'rep_pen'))}/>
+					<${Checkbox} label="Presence Penalty"
+						disabled=${!!cancel}
+						value=${enabledSamplers.includes('pres_pen')}
+						onValueChange=${(v) => enabledSamplers.indexOf('pres_pen') === -1
+											  ? setEnabledSamplers((es) => [...es, 'pres_pen'])
+											  : setEnabledSamplers((es) => es.filter((s) => s !== 'pres_pen'))}/>
+					<${Checkbox} label="Frequence Penalty"
+						disabled=${!!cancel}
+						value=${enabledSamplers.includes('freq_pen')}
+						onValueChange=${(v) => enabledSamplers.indexOf('freq_pen') === -1
+											  ? setEnabledSamplers((es) => [...es, 'freq_pen'])
+											  : setEnabledSamplers((es) => es.filter((s) => s !== 'freq_pen'))}/>
+					<${Checkbox} label="Mirostat"
+						disabled=${!!cancel}
+						value=${enabledSamplers.includes('mirostat')}
+						onValueChange=${(v) => enabledSamplers.indexOf('mirostat') === -1
+											  ? setEnabledSamplers((es) => [...es, 'mirostat'])
+											  : setEnabledSamplers((es) => es.filter((s) => s !== 'mirostat'))}/>
+					<${Checkbox} label="Top K"
+						disabled=${!!cancel}
+						value=${enabledSamplers.includes('top_k')}
+						onValueChange=${(v) => enabledSamplers.indexOf('top_k') === -1
+											  ? setEnabledSamplers((es) => [...es, 'top_k'])
+											  : setEnabledSamplers((es) => es.filter((s) => s !== 'top_k'))}/>
+					<${Checkbox} label="Top P"
+						disabled=${!!cancel}
+						value=${enabledSamplers.includes('top_p')}
+						onValueChange=${(v) => enabledSamplers.indexOf('top_p') === -1
+											  ? setEnabledSamplers((es) => [...es, 'top_p'])
+											  : setEnabledSamplers((es) => es.filter((s) => s !== 'top_p'))}/>
+					<${Checkbox} label="Min P"
+						disabled=${!!cancel}
+						value=${enabledSamplers.includes('min_p')}
+						onValueChange=${(v) => enabledSamplers.indexOf('min_p') === -1
+											  ? setEnabledSamplers((es) => [...es, 'min_p'])
+											  : setEnabledSamplers((es) => es.filter((s) => s !== 'min_p'))}/>
+					<${Checkbox} label="Typical P"
+						disabled=${!!cancel}
+						value=${enabledSamplers.includes('typical_p')}
+						onValueChange=${(v) => enabledSamplers.indexOf('typical_p') === -1
+											  ? setEnabledSamplers((es) => [...es, 'typical_p'])
+											  : setEnabledSamplers((es) => es.filter((s) => s !== 'typical_p'))}/>
+					<${Checkbox} label="TFS z"
+						disabled=${!!cancel}
+						value=${enabledSamplers.includes('tfs_z')}
+						onValueChange=${(v) => enabledSamplers.indexOf('tfs_z') === -1
+											  ? setEnabledSamplers((es) => [...es, 'tfs_z'])
+											  : setEnabledSamplers((es) => es.filter((s) => s !== 'tfs_z'))}/>
+				`}>
 				${endpointAPI == API_OPENAI_COMPAT && html`
 					<${Checkbox} label="Full OpenAI Compliance"
 						disabled=${!!cancel} value=${openaiPresets} onValueChange=${setOpenaiPresets}/>`}
 				<${InputSlider} label="Temperature" type="number" step="0.01" max="5"
+					hidden=${!enabledSamplers.includes('temperature')}
 					readOnly=${!!cancel} value=${temperature} onValueChange=${setTemperature}/>
 				${(!openaiPresets || endpointAPI != API_OPENAI_COMPAT) && html`
-					<div className="hbox">
-						<${InputSlider} label="DynaTemp Range" type="number" step="0.01"
-							readOnly=${!!cancel} value=${dynaTempRange} onValueChange=${setDynaTempRange}/>
-						${(endpointAPI != API_KOBOLD_CPP) && html`
-							<${InputSlider} label="DynaTemp Exp" type="number" step="0.01"
-								readOnly=${!!cancel} value=${dynaTempExp} onValueChange=${setDynaTempExp}/>`}
-					</div>
-					<div className="hbox">
-						<${InputSlider} label="Repeat Penalty" type="number" step="0.01" min="1" max="3"
-							readOnly=${!!cancel} value=${repeatPenalty} onValueChange=${setRepeatPenalty}/>
-						<${InputSlider} label="Rep Pen Range" type="number" step="1" max="${contextLength}"
-							readOnly=${!!cancel} value=${repeatLastN} onValueChange=${setRepeatLastN}/>
-					</div>`}
-				${(endpointAPI == API_LLAMA_CPP || !openaiPresets || endpointAPI == API_OPENAI_COMPAT) && html`
-					${(!openaiPresets || endpointAPI != API_OPENAI_COMPAT) && html`
+					${enabledSamplers.includes('dynatemp') && html`
+						<div className="hbox">
+							<${InputSlider} label="DynaTemp Range" type="number" step="0.01"
+								readOnly=${!!cancel} value=${dynaTempRange} onValueChange=${setDynaTempRange}/>
+							${(endpointAPI != API_KOBOLD_CPP) && html`
+								<${InputSlider} label="DynaTemp Exp" type="number" step="0.01"
+									readOnly=${!!cancel} value=${dynaTempExp} onValueChange=${setDynaTempExp}/>`}
+						</div>`}
+					${enabledSamplers.includes('rep_pen') && html`
+						<div className="hbox">
+							<${InputSlider} label="Repeat Penalty" type="number" step="0.01" min="1" max="3"
+								readOnly=${!!cancel} value=${repeatPenalty} onValueChange=${setRepeatPenalty}/>
+							<${InputSlider} label="Rep Pen Range" type="number" step="1" max="${contextLength}"
+								readOnly=${!!cancel} value=${repeatLastN} onValueChange=${setRepeatLastN}/>
+						</div>
 						<${Checkbox} label="Penalize NL"
 							disabled=${!!cancel} value=${penalizeNl} onValueChange=${setPenalizeNl}/>`}
+					`}
+				${(enabledSamplers.includes('pres_pen') || enabledSamplers.includes('freq_pen')) && html`
 					<div className="hbox">
 						<${InputSlider} label="Pres. Penalty" type="number" step="0.01" min="-2" max="2"
+							hidden=${!enabledSamplers.includes('pres_pen')}
 							readOnly=${!!cancel} value=${presencePenalty} onValueChange=${setPresencePenalty}/>
 						<${InputSlider} label="Freq. Penalty" type="number" step="0.01" min="-2" max="2"
+							hidden=${!enabledSamplers.includes('freq_pen')}
 							readOnly=${!!cancel} value=${frequencyPenalty} onValueChange=${setFrequencyPenalty}/>
 					</div>`}
 				${temperature <= 0 ? null : html`
@@ -6224,6 +6368,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 						<${SelectBox}
 							label="Mirostat"
 							disabled=${!!cancel}
+							hidden=${!enabledSamplers.includes('mirostat')}
 							value=${mirostat}
 							onValueChange=${setMirostat}
 							options=${[
@@ -6231,29 +6376,37 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 								{ name: 'Mirostat', value: 1 },
 								{ name: 'Mirostat 2.0', value: 2 },
 							]}/>`}
-					${(mirostat && (!openaiPresets || endpointAPI != API_OPENAI_COMPAT)) ? html`
+					${(enabledSamplers.includes('mirostat') && mirostat && (!openaiPresets || endpointAPI != API_OPENAI_COMPAT)) ? html`
 						<div className="hbox">
 							<${InputSlider} label="Mirostat τ" type="number" step="0.01" max="20"
+								hidden=${!enabledSamplers.includes('mirostat')}
 								readOnly=${!!cancel} value=${mirostatTau} onValueChange=${setMirostatTau}/>
 							<${InputSlider} label="Mirostat η" type="number" step="0.01" max="1"
+								hidden=${!enabledSamplers.includes('mirostat')}
 								readOnly=${!!cancel} value=${mirostatEta} onValueChange=${setMirostatEta}/>
 						</div>
 					` : html`
-						<div className="hbox">
-							${(!openaiPresets || endpointAPI != API_OPENAI_COMPAT) && html`
-								<${InputSlider} label="Top K" type="number" step="1" max="200"
-									readOnly=${!!cancel} value=${topK} onValueChange=${setTopK}/>`}
-							<${InputSlider} label="Top P" type="number" step="0.01" max="1"
-								readOnly=${!!cancel} value=${topP} onValueChange=${setTopP}/>
-							${(!openaiPresets || endpointAPI != API_OPENAI_COMPAT) && html`
-								<${InputSlider} label="Min P" type="number" step="0.01" max="1"
-									readOnly=${!!cancel} value=${minP} onValueChange=${setMinP}/>`}
-						</div>
-						${(!openaiPresets || endpointAPI != API_OPENAI_COMPAT) && html`
+						${(enabledSamplers.includes('top_k') || enabledSamplers.includes('top_p') || enabledSamplers.includes('min_p')) && html`
+							<div className="hbox">
+								${(!openaiPresets || endpointAPI != API_OPENAI_COMPAT) && html`
+									<${InputSlider} label="Top K" type="number" step="1" max="200"
+										hidden=${!enabledSamplers.includes('top_k')}
+										readOnly=${!!cancel} value=${topK} onValueChange=${setTopK}/>`}
+								<${InputSlider} label="Top P" type="number" step="0.01" max="1"
+									hidden=${!enabledSamplers.includes('top_p')}
+									readOnly=${!!cancel} value=${topP} onValueChange=${setTopP}/>
+								${(!openaiPresets || endpointAPI != API_OPENAI_COMPAT) && html`
+									<${InputSlider} label="Min P" type="number" step="0.01" max="1"
+										hidden=${!enabledSamplers.includes('min_p')}
+										readOnly=${!!cancel} value=${minP} onValueChange=${setMinP}/>`}
+							</div>`}
+						${((enabledSamplers.includes('typical_p') || enabledSamplers.includes('tfs_z')) && (!openaiPresets || endpointAPI != API_OPENAI_COMPAT)) && html`
 							<div className="hbox">
 								<${InputSlider} label="Typical P" type="number" step="0.01" max="1"
+									hidden=${!enabledSamplers.includes('typical_p')}
 									readOnly=${!!cancel} value=${typicalP} onValueChange=${setTypicalP}/>
 								<${InputSlider} label="TFS z" type="number" step="0.01" max="1"
+									hidden=${!enabledSamplers.includes('tfs_z')}
 									readOnly=${!!cancel} value=${tfsZ} onValueChange=${setTfsZ}/>
 							</div>`}
 					`}
