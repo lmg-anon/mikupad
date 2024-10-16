@@ -4723,7 +4723,8 @@ const defaultPresets = {
 			'instSuf': '<end_of_turn>\\n<start_of_turn>model\\n',
 		},
 	},
-	scrollTop: 0
+	scrollTop: 0,
+	enabledSamplers: ['temperature', 'rep_pen', 'pres_pen', 'freq_pen', 'mirostat', 'top_k', 'top_p', 'min_p'],
 };
 
 function joinPrompt(prompt) {
@@ -4927,7 +4928,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	const [authorNoteDepth, setAuthorNoteDepth] = useSessionState('authorNoteDepth', defaultPresets.authorNoteDepth);
 	const [worldInfo, setWorldInfo] = useSessionState('worldInfo', defaultPresets.worldInfo);
 	const [sillyTarvernWorldInfoJSON, setSillyTarvernWorldInfoJSON] = useState(null);
-	const [enabledSamplers, setEnabledSamplers] = usePersistentState('enabledSamplers', ['temperature', 'rep_pen', 'pres_pen', 'freq_pen', 'mirostat', 'top_k', 'top_p', 'min_p']);
+	const [enabledSamplers, setEnabledSamplers] = useSessionState('enabledSamplers', defaultPresets.enabledSamplers);
 	const [grammar, setGrammar] = useSessionState('grammar', '');
 
 
