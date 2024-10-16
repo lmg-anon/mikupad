@@ -5439,8 +5439,8 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 						repeat_last_n: repeatLastN,
 					} : {}),
 					penalize_nl: penalizeNl,
+					ignore_eos: ignoreEos,
 				} : {}),
-				ignore_eos: ignoreEos,
 				...(Object.keys(logitBias.bias).length > 0 ? {
 					logit_bias: logitBiasParam,
 				} : {}),
