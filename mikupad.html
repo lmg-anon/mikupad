@@ -1963,7 +1963,8 @@ function openaiConvertOptions(options, endpoint){
 	swapOption("repeat_last_n", "repetition_penalty_range");
 	swapOption("tfs_z", "tfs");
 	swapOption("mirostat", "mirostat_mode");
-	swapOption("ignore_eos", "ban_eos_token")
+	swapOption("ignore_eos", "ban_eos_token");
+	swapOption("grammar", "grammar_string");
 	return options;
 }
 
@@ -3727,6 +3728,54 @@ function InstructModal({ isOpen, closeModal, templateStorage, selectedTemplate, 
 		</${Modal}>`;
 }
 
+function GrammarModal({ isOpen, closeModal, grammar, setGrammar, endpointAPI, cancel }) {
+	const grammarExample = `# "root" specifies the pattern for the overall output
+root ::= (
+    # it must start with the characters "1. " followed by a sequence
+    # of characters that match the "move" rule, followed by a space, followed
+    # by another move, and then a newline
+    "1. " move " " move "\\n"
+
+    # it's followed by one or more subsequent moves, numbered with one or two digits
+    ([1-9] [0-9]? ". " move " " move "\\n")+
+)
+
+# "move" is an abstract representation, which can be a pawn, nonpawn, or castle.
+# The "[+#]?" denotes the possibility of checking or mate signs after moves
+move ::= (pawn | nonpawn | castle) [+#]?
+
+pawn ::= ...
+nonpawn ::= ...
+castle ::= ...`;
+	const grammarHelpUrl = html`<a href="https://github.com/ggerganov/llama.cpp/blob/master/grammars/README.md">llama.cpp/grammars/README.md</a>`;
+
+	const grammarEBNFExample = `root      ::= (commands eol)+
+commands  ::= t | info | nav
+nav       ::= "nav(\\"/" [a-z/]*  "\\")"
+info      ::= "info(" setting ")"
+t         ::= "t(" setting ": " value ")"
+value     ::= color | number | string | boolean
+color     ::= "#" [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]
+setting   ::= [a-z_ ]+
+string    ::= "\\"" [ \\t!#-\\[\\]-~#x80-#xFF]* "\\""
+number    ::= [0-9]+
+boolean   ::= ("true" | "false")
+eol       ::= "\\n"`;
+	const grammarEBNFHelpUrl = html`<a href="https://en.wikipedia.org/wiki/Extended_Backus%E2%80%93Naur_form">wiki/Extended_Backus–Naur_form</a>`;
+
+	return html`
+		<${Modal} isOpen=${isOpen} onClose=${closeModal}
+			title="Grammar"
+			description=${html`<div>Grammar is a set of rules to generate predictions. Each rule has a name and defines how to create specific text patterns.</div><br/><div>For more information see: ${endpointAPI == API_OPENAI_COMPAT ? grammarEBNFHelpUrl : grammarHelpUrl}</div>`}>
+			<textarea
+				readOnly=${!!cancel}
+				value=${grammar}
+				placeholder=${endpointAPI == API_OPENAI_COMPAT ? grammarEBNFExample : grammarExample}
+				onInput=${(e) => setGrammar(e.target.value)}
+				class="expanded-text-area-settings"/>
+		</${Modal}>`;
+}
+
 function Widget({ isOpen, onClose, title, id, children, ...props }) {
 	if (!isOpen) {
 		return null;
@@ -4864,7 +4913,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	const [worldInfo, setWorldInfo] = useSessionState('worldInfo', defaultPresets.worldInfo);
 	const [sillyTarvernWorldInfoJSON, setSillyTarvernWorldInfoJSON] = useState(null);
 	const [enabledSamplers, setEnabledSamplers] = usePersistentState('enabledSamplers', ['temperature', 'rep_pen', 'pres_pen', 'freq_pen', 'mirostat', 'top_k', 'top_p', 'min_p']);
-
+	const [grammar, setGrammar] = useSessionState('grammar', '');
 
 
 	function replacePlaceholders(string,placeholders) {
@@ -5380,6 +5429,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 				...(Object.keys(logitBias.bias).length > 0 ? {
 					logit_bias: logitBiasParam,
 				} : {}),
+				...(grammar.length ? { grammar } : {}),
 				...(enabledSamplers.includes('pres_pen') ? {
 					presence_penalty: presencePenalty,
 				} : {}),
@@ -6413,6 +6463,11 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 				`}
 				<button
 					disabled=${!!cancel}
+					onClick=${() => toggleModal("grammar")}>
+					Grammar
+					</button>
+				<button
+					disabled=${!!cancel}
 					onClick=${() => toggleModal("bias")}>
 					Logit Bias
 					</button>
@@ -6640,6 +6695,14 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			templates=${templates}
 			setTemplates=${setTemplates}
 			templateStorage=${templateStorage}
+			cancel=${cancel}/>
+
+		<${GrammarModal}
+			isOpen=${modalState.grammar}
+			closeModal=${() => closeModal("grammar")}
+			grammar=${grammar}
+			setGrammar=${setGrammar}
+			endpointAPI=${endpointAPI}
 			cancel=${cancel}/>
 
 		${sessionEndpointError && html`
