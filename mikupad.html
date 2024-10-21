@@ -4639,6 +4639,7 @@ const defaultPresets = {
 	dryAllowedLength: 2,
 	dryPenaltyRange: 1024,
 	drySequenceBreakers: "[\"\\n\", \":\", \"\\\"\", \"*\"]",
+	bannedTokens: "[]",
 	stoppingStrings: "[]",
 	ignoreEos: false,
 	openaiPresets: false,
@@ -4908,6 +4909,8 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	const [dryPenaltyRange, setDryPenaltyRange] = useSessionState('dryPenaltyRange', defaultPresets.dryPenaltyRange);
 	const [drySequenceBreakers, setDrySequenceBreakers] = useSessionState('drySequenceBreakers', defaultPresets.drySequenceBreakers);
 	const [drySequenceBreakersError, setDrySequenceBreakersError] = useState(undefined);
+	const [bannedTokens, setBannedTokens] = useSessionState('bannedTokens', defaultPresets.bannedTokens);
+	const [bannedTokensError, setBannedTokensError] = useState(undefined);
 	const [ignoreEos, setIgnoreEos] = useSessionState('ignoreEos', defaultPresets.ignoreEos);
 	const [openaiPresets, setOpenaiPresets] = useSessionState('openaiPresets', defaultPresets.openaiPresets);
 	const [rejectedAPIKey, setRejectedAPIKey] = useState(false);
@@ -5484,6 +5487,9 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 							dry_penalty_last_n: dryPenaltyRange,
 							dry_sequence_breakers: JSON.parse(drySequenceBreakers),
 						}: {}),
+						...(enabledSamplers.includes('ban_tokens') ? {
+							banned_tokens: JSON.parse(bannedTokens),
+						}: {}),
 					} : {})
 				}),
 				n_predict: maxPredictTokens,
@@ -5652,6 +5658,14 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			setDrySequenceBreakersError(e.toString());
 		}
 	}, [drySequenceBreakers]);
+
+	useEffect(() => {
+		try {JSON.parse(bannedTokens);
+			setBannedTokensError(undefined);
+		} catch (e) {
+			setBannedTokensError(e.toString());
+		}
+	}, [bannedTokens]);
 
 	useEffect(() => {
 		if (showProbsMode === -1 || tokenHighlightMode === -1)
@@ -6396,6 +6410,12 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 						onValueChange=${(v) => enabledSamplers.indexOf('dry') === -1
 											  ? setEnabledSamplers((es) => [...es, 'dry'])
 											  : setEnabledSamplers((es) => es.filter((s) => s !== 'dry'))}/>
+					<${Checkbox} label="Banned Tokens"
+						disabled=${!!cancel}
+						value=${enabledSamplers.includes('ban_tokens')}
+						onValueChange=${(v) => enabledSamplers.indexOf('ban_tokens') === -1
+											  ? setEnabledSamplers((es) => [...es, 'ban_tokens'])
+											  : setEnabledSamplers((es) => es.filter((s) => s !== 'ban_tokens'))}/>
 					<${Checkbox} label="Top K"
 						disabled=${!!cancel}
 						value=${enabledSamplers.includes('top_k')}
@@ -6507,6 +6527,13 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 									readOnly=${!!cancel}
 									value=${drySequenceBreakers}
 									onValueChange=${setDrySequenceBreakers}/>`}
+							${enabledSamplers.includes('ban_tokens') && html`
+								<${InputBox} label="Banned Tokens (JSON array)" type="text" pattern="^\\[.*?\\]$"
+									className="${bannedTokensError ? 'rejected' : ''}"
+									tooltip="${bannedTokensError ? bannedTokensError : ''}"
+									readOnly=${!!cancel}
+									value=${bannedTokens}
+									onValueChange=${setBannedTokens}/>`}
 						`}
 						${(enabledSamplers.includes('top_k') || enabledSamplers.includes('top_p') || enabledSamplers.includes('min_p')) && html`
 							<div className="hbox">
@@ -6603,7 +6630,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 				<button
 					title="Run next prediction (Ctrl + Enter)"
 					className=${cancel && !sessionEndpointConnecting ? (predictStartTokens === tokens ? 'processing' : 'completing') : ''}
-					disabled=${!!cancel || stoppingStringsError || drySequenceBreakersError}
+					disabled=${!!cancel || stoppingStringsError || drySequenceBreakersError || bannedTokensError}
 					onClick=${() => predict()}>
 					Predict
 				</button>
