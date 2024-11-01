@@ -6528,7 +6528,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 									value=${drySequenceBreakers}
 									onValueChange=${setDrySequenceBreakers}/>`}
 							${enabledSamplers.includes('ban_tokens') && html`
-								<${InputBox} label="Banned Tokens (JSON array)" type="text" pattern="^\\[.*?\\]$"
+								<${InputBox} label="Banned Strings (JSON array)" type="text" pattern="^\\[.*?\\]$"
 									className="${bannedTokensError ? 'rejected' : ''}"
 									tooltip="${bannedTokensError ? bannedTokensError : ''}"
 									readOnly=${!!cancel}
