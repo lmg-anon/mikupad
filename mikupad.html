@@ -6410,7 +6410,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 						onValueChange=${(v) => enabledSamplers.indexOf('dry') === -1
 											  ? setEnabledSamplers((es) => [...es, 'dry'])
 											  : setEnabledSamplers((es) => es.filter((s) => s !== 'dry'))}/>
-					<${Checkbox} label="Banned Tokens"
+					<${Checkbox} label="Banned Strings"
 						disabled=${!!cancel}
 						value=${enabledSamplers.includes('ban_tokens')}
 						onValueChange=${(v) => enabledSamplers.indexOf('ban_tokens') === -1
