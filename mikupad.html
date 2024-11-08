@@ -1351,6 +1351,36 @@ const API_LLAMA_CPP = 0;
 const API_KOBOLD_CPP = 2;
 const API_OPENAI_COMPAT = 3;
 
+window.TTS = {
+	prev_prompt: "",
+	new_prompt: "",
+	new_text: "",
+	voice: null,
+	voice_id: 0,
+	voices: [],
+	rate: 1,
+	pitch: 1,
+	volume: 1,
+	enabled: true
+};
+
+window.speechSynthesis.onvoiceschanged = function() {
+	const voices = window.speechSynthesis.getVoices();
+	window.TTS.voices = voices;
+	window.TTS.voice = voices[0];
+};
+
+function textToSpeech() {
+	// console.log("Text to read:\n" + window.TTS.new_text); // DEBUG
+	var text = new SpeechSynthesisUtterance(window.TTS.new_text);
+	text.voice = window.TTS.voice;
+	text.rate = window.TTS.rate;
+	text.pitch = window.TTS.pitch;
+	text.volume = window.TTS.volume;
+	if (window.speechSynthesis.speaking) { window.speechSynthesis.cancel() }
+	window.speechSynthesis.speak(text);
+}
+
 // Polyfill for piece of shit Chromium
 if (!(Symbol.asyncIterator in ReadableStream.prototype)) {
 	ReadableStream.prototype[Symbol.asyncIterator] = async function* () {
@@ -1617,9 +1647,12 @@ async function* llamaCppCompletion({ endpoint, endpointAPIKey, proxyEndpoint, si
 	});
 	if (!res.ok)
 		throw new Error(`HTTP ${res.status}`);
+	window.TTS.new_prompt = options.prompt;
+	window.TTS.new_text = "";
 	for await (const chunk of parseEventStream(res.body)) {
 		const probs = chunk.completion_probabilities[0]?.probs ?? [];
 		const prob = probs.find(p => p.tok_str === chunk.content)?.prob;
+		window.TTS.new_text += chunk.content;
 		yield {
 			content: chunk.content,
 			...(probs.length > 0 ? {
@@ -1628,6 +1661,29 @@ async function* llamaCppCompletion({ endpoint, endpointAPIKey, proxyEndpoint, si
 			} : {})
 		};
 	}
+	// Check if something has been added to the prompt, and read that too
+	if (window.TTS.prev_prompt != window.TTS.new_prompt) {
+		var prev = window.TTS.prev_prompt;
+		var next = window.TTS.new_prompt;
+		if (window.TTS.prev_prompt.length > 2000) { prev = window.TTS.prev_prompt.substr(1500) }
+		if (window.TTS.new_prompt.length > 2000) { next = window.TTS.new_prompt.substr(1500) }
+		window.TTS.prev_prompt = options.prompt + window.TTS.new_text;
+		// Find where the added/modified part begins
+		for (var c = 0; c < Math.min(prev.length, next.length); c++) {
+			if (prev[c] != next[c]) {
+				break;
+			}
+		}
+		if (c < next.length) {
+			window.TTS.new_text = next.substr(c) + window.TTS.new_text;				
+		}
+	} else {
+		window.TTS.prev_prompt = options.prompt + window.TTS.new_text;
+	}
+	// Trim if string is too long
+	if (window.TTS.new_text.length > 500) { window.TTS.new_text = window.TTS.new_text.substr(-500) }
+	// Read out TTS.new_text
+	if (window.TTS.enabled) { setTimeout(textToSpeech, 20) }
 }
 
 async function koboldCppTokenCount({ endpoint, proxyEndpoint, signal, ...options }) {
@@ -4878,6 +4934,11 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	const [sessionEndpointConnecting, setSessionEndpointConnecting] = useState(false);
 	const [sessionEndpointError, setSessionEndpointError] = useState(undefined);
 	const [showAPIKey, setShowAPIKey] = useState(false);
+	const [ttsEnabled, setTTSEnabled] = usePersistentState('ttsEnabled', 0);
+	const [ttsVoice, setTTSVoice] = usePersistentState('ttsVoice', 0);
+	const [ttsPitch, setTTSPitch] = usePersistentState('ttsPitch', 1);
+	const [ttsRate, setTTSRate] = usePersistentState('ttsRate', 1);
+	const [ttsVolume, setTTSVolume] = usePersistentState('ttsVolume', 1);
 	const [endpoint, setEndpoint] = useSessionState('endpoint', defaultPresets.endpoint);
 	const [endpointAPI, setEndpointAPI] = useSessionState('endpointAPI', defaultPresets.endpointAPI);
 	const [endpointAPIKey, setEndpointAPIKey] = useSessionState('endpointAPIKey', defaultPresets.endpointAPIKey);
@@ -6110,6 +6171,44 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		setEndpointAPI(value);
 	}
 
+	function selectNewVoice(value) {
+		window.TTS.voice = window.TTS.voices[value];
+		window.TTS.voice_id = value;
+		setTTSVoice(value);
+	}
+
+	function listTTSVoices() {
+		const voices = [];
+		for (var v = 0; v < window.TTS.voices.length; v++) {
+			voices[v] = { name: window.TTS.voices[v].name, value: v }
+		}
+		return voices;
+	}
+
+	function changeTTSEnabled(value) {
+		window.TTS.enabled = value;
+		setTTSEnabled(value);
+	}
+
+	function changeTTSPitch(value) {
+		window.TTS.pitch = value;
+		setTTSPitch(value);
+	}
+	
+	function changeTTSRate(value) {
+		window.TTS.rate = value;
+		setTTSRate(value);
+	}
+	
+	function changeTTSVolume(value) {
+		window.TTS.volume = value;
+		setTTSVolume(value);
+	}
+
+	function ttsStop() {
+		window.speechSynthesis.cancel();
+	}
+
 	function isMixedContent() {
 		const isHttps = window.location.protocol == 'https:';
 		let url;
@@ -6268,6 +6367,28 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			<div class="horz-separator"/>
 			<${CollapsibleGroup} label="Sessions">
 				<${Sessions} sessionStorage=${sessionStorage} disabled=${!!cancel}/>
+			</${CollapsibleGroup}>
+			<${CollapsibleGroup} label="Text-to-Speech">
+				<div className="hbox-flex" style=${{"flex-wrap": "unset"}}>
+					<${SelectBox}
+						id="voices"
+						label="Voice"
+						disabled=${!!cancel}
+						value=${window.TTS.voice_id}
+						onValueChange=${selectNewVoice}
+						options=${listTTSVoices}/>
+					<button title="Stop TTS" className="symbol-button" disabled=${cancel} onClick=${ttsStop}>
+						<${SVG_Cancel} style=${{ 'width':'.95em','transform':'translate(-50%, -45%)' }}/>
+					</button>
+				</div>
+				<${Checkbox} label="Enable Text-to-Speech"
+						disabled=${!!cancel} value=${window.TTS.enabled} onValueChange=${changeTTSEnabled}/>
+				<${InputSlider} label="Pitch" type="number" step="0.1" max="2"
+				readOnly=${!!cancel} value=${window.TTS.pitch} onValueChange=${changeTTSPitch}/>
+				<${InputSlider} label="Rate" type="number" step="0.1" max="2"
+				readOnly=${!!cancel} value=${window.TTS.rate} onValueChange=${changeTTSRate}/>
+				<${InputSlider} label="Volume" type="number" step="0.1" max="2"
+				readOnly=${!!cancel} value=${window.TTS.volume} onValueChange=${changeTTSVolume}/>
 			</${CollapsibleGroup}>
 			<${CollapsibleGroup} label="Parameters" expanded>
 				<${InputBox} label="Server"
