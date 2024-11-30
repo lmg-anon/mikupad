@@ -6410,12 +6410,6 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 						onValueChange=${(v) => enabledSamplers.indexOf('dry') === -1
 											  ? setEnabledSamplers((es) => [...es, 'dry'])
 											  : setEnabledSamplers((es) => es.filter((s) => s !== 'dry'))}/>
-					<${Checkbox} label="Banned Strings"
-						disabled=${!!cancel}
-						value=${enabledSamplers.includes('ban_tokens')}
-						onValueChange=${(v) => enabledSamplers.indexOf('ban_tokens') === -1
-											  ? setEnabledSamplers((es) => [...es, 'ban_tokens'])
-											  : setEnabledSamplers((es) => es.filter((s) => s !== 'ban_tokens'))}/>
 					<${Checkbox} label="Top K"
 						disabled=${!!cancel}
 						value=${enabledSamplers.includes('top_k')}
@@ -6446,6 +6440,12 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 						onValueChange=${(v) => enabledSamplers.indexOf('tfs_z') === -1
 											  ? setEnabledSamplers((es) => [...es, 'tfs_z'])
 											  : setEnabledSamplers((es) => es.filter((s) => s !== 'tfs_z'))}/>
+					<${Checkbox} label="Banned Strings"
+						disabled=${!!cancel}
+						value=${enabledSamplers.includes('ban_tokens')}
+						onValueChange=${(v) => enabledSamplers.indexOf('ban_tokens') === -1
+											  ? setEnabledSamplers((es) => [...es, 'ban_tokens'])
+											  : setEnabledSamplers((es) => es.filter((s) => s !== 'ban_tokens'))}/>
 				`}>
 				${endpointAPI == API_OPENAI_COMPAT && html`
 					<${Checkbox} label="Full OpenAI Compliance"
@@ -6527,13 +6527,6 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 									readOnly=${!!cancel}
 									value=${drySequenceBreakers}
 									onValueChange=${setDrySequenceBreakers}/>`}
-							${enabledSamplers.includes('ban_tokens') && html`
-								<${InputBox} label="Banned Strings (JSON array)" type="text" pattern="^\\[.*?\\]$"
-									className="${bannedTokensError ? 'rejected' : ''}"
-									tooltip="${bannedTokensError ? bannedTokensError : ''}"
-									readOnly=${!!cancel}
-									value=${bannedTokens}
-									onValueChange=${setBannedTokens}/>`}
 						`}
 						${(enabledSamplers.includes('top_k') || enabledSamplers.includes('top_p') || enabledSamplers.includes('min_p')) && html`
 							<div className="hbox">
@@ -6561,6 +6554,13 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 					`}
 				`}
 				${(!openaiPresets || endpointAPI != API_OPENAI_COMPAT) && html`
+					${enabledSamplers.includes('ban_tokens') && html`
+						<${InputBox} label="Banned Strings (JSON array)" type="text" pattern="^\\[.*?\\]$"
+							className="${bannedTokensError ? 'rejected' : ''}"
+							tooltip="${bannedTokensError ? bannedTokensError : ''}"
+							readOnly=${!!cancel}
+							value=${bannedTokens}
+							onValueChange=${setBannedTokens}/>`}
 					<button
 						disabled=${!!cancel}
 						onClick=${() => toggleModal("grammar")}>
