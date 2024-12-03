@@ -5443,7 +5443,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		const startPos = elem.selectionStart;
 		const endPos = elem.selectionEnd;
 		const textBefore = elem.value.substring(0, startPos) || "";
-		const textAfter = (sysInst !== "sys" && elem.selectionStart !== elem.value.length ? "{predict}" : "") + elem.value.substring(endPos);
+		const textAfter = (sysInst !== "sys" && elem.selectionEnd !== elem.value.length ? "{predict}" : "") + elem.value.substring(endPos);
 		const selectedText = elem.value.substring(startPos, endPos);
 
 		const finalText = textBefore 
