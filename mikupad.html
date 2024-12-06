@@ -722,13 +722,13 @@ html.nockoffAI .wi-entry-name input {
 	gap: 8px;
 }
 
-#instructmodal-name {
+#instructtemplatesmodal-name {
 	size:110%;
 }
-.instructmodal-edits .hbox {
+.instructtemplatesmodal-edits .hbox {
 	margin-top:8px;
 }
-.instructmodal-edits .vbox {
+.instructtemplatesmodal-edits .vbox {
 	margin-top:8px;
 }
 
@@ -1337,6 +1337,75 @@ html.monospace-dark .floating-menu {
 }
 html.nockoffAI .floating-menu {
 	background: var(--color-input);
+}
+
+.EditorContextMenu {
+	display: none;
+	position: absolute;
+	background: var(--color-base-40);
+	color: var(--color-light);
+	/* border: 1px solid #ccc; */
+	box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+	border-radius: 4px;
+	/* overflow: hidden; */
+	padding-top: 4px;
+	padding-bottom: 4px;
+	width: 210px;
+	z-index: 1000;
+}
+html.nockoffAI .EditorContextMenu,
+html.monospace-dark .EditorContextMenu {
+	background: var(--color-base-20);
+}
+
+.EditorContextMenu ul {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.MenuItem {
+	padding: 10px 15px;
+	cursor: pointer;
+	transition: background-color 0.2s ease-in-out;
+	font-size: 14px;
+	border-radius: 0px;
+}
+.MenuItem:not(.disabled):hover {
+	background: var(--color-base-50) !important;
+}
+html.nockoffAI .MenuItem:not(.disabled):hover,
+html.monospace-dark .MenuItem:not(.disabled):hover {
+	background: var(--color-base-40) !important;
+}
+
+.MenuItem.disabled {
+	cursor: default;
+	background: var(--color-base-20);
+	color: var(--color-base-50);
+}
+html.nockoffAI .MenuItem.disabled,
+html.monospace-dark .MenuItem.disabled {
+	background: var(--color-base-10);
+color: var(--color-base-50);
+}
+
+.MenuItem.hasSubItems {
+	position: relative;
+}
+.MenuItem.hasSubItems .arrow {
+	position: absolute;
+	right: 15px;
+	top: 45%;
+	transform: translateY(-45%);
+	font-size: 24px;
+	transition: transform 0.2s ease-in-out;
+}
+
+.EditorContextMenu.nested {
+	box-shadow: none;
+	top: -4px;
+	left: 210px;
 }
 
 </style>
@@ -2454,6 +2523,125 @@ function Sessions({ sessionStorage, disabled }) {
 		</div>`;
 }
 
+function EditorContextMenu({ isOpen, closeMenu, menuItems, className, ...props }) {
+	const menuRef = useRef(null);
+	const [subMenuOpen, setSubMenuOpen] = useState(null);
+
+	if (className == 'nested') {
+		useEffect(() => {
+			if (menuRef.current) {
+				const rect = menuRef.current.getBoundingClientRect();
+				let newTop = rect.top;
+				let newLeft = rect.left;
+
+				// Check for overflow on the bottom
+				if (rect.bottom > window.innerHeight) {
+					newTop = window.innerHeight - rect.height; // Move menu up
+				}
+
+				// Check for overflow on the right
+				if (rect.right > window.innerWidth) {
+					newLeft = window.innerWidth - rect.width; // Move menu to the left
+				}
+
+				newTop = -4 + newTop - rect.top;
+				newLeft = 210 + newLeft - rect.left;
+
+				// Apply corrected positions
+				menuRef.current.style.top = `${newTop}px`;
+				menuRef.current.style.left = `${newLeft}px`;
+			}
+		}, [isOpen]);
+	} else {
+		let prevCloseMenu = closeMenu;
+		closeMenu = () => { setSubMenuOpen(null); prevCloseMenu(); };
+
+		// Close the menu when clicking outside of it
+		useEffect(() => {
+			const handleClickOutside = (e) => {
+				if (!isOpen)
+					return;
+				if (menuRef.current && !menuRef.current.contains(e.target)) {
+					closeMenu();
+				}
+			}
+			document.addEventListener('mousedown', handleClickOutside);
+			return () => document.removeEventListener('mousedown', handleClickOutside);
+		}, [isOpen]);
+
+		useEffect(() => {
+			if (!props.y)
+				return;
+			if (menuRef.current) {
+				const rect = menuRef.current.getBoundingClientRect();
+				let newTop = props.y;
+				let newLeft = props.x;
+
+				// Check for overflow on the bottom
+				if (rect.bottom > window.innerHeight) {
+					newTop = Math.max(newTop - rect.height, 0); // Move menu up
+				}
+
+				// Check for overflow on the right
+				if (rect.right > window.innerWidth) {
+					newLeft = Math.max(newLeft - rect.width, 0); // Move menu to the left
+				}
+
+				// Apply corrected positions
+				menuRef.current.style.top = `${newTop}px`;
+				props.y = newTop;
+				menuRef.current.style.left = `${newLeft}px`;
+				props.x = newLeft;
+			}
+		}, [props.x, props.y]);
+	}
+
+	return html`
+		<div
+			ref=${menuRef}
+			className="EditorContextMenu ${className || ''}"
+			style=${{
+				...(isOpen ? { display: 'block' } : {}),
+                ...(props.y ? { top: props.y + 'px' } : {}),
+                ...(props.x ? { left: props.x + 'px' } : {})
+			}}>
+			<ul>
+				${menuItems.map(
+					(item) => html`
+						<li
+							className="MenuItem ${item.disabled ? 'disabled' : ''} ${item.subItems ? 'hasSubItems' : ''}"
+							onClick=${(event) => {
+								if (item.action && !item.disabled && !item.subItems) {
+									item.action();
+									closeMenu();
+									event.stopPropagation();
+								}
+							}}
+							onMouseEnter=${(event) => {
+								setSubMenuOpen(null);
+								if (item.subItems && !item.disabled) {
+									setSubMenuOpen(item.label);
+								}
+							}}>
+							${item.label}
+							${item.subItems
+								? html`
+									<span className="arrow">→</span>
+									${EditorContextMenu({
+										isOpen: item.label === subMenuOpen,
+										menuItems: item.subItems,
+										closeMenu: closeMenu,
+										className: 'nested',
+									})}`
+								: ''}
+						</li>
+					`
+				)}
+			</ul>
+		</div>
+	`;
+}
+
 const SVG = ({ 
 	stroke="currentColor",
 	fill="currentColor",
@@ -3420,7 +3608,7 @@ function LogitBiasModal({ isOpen, closeModal, logitBias, setLogitBias, logitBias
 			</${Modal}>`;
 }
 
-function InstructModal({ isOpen, closeModal, templateStorage, selectedTemplate, setSelectedTemplate, templateList, setTemplateList, templates, templatesImport, setTemplates, cancel }) {
+function InstructTemplatesModal({ isOpen, closeModal, templateStorage, selectedTemplate, setSelectedTemplate, templateList, setTemplateList, templates, templatesImport, setTemplates, cancel }) {
 	const [addDeleteTemplate, setAddDeleteTemplate] = useState(false);
 	const [templateDuplicate, setTemplateDuplicate] = useState(false);
 	const [newTemplateName, setNewTemplateName] = useState(undefined);
@@ -3673,7 +3861,7 @@ function InstructModal({ isOpen, closeModal, templateStorage, selectedTemplate, 
 			</div>
 			<div className="buttons instructTemplateSidebar">
 				<${SelectBoxTemplate}
-					id="instructModalSelect"
+					id="instructTemplatesModalSelect"
 					label="Instruct Template"
 					disabled=${!!cancel}
 					value=${newTemplateName ?? selectedTemplate}
@@ -3702,10 +3890,10 @@ function InstructModal({ isOpen, closeModal, templateStorage, selectedTemplate, 
 				</button>
 			</div>
 			<hr/>
-			<div class="instructmodal-edits">
+			<div class="instructtemplatesmodal-edits">
 				<${InputBox} label="Name"
 						placeholder="Name of This Template"
-						id="instructmodal-name"
+						id="instructtemplatesmodal-name"
 						className=""
 						tooltip=""
 						readOnly=${!!cancel}
@@ -3830,6 +4018,158 @@ eol       ::= "\\n"`;
 				onInput=${(e) => setGrammar(e.target.value)}
 				class="expanded-text-area-settings"/>
 		</${Modal}>`;
+}
+
+function InstructModal({ isOpen, closeModal, predict, cancel, modalState, templates, selectedTemplate, lastError, ...props }) {
+	const [prompt, setPrompt] = useState("");
+	const [includeContext, setIncludeContext] = useState(true);
+	const [result, setResult] = useState("");
+
+	const finish = (replace) => {
+		modalState.result = {
+			content: result,
+			replace: replace
+		};
+		closeModal();
+	};
+
+	if (cancel) {
+		const prevCloseModel = closeModal;
+		closeModal = () => {
+			cancel();
+			prevCloseModel();
+		};
+	}
+
+	function replacePlaceholders(string,placeholders) {
+		// give placeholders as json object
+		// { "placeholder":"replacement" }
+		return string.replace(/\{[^}]+\}/g, function (placeholder) {
+			return placeholders.hasOwnProperty(placeholder)
+				? placeholders[placeholder]
+				: placeholder;
+		}).replace(/\\n/g, '\n')
+	};
+    const handlePredictInModal = () => {
+		setResult("");
+
+		let [prefix,suffix] = [templates[selectedTemplate]?.instPre || "", templates[selectedTemplate]?.instSuf || ""];
+		if (!(prefix || suffix))
+			return;
+
+		prefix = prefix.replace(/\\n/g,'\n');
+		suffix = suffix.replace(/\\n/g,'\n');
+
+		let instructPrompt =
+			prefix +
+			prompt +
+			suffix;
+
+		instructPrompt = replacePlaceholders(instructPrompt, {
+			'{selectedText}': modalState.selectedText.trim(),
+		});
+
+		if (includeContext) {
+			instructPrompt = 
+				modalState.instructContext + 
+				prefix +
+				"Wait a moment, I want to ask you something." +
+				suffix +
+				"Understood." +
+				instructPrompt;
+		}
+
+		predict(instructPrompt, 1, (chunk) => {
+			setResult((r) => r + chunk.content);
+			return true;
+		});
+    };
+
+	
+	useEffect(() => {
+		function onKeyDown(e) {
+			const { altKey, ctrlKey, shiftKey, key, defaultPrevented } = e;
+			if (defaultPrevented || !isOpen)
+				return;
+			switch (`${altKey}:${ctrlKey}:${shiftKey}:${key}`) {
+				case 'false:false:true:Enter':
+				case 'false:true:false:Enter':
+					handlePredictInModal();
+					break;
+				case 'false:false:false:Escape':
+					cancel();
+					break;
+				default:
+					return;
+			}
+			e.preventDefault();
+		}
+
+		window.addEventListener('keydown', onKeyDown);
+		return () => {
+			window.removeEventListener('keydown', onKeyDown);
+		};
+	}, [predict, cancel]);
+
+    return html`
+        <${Modal} isOpen=${isOpen} onClose=${closeModal}
+            title="Instruct"
+            description="Instruct the language model without directly modifying the existing prompt text.\nYou can incorporate any selected text by using the placeholder '{selectedText}' in your prompt.">
+            ${isOpen && html`
+                <div className="vbox instruct-modal-container">
+                    <textarea
+                        label="Prompt"
+						autoFocus
+						style=${{height: "200px"}}
+                        value=${prompt}
+                        onChange=${(e) => setPrompt(e.target.value)}
+                        placeholder="Enter your prompt here..."
+						className="wi-textarea"
+						readOnly=${!!cancel}/>
+
+					<${Checkbox} label="Include Context"
+						value=${includeContext}
+						onValueChange=${(v) => setIncludeContext(v)}/>
+
+                    <div className="vbox">
+						${!cancel && html`
+							<button
+								onClick=${handlePredictInModal}>
+								Predict
+							</button>`}
+						${cancel && html`
+							<button
+								onClick=${() => cancel()}
+								className=${cancel && !props.sessionEndpointConnecting ? (props.predictStartTokens === props.tokens ? 'processing' : 'completing') : ''}>
+								Cancel
+							</button>`}
+						${!!lastError && html`
+							<span className="error-text">${lastError}</span>`}
+                    </div>
+
+					<textarea
+						label="Result"
+						style=${{height: "200px"}}
+						value=${result}
+						onChange=${(e) => setResult(e.target.value)}
+						readOnly=${!!cancel}
+						className="wi-textarea"/>
+
+					<button
+						onClick=${() => finish(false)}
+						disabled=${!!cancel}>
+						Insert At Cursor
+					</button>
+
+					<button
+						onClick=${() => finish(true)}
+						disabled=${!modalState.selectedText || !!cancel}>
+						Replace Selected
+					</button>
+                </div>
+            `}
+        </${Modal}>
+    `;
 }
 
 function Widget({ isOpen, onClose, title, id, children, ...props }) {
@@ -4994,7 +5334,8 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	const [sillyTarvernWorldInfoJSON, setSillyTarvernWorldInfoJSON] = useState(null);
 	const [enabledSamplers, setEnabledSamplers] = useSessionState('enabledSamplers', defaultPresets.enabledSamplers);
 	const [grammar, setGrammar] = useSessionState('grammar', '');
-
+	const [contextMenuState, setContextMenuState] = useState({ visible: false, x: 0, y: 0 });
+	const [instructModalState, setInstructModalState] = useState({});
 
 	function replacePlaceholders(string,placeholders) {
 		// give placeholders as json object
@@ -5147,11 +5488,14 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		// request for a similar implementation of instruct templates:
 		// https://github.com/lmg-anon/mikupad/pull/31
 
-		const [prefix,suffix] = sysInst == "sys"
-		? [templates[selectedTemplate]?.sysPre  || "", templates[selectedTemplate]?.sysSuf  || ""]
-		: [templates[selectedTemplate]?.instPre || "", templates[selectedTemplate]?.instSuf || ""];
+		let [prefix,suffix] = sysInst == "sys"
+			? [templates[selectedTemplate]?.sysPre  || "", templates[selectedTemplate]?.sysSuf  || ""]
+			: [templates[selectedTemplate]?.instPre || "", templates[selectedTemplate]?.instSuf || ""];
 		if (!(prefix || suffix))
 			return;
+
+		prefix = prefix.replace(/\\n/g,'\n');
+		suffix = suffix.replace(/\\n/g,'\n');
 
 		const elem = promptArea.current;
 		if (!elem)
@@ -5160,15 +5504,17 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		const startPos = elem.selectionStart;
 		const endPos = elem.selectionEnd;
 		const textBefore = elem.value.substring(0, startPos) || "";
-		const textAfter = elem.value.substring(endPos);
+		const textAfter = (sysInst !== "sys" && elem.selectionEnd !== elem.value.length ? "{predict}" : "") + elem.value.substring(endPos);
 		const selectedText = elem.value.substring(startPos, endPos);
 
 		const finalText = textBefore 
-						+ prefix.replace(/\\n/g,'\n')
+						+ prefix
 						+ selectedText 
-						+ suffix.replace(/\\n/g,'\n')
+						+ suffix
 						+ textAfter;
 
+		const scrollTop = elem.scrollTop;
+		
 		elem.value = finalText;
 
 		let newCursorPos;
@@ -5180,11 +5526,15 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 				+ selectedText.length 
 				+ suffix.length;
 		}
-		elem.setSelectionRange(0, 2);
+		elem.focus();
+		elem.setSelectionRange(newCursorPos, newCursorPos);
 		onInput({ target: elem });
+
+		elem.scrollTop = scrollTop;
 	}
 
 	const toggleModal = (modalKey) => {
+		setShowProbs(false);
 		setModalState((prevState) => ({
 			...prevState,
 			[modalKey]: !prevState[modalKey],
@@ -5864,6 +6214,8 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			const { altKey, ctrlKey, shiftKey, key, defaultPrevented } = e;
 			if (defaultPrevented)
 				return;
+			if (Object.values(modalState).some((s) => s))
+				return;
 			switch (`${altKey}:${ctrlKey}:${shiftKey}:${key}`) {
 				case 'false:false:true:Enter':
 				case 'false:true:false:Enter':
@@ -6089,6 +6441,19 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		}
 	}
 
+	function onContextMenu(event) {
+		if (event.ctrlKey) {
+			event.preventDefault();
+			if (cancel)
+				return;
+			setContextMenuState({
+				visible: true,
+				x: event.pageX,
+				y: event.pageY,
+			});
+		}
+	}
+
 	function onPromptMouseMove({ clientX, clientY }) {
 		if (showProbsMode === -1 && tokenHighlightMode === -1)
 			return;
@@ -6270,6 +6635,43 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		return () => observer.disconnect();
 	}, []);
 
+	// handle instruct modal result
+	useEffect(() => {
+		const result = instructModalState.result;
+		if (!result)
+			return;
+		
+		const elem = promptArea.current;
+		if (!elem)
+			return;
+
+		const startPos = instructModalState.selectionStart;
+		const endPos = instructModalState.selectionEnd;
+		const textBefore = elem.value.substring(0, startPos) || "";
+		const textAfter = elem.value.substring(endPos);
+		const selectedText = elem.value.substring(startPos, endPos);
+
+		const finalText = textBefore 
+					+ (result.replace ? (result.content) : (result.content + selectedText))
+					+ textAfter;
+
+		const scrollTop = elem.scrollTop;
+
+		elem.value = finalText;
+
+		let newCursorPos;
+		if (result.replace) {
+			newCursorPos = startPos + result.content.length;
+		} else {
+			newCursorPos = startPos + result.content.length + selectedText.length;
+		}
+		elem.focus();
+		elem.setSelectionRange(newCursorPos, newCursorPos);
+		onInput({ target: elem });
+
+		elem.scrollTop = scrollTop;
+	}, [instructModalState.result]);
+
 	return html`
 		<div id="prompt-container" onMouseMove=${onPromptMouseMove} style=${{ 'margin-bottom': isMobile ? sidebarHeight + 'px' : 0 }}>
 			<button
@@ -6291,7 +6693,8 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 				spellCheck=${spellCheck}
 				id="prompt-area"
 				onInput=${onInput}
-				onScroll=${onScroll}/>
+				onScroll=${onScroll}
+				onContextMenu=${onContextMenu}/>
 			<div ref=${promptOverlay} id="prompt-overlay" aria-hidden>
 				${tokenHighlightMode !== -1 ? html`
 					${promptChunks.map((chunk, i) => {
@@ -6441,7 +6844,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 						title="Edit Instruct Templates"
 						disabled=${!!cancel}
 						class="symbol-button"
-						onClick=${() => toggleModal("instruct")}>
+						onClick=${() => toggleModal("instructTemplates")}>
 						<${SVG_Settings} style=${{ 'width':'.95em','transform':'translate(-50%, -45%)' }}/>
 					</button>
 					<button
@@ -6531,12 +6934,6 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 						onValueChange=${(v) => enabledSamplers.indexOf('dry') === -1
 											  ? setEnabledSamplers((es) => [...es, 'dry'])
 											  : setEnabledSamplers((es) => es.filter((s) => s !== 'dry'))}/>
-					<${Checkbox} label="Banned Strings"
-						disabled=${!!cancel}
-						value=${enabledSamplers.includes('ban_tokens')}
-						onValueChange=${(v) => enabledSamplers.indexOf('ban_tokens') === -1
-											  ? setEnabledSamplers((es) => [...es, 'ban_tokens'])
-											  : setEnabledSamplers((es) => es.filter((s) => s !== 'ban_tokens'))}/>
 					<${Checkbox} label="Top K"
 						disabled=${!!cancel}
 						value=${enabledSamplers.includes('top_k')}
@@ -6567,6 +6964,12 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 						onValueChange=${(v) => enabledSamplers.indexOf('tfs_z') === -1
 											  ? setEnabledSamplers((es) => [...es, 'tfs_z'])
 											  : setEnabledSamplers((es) => es.filter((s) => s !== 'tfs_z'))}/>
+					<${Checkbox} label="Banned Strings"
+						disabled=${!!cancel}
+						value=${enabledSamplers.includes('ban_tokens')}
+						onValueChange=${(v) => enabledSamplers.indexOf('ban_tokens') === -1
+											  ? setEnabledSamplers((es) => [...es, 'ban_tokens'])
+											  : setEnabledSamplers((es) => es.filter((s) => s !== 'ban_tokens'))}/>
 				`}>
 				${endpointAPI == API_OPENAI_COMPAT && html`
 					<${Checkbox} label="Full OpenAI Compliance"
@@ -6648,13 +7051,6 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 									readOnly=${!!cancel}
 									value=${drySequenceBreakers}
 									onValueChange=${setDrySequenceBreakers}/>`}
-							${enabledSamplers.includes('ban_tokens') && html`
-								<${InputBox} label="Banned Strings (JSON array)" type="text" pattern="^\\[.*?\\]$"
-									className="${bannedTokensError ? 'rejected' : ''}"
-									tooltip="${bannedTokensError ? bannedTokensError : ''}"
-									readOnly=${!!cancel}
-									value=${bannedTokens}
-									onValueChange=${setBannedTokens}/>`}
 						`}
 						${(enabledSamplers.includes('top_k') || enabledSamplers.includes('top_p') || enabledSamplers.includes('min_p')) && html`
 							<div className="hbox">
@@ -6682,6 +7078,13 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 					`}
 				`}
 				${(!openaiPresets || endpointAPI != API_OPENAI_COMPAT) && html`
+					${enabledSamplers.includes('ban_tokens') && html`
+						<${InputBox} label="Banned Strings (JSON array)" type="text" pattern="^\\[.*?\\]$"
+							className="${bannedTokensError ? 'rejected' : ''}"
+							tooltip="${bannedTokensError ? bannedTokensError : ''}"
+							readOnly=${!!cancel}
+							value=${bannedTokens}
+							onValueChange=${setBannedTokens}/>`}
 					<button
 						disabled=${!!cancel}
 						onClick=${() => toggleModal("grammar")}>
@@ -6905,9 +7308,9 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			cancel=${cancel}/>
 
 		<!-- Sorry. -->
-		<${InstructModal}
-			isOpen=${modalState.instruct}
-			closeModal=${() => closeModal("instruct")}
+		<${InstructTemplatesModal}
+			isOpen=${modalState.instructTemplates}
+			closeModal=${() => closeModal("instructTemplates")}
 			templateList=${templateList}
 			setTemplateList=${setTemplateList}
 			selectedTemplate=${selectedTemplate}
@@ -6925,6 +7328,109 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			setGrammar=${setGrammar}
 			endpointAPI=${endpointAPI}
 			cancel=${cancel}/>
+
+		<${InstructModal}
+			isOpen=${modalState.instruct}
+			closeModal=${() => {
+				closeModal("instruct");
+				promptArea.current.focus();
+				promptArea.current.setSelectionRange(instructModalState.selectionStart, instructModalState.selectionEnd);
+			}}
+			predict=${predict}
+			cancel=${cancel}
+			modalState=${instructModalState}
+			templates=${templates}
+			selectedTemplate=${selectedTemplate}
+			lastError=${lastError}
+			sessionEndpointConnecting=${sessionEndpointConnecting}
+			predictStartTokens=${predictStartTokens}
+			tokens=${tokens}
+			stoppingStringsError=${stoppingStringsError}
+			drySequenceBreakersError=${drySequenceBreakersError}
+			bannedTokensError=${bannedTokensError}/>
+
+		<${EditorContextMenu}
+			isOpen=${contextMenuState.visible}
+			closeMenu=${() => setContextMenuState({ visible: false, x: 0, y: 0 })}
+			x=${contextMenuState.x}
+			y=${contextMenuState.y}
+			menuItems=${[
+				{
+					label: 'Instruct Here...',
+					action: () => {
+						const elem = promptArea.current;
+						if (!elem)
+							return;
+
+						const startPos = elem.selectionStart;
+						const endPos = elem.selectionEnd;
+
+						setInstructModalState({
+							selectionStart: startPos,
+							selectionEnd: endPos,
+							instructContext: elem.value.substring(0, startPos) || "",
+							selectedText: elem.value.substring(startPos, endPos),
+						});
+						toggleModal("instruct");
+					},
+					disabled: false
+				},
+				{
+					label: 'Predict Here',
+					action: () => {
+						const elem = promptArea.current;
+						if (!elem)
+							return;
+
+						if (elem.selectionStart === elem.value.length) {
+							predict();
+							return;
+						}
+
+						const startPos = elem.selectionStart;
+						const textBefore = elem.value.substring(0, startPos) || "";
+						const textAfter = elem.value.substring(startPos);
+
+						const finalText = textBefore 
+										+ '{predict}'
+										+ textAfter;
+
+						elem.value = finalText;
+						onInput({ target: elem });
+						setTriggerPredict(true);
+					},
+					disabled: false
+				},
+				{
+					label: 'Fill-In-The-Middle Here',
+					action: () => {
+						const elem = promptArea.current;
+						if (!elem)
+							return;
+
+						const startPos = elem.selectionStart;
+						const textBefore = elem.value.substring(0, startPos) || "";
+						const textAfter = elem.value.substring(startPos);
+
+						const finalText = textBefore 
+										+ '{fill}'
+										+ textAfter;
+
+						elem.value = finalText;
+						onInput({ target: elem });
+						setTriggerPredict(true);
+					},
+					disabled: templates[selectedTemplate]?.fimTemplate === undefined || templates[selectedTemplate]?.fimTemplate.length === 0
+				},
+				{
+					label: 'Insert...',
+					subItems: [
+						{ 'label': 'System Template', action: () => insertTemplate("sys"), disabled: false },
+						{ 'label': 'Instruct Template', action: () => insertTemplate("inst"), disabled: false },
+					],
+					disabled: false
+				},
+			]}/>
 
 		${sessionEndpointError && html`
 			<div className="modal-overlay">
