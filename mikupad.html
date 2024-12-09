@@ -4993,7 +4993,7 @@ class SessionStorage extends AbstractStorage {
 
 		//Clear data of the session in order to minimize memory usage.
 		if (this.sessions[newId] && this.sessions[newId]['name'])
-			this.sessions[this.selectedSession] = { name: this.sessions[this.selectedSession]['name'] };
+			this.sessions[newId] = { name: this.sessions[newId]['name'] };
 
 		onchange?.();
 		return newId;
