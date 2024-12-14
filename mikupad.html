@@ -6771,28 +6771,6 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			<${CollapsibleGroup} label="Sessions">
 				<${Sessions} sessionStorage=${sessionStorage} disabled=${!!cancel}/>
 			</${CollapsibleGroup}>
-			<${CollapsibleGroup} label="Text-to-Speech">
-				<div className="hbox-flex" style=${{"flex-wrap": "unset"}}>
-					<${SelectBox}
-						id="voices"
-						label="Voice"
-						disabled=${!!cancel}
-						value=${window.TTS.voice_id}
-						onValueChange=${selectNewVoice}
-						options=${listTTSVoices}/>
-					<button title="Stop TTS" className="symbol-button" disabled=${cancel} onClick=${ttsStop}>
-						<${SVG_Cancel} style=${{ 'width':'.95em','transform':'translate(-50%, -45%)' }}/>
-					</button>
-				</div>
-				<${Checkbox} label="Enable Text-to-Speech"
-						disabled=${!!cancel} value=${window.TTS.enabled} onValueChange=${changeTTSEnabled}/>
-				<${InputSlider} label="Pitch" type="number" step="0.1" max="2"
-				readOnly=${!!cancel} value=${window.TTS.pitch} onValueChange=${changeTTSPitch}/>
-				<${InputSlider} label="Rate" type="number" step="0.1" max="2"
-				readOnly=${!!cancel} value=${window.TTS.rate} onValueChange=${changeTTSRate}/>
-				<${InputSlider} label="Volume" type="number" step="0.1" max="2"
-				readOnly=${!!cancel} value=${window.TTS.volume} onValueChange=${changeTTSVolume}/>
-			</${CollapsibleGroup}>
 			<${CollapsibleGroup} label="Parameters" expanded>
 				<${InputBox} label="Server"
 					className="${isMixedContent() ? 'mixed-content' : ''}"
@@ -7251,6 +7229,26 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 					Export prompt to plaintext
 				</button>
 			</div>
+			<${Checkbox} label="Enable Text-to-Speech"
+						disabled=${!!cancel} value=${window.TTS.enabled} onValueChange=${changeTTSEnabled}/>
+			<div className="hbox-flex" style=${{ "flex-wrap": "unset" }}>
+					<${SelectBox}
+						id="voices"
+						label="Voice"
+						disabled=${!!cancel}
+						value=${window.TTS.voice_id}
+						onValueChange=${selectNewVoice}
+						options=${listTTSVoices}/>
+					<button title="Stop TTS" className="symbol-button" disabled=${cancel} onClick=${ttsStop}>
+						<${SVG_Cancel} style=${{ 'width': '.95em', 'transform': 'translate(-50%, -45%)' }}/>
+					</button>
+				</div>
+			<${InputSlider} label="TTS Pitch" type="number" step="0.1" max="2"
+				readOnly=${!!cancel} value=${window.TTS.pitch} onValueChange=${changeTTSPitch}/>
+				<${InputSlider} label="TTS Rate" type="number" step="0.1" max="2"
+				readOnly=${!!cancel} value=${window.TTS.rate} onValueChange=${changeTTSRate}/>
+				<${InputSlider} label="TTS Volume" type="number" step="0.1" max="2"
+				readOnly=${!!cancel} value=${window.TTS.volume} onValueChange=${changeTTSVolume}/>
 		</${EditorPreferencesModal}>
 
 		<${MemoryModal}
