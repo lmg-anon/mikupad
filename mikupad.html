@@ -1419,6 +1419,7 @@ import { SVResizeObserver } from 'scrollview-resize';
 const API_LLAMA_CPP = 0;
 const API_KOBOLD_CPP = 2;
 const API_OPENAI_COMPAT = 3;
+const API_AI_HORDE = 4;
 
 // Polyfill for piece of shit Chromium
 if (!(Symbol.asyncIterator in ReadableStream.prototype)) {
@@ -1459,6 +1460,8 @@ function normalizeEndpoint(endpoint, endpointAPI) {
 		urlString = urlString.replace(/\/v1\/?$/, ""); // remove "/v1" from the end of the string
 	if (endpointAPI == API_KOBOLD_CPP)
 		urlString = urlString.replace(/\/api\/?$/, ""); // remove "/api" from the end of the string
+	if (endpointAPI == API_AI_HORDE)
+		urlString = "https://aihorde.net/api";
 	urlString = urlString.replace(/\/$/, ""); // remove "/" from the end of the string
 
 	return urlString;
@@ -1489,6 +1492,8 @@ export async function getTokenCount({ endpoint, endpointAPI, endpointAPIKey, sig
 			if (tokenCount != -1)
 				return tokenCount;
 			return 0;
+		default:
+			return 0;
 	}
 }
 
@@ -1518,6 +1523,8 @@ export async function getTokens({ endpoint, endpointAPI, endpointAPIKey, signal,
 			if (tokens !== null)
 				return tokens;
 			return [];
+		default:
+			return [];
 	}
 }
 
@@ -1526,6 +1533,8 @@ export async function getModels({ endpoint, endpointAPI, endpointAPIKey, signal,
 	switch (endpointAPI) {
 		case API_OPENAI_COMPAT:
 			return await openaiModels({ endpoint, endpointAPIKey, signal, ...options });
+		case API_AI_HORDE:
+			return await aiHordeModels({ endpoint, endpointAPIKey, signal, ...options });
 		default:
 			return [];
 	}
@@ -1540,6 +1549,8 @@ export async function* completion({ endpoint, endpointAPI, endpointAPIKey, signa
 			return yield* await koboldCppCompletion({ endpoint, signal, ...options });
 		case API_OPENAI_COMPAT:
 			return yield* await openaiCompletion({ endpoint, endpointAPIKey, signal, ...options });
+		case API_AI_HORDE:
+			return yield* await aiHordeCompletion({ endpoint, endpointAPIKey, signal, ...options });
 	}
 }
 
@@ -1550,6 +1561,8 @@ export async function abortCompletion({ endpoint, endpointAPI, ...options }) {
 			return await koboldCppAbortCompletion({ endpoint, ...options });
 		case API_OPENAI_COMPAT:
 			return await openaiOobaAbortCompletion({ endpoint, ...options });
+		case API_AI_HORDE:
+			return await aiHordeAbortCompletion({ endpoint, ...options });
 	}
 }
 
@@ -1737,7 +1750,8 @@ async function koboldCppTokenize({ endpoint, proxyEndpoint, signal, ...options }
 
 }
 
-function koboldCppConvertOptions(options) {
+function koboldCppConvertOptions(options, endpoint) {
+	const isHorde = endpoint.toLowerCase().includes("aihorde.net");
 	const swapOption = (lhs, rhs) => {
 		if (lhs in options) {
 			options[rhs] = options[lhs];
@@ -1745,7 +1759,10 @@ function koboldCppConvertOptions(options) {
 		}
 	};
 	if (options.n_predict === -1) {
-		options.n_predict = 1024;
+		options.n_predict = isHorde ? 512 : 1024;
+	}
+	if (options.n_predict < 16 && isHorde) {
+		options.n_predict = 16;
 	}
 	swapOption("n_ctx", "max_context_length");
 	swapOption("n_predict", "max_length");
@@ -1767,7 +1784,7 @@ async function* koboldCppCompletion({ endpoint, proxyEndpoint, signal, ...option
 			...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
 		},
 		body: JSON.stringify({
-			...koboldCppConvertOptions(options),
+			...koboldCppConvertOptions(options, endpoint),
 			stream: true,
 		}),
 		signal,
@@ -2090,6 +2107,88 @@ async function openaiOobaAbortCompletion({ endpoint, proxyEndpoint, ...options }
 		});
 	} catch (e) {
 		// do nothing
+	}
+}
+
+async function aiHordeModels({ endpoint, endpointAPIKey, proxyEndpoint, signal, ...options }) {
+    const res = await fetch(`${proxyEndpoint ?? endpoint}/v2/status/models?type=text`, {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+            ...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
+        },
+        signal,
+    });
+
+    if (!res.ok)
+        throw new Error(`HTTP ${res.status}`);
+
+    const response = await res.json();
+    
+    return response
+        .filter(model => model.type === "text")
+        .map(model => model.name);
+}
+
+async function* aiHordeCompletion({ endpoint, endpointAPIKey, proxyEndpoint, signal, ...options }) {
+	const { model, prompt, ...params } = options;
+	const submitRes = await fetch(`${proxyEndpoint ?? endpoint}/v2/generate/text/async`, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+			'Apikey': endpointAPIKey?.trim() ? endpointAPIKey : '0000000000',
+			...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
+		},
+		body: JSON.stringify({
+			...(model ? { models: [ model ] } : {}),
+			params: { ...koboldCppConvertOptions(params, endpoint) },
+			prompt: prompt
+		}),
+		signal,
+	});
+	if (!submitRes.ok)
+		throw new Error(`HTTP ${submitRes.status}`);
+	const { id: taskId } = await submitRes.json();
+	
+	yield { status: 'queued', taskId: taskId };
+	
+	// Poll for results
+    while (true) {
+        const checkRes = await fetch(`${proxyEndpoint ?? endpoint}/v2/generate/text/status/${taskId}`, {
+            headers: {
+                ...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
+            },
+            signal,
+        });
+
+        if (!checkRes.ok)
+			throw new Error(`HTTP ${checkRes.status}`);
+        const status = await checkRes.json();
+
+		yield { status: 'queue', position: status.queue_position };
+
+        if (status.done) {
+            if (status.generations && status.generations.length > 0) {
+                yield { status: 'done', content: status.generations[0].text };
+            }
+            break;
+        }
+
+        // Wait before polling again
+        await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+}
+
+async function aiHordeAbortCompletion({ endpoint, proxyEndpoint, hordeTaskId, ...options }) {
+	try {
+		await fetch(`${proxyEndpoint ?? endpoint}/v2/generate/text/status/${hordeTaskId}`, {
+			method: 'DELETE',
+			headers: {
+				...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
+			},
+		});
+	} catch (e) {
+		reportError(e);
 	}
 }
 
@@ -3411,6 +3510,7 @@ function LogitBiasModal({ isOpen, closeModal, logitBias, setLogitBias, logitBias
 				llamaCppSetLogitBiasParams();
 				break;
 			case API_KOBOLD_CPP:
+			case API_AI_HORDE:
 				koboldCppSetLogitBiasParams();
 				break;
 			case API_OPENAI_COMPAT:
@@ -5194,6 +5294,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	const keyState = useRef({});
 	const sessionReconnectTimer = useRef();
 	const useScrollSmoothing = useRef(true);
+	const hordeTaskId = useRef();
 	const [templates, setTemplates] = useDBTemplates(defaultPresets.instructTemplates);
 	const [templateReplacements, setTemplateReplacements] = useState(false);
 	const [templatesImport, setTemplatesImport] = useState(false);
@@ -5275,6 +5376,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	const [grammar, setGrammar] = useSessionState('grammar', '');
 	const [contextMenuState, setContextMenuState] = useState({ visible: false, x: 0, y: 0 });
 	const [instructModalState, setInstructModalState] = useState({});
+	const [hordeQueuePos, setHordeQueuePos] = useState(undefined);
 
 	function replacePlaceholders(string,placeholders) {
 		// give placeholders as json object
@@ -5717,6 +5819,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			abortCompletion({
 				endpoint,
 				endpointAPI,
+				...(endpointAPI == API_AI_HORDE ? { hordeTaskId: hordeTaskId.current } : {}),
 				...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {})
 			});
 			ac.abort();
@@ -5774,7 +5877,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			for await (const chunk of completion({
 				endpoint,
 				endpointAPI,
-				...(endpointAPI == API_OPENAI_COMPAT || endpointAPI == API_LLAMA_CPP ? {
+				...(endpointAPI == API_OPENAI_COMPAT || endpointAPI == API_LLAMA_CPP || endpointAPI == API_AI_HORDE ? {
 					endpointAPIKey,
 					model: endpointModel
 				} : {}),
@@ -5851,8 +5954,19 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 				ac.signal.throwIfAborted();
 				if (chunk.stopping_word)
 					chunk.content = chunk.stopping_word;
-				if (!chunk.content)
+				if (endpointAPI === API_AI_HORDE) {
+					switch (chunk.status) {
+					case 'queued':
+						hordeTaskId.current = chunk.taskId;
+						continue;
+					case 'queue':
+						setHordeQueuePos(chunk.position);
+						continue;
+					}
+				}
+				if (!chunk.content) {
 					continue;
+				}
 				if (startTime === 0) {
 					startTime = performance.now();
 				} else {
@@ -5892,6 +6006,8 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 					undoStack.current.pop();
 			}
 			setTokensPerSec(0.0);
+			hordeTaskId.current = undefined;
+			setHordeQueuePos(undefined);
 		}
 
 		// Chat Mode
@@ -6119,7 +6235,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	}, [modalState["context"], promptText, endpoint, endpointAPI]);
 
 	useEffect(() => {
-		if (endpointAPI !== API_OPENAI_COMPAT) {
+		if (endpointAPI !== API_OPENAI_COMPAT && endpointAPI !== API_AI_HORDE) {
 			return;
 		}
 		setRejectedAPIKey(false);
@@ -6129,7 +6245,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 				const models = await getModels({
 					endpoint,
 					endpointAPI,
-					...(endpointAPI == API_OPENAI_COMPAT ? { endpointAPIKey } : {}),
+					endpointAPIKey,
 					signal: ac.signal,
 					...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {})
 				});
@@ -6673,12 +6789,13 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 				<${Sessions} sessionStorage=${sessionStorage} disabled=${!!cancel}/>
 			</${CollapsibleGroup}>
 			<${CollapsibleGroup} label="Parameters" expanded>
-				<${InputBox} label="Server"
-					className="${isMixedContent() ? 'mixed-content' : ''}"
-					tooltip="${isMixedContent() ? 'This URL might be blocked due to mixed content. If the prediction fails, download mikupad.html and run it locally.' : ''}"
-					readOnly=${!!cancel}
-					value=${endpoint}
-					onValueChange=${setEndpoint}/>
+				${(endpointAPI != API_AI_HORDE) && html`
+					<${InputBox} label="Server"
+						className="${isMixedContent() ? 'mixed-content' : ''}"
+						tooltip="${isMixedContent() ? 'This URL might be blocked due to mixed content. If the prediction fails, download mikupad.html and run it locally.' : ''}"
+						readOnly=${!!cancel}
+						value=${endpoint}
+						onValueChange=${setEndpoint}/>`}
 				<${SelectBox}
 					label="API"
 					disabled=${!!cancel}
@@ -6687,9 +6804,10 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 					options=${[
 						{ name: 'llama.cpp'        , value: API_LLAMA_CPP },
 						{ name: 'KoboldCpp'        , value: API_KOBOLD_CPP },
-						{ name: 'OpenAI compatible', value: API_OPENAI_COMPAT },
+						{ name: 'OpenAI Compatible', value: API_OPENAI_COMPAT },
+						{ name: 'AI Horde'         , value: API_AI_HORDE },
 					]}/>
-				${(endpointAPI === API_LLAMA_CPP || endpointAPI === API_OPENAI_COMPAT) && html`
+				${(endpointAPI === API_LLAMA_CPP || endpointAPI === API_OPENAI_COMPAT || endpointAPI == API_AI_HORDE) && html`
 					<div className="hbox-flex" style=${{"flex-wrap": "unset"}}>
 						<${InputBox} label="API Key" type="${!showAPIKey ? "password" : "text"}"
 							className="${rejectedAPIKey ? 'rejected' : ''}"
@@ -6706,7 +6824,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 										  : html`<${SVG_HideKey}/>`}
 						</button>
 					</div>`}
-				${endpointAPI == API_OPENAI_COMPAT && html`
+				${(endpointAPI == API_OPENAI_COMPAT || endpointAPI == API_AI_HORDE) && html`
 					<${InputBox} label="Model"
 						datalist=${openaiModels}
 						readOnly=${!!cancel}
@@ -6755,7 +6873,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 					readOnly=${!!cancel} value=${seed} onValueChange=${setSeed}/>
 				<${InputBox} tooltip="Currently not accurate to the token count, it will be used as an estimate." label="Max Context Length" type="text" inputmode="numeric"
 					readOnly=${!!cancel} value=${contextLength} onValueChange=${setContextLength}/>
-				<${InputBox} label="Max Predict Tokens${endpointAPI != API_LLAMA_CPP ? ' (-1 = 1024)' : ' (-1 = infinite)'}" type="text" inputmode="numeric"
+				<${InputBox} label="Max Predict Tokens${endpointAPI != API_LLAMA_CPP ? (endpointAPI == API_AI_HORDE ? ' (-1 = 512)' : ' (-1 = 1024)') : ' (-1 = infinite)'}" type="text" inputmode="numeric"
 					readOnly=${!!cancel} value=${maxPredictTokens} onValueChange=${setMaxPredictTokens}/>
 				<${InputBox} label="Stopping Strings (JSON array)" type="text" pattern="^\\[.*?\\]$"
 					className="${stoppingStringsError ? 'rejected' : ''}"
@@ -6861,7 +6979,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 						<div className="hbox">
 							<${InputSlider} label="DynaTemp Range" type="number" step="0.01"
 								readOnly=${!!cancel} value=${dynaTempRange} onValueChange=${setDynaTempRange}/>
-							${(endpointAPI != API_KOBOLD_CPP) && html`
+							${(endpointAPI != API_KOBOLD_CPP && endpointAPI != API_AI_HORDE) && html`
 								<${InputSlider} label="DynaTemp Exp" type="number" step="0.01"
 									readOnly=${!!cancel} value=${dynaTempExp} onValueChange=${setDynaTempExp}/>`}
 						</div>`}
@@ -7029,6 +7147,8 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			</${CollapsibleGroup}>
 			${!!tokens && html`
 				<${InputBox} label="Tokens" value="${tokens}${tokensPerSec ? ` (${tokensPerSec.toFixed(2)} T/s)` : ``}" readOnly/>`}
+			${!!hordeQueuePos && html`
+				<${InputBox} label="Queue Position" value="${hordeQueuePos}" readOnly/>`}
 			<div className="buttons">
 				<button
 					title="Run next prediction (Ctrl + Enter)"

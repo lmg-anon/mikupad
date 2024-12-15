@@ -101,7 +101,8 @@ app.post('/proxy/*', async (req, res) => {
             headers: {
                 ...req.headers,
                 'Content-Type': 'application/json',
-                'Host': new URL(targetBaseUrl).hostname  // Update the Host header for the target server
+                'Host': new URL(targetBaseUrl).hostname,  // Update the Host header for the target server
+                'Accept-Encoding': 'identity'
             },
             responseType: 'stream'
         });
@@ -146,10 +147,47 @@ app.get('/proxy/*', async (req, res) => {
 
     try {
         const response = await axios.get(`${targetBaseUrl}/${path}`, {
+            params: req.query,
             headers: {
                 ...req.headers,
                 'Content-Type': 'application/json',
-                'Host': new URL(targetBaseUrl).hostname  // Update the Host header for the target server
+                'Host': new URL(targetBaseUrl).hostname,  // Update the Host header for the target server
+                'Accept-Encoding': 'identity'
+            }
+        });
+
+        res.send(response.data);
+    } catch (error) {
+        if (error.response) {
+            res.status(error.response.status).send(error.response.data);
+        } else if (error.request) {
+            res.status(504).send('No response from target server.');
+        } else {
+            res.status(500).send(`Error setting up request to target server: ${error.message}`);
+        }
+    }
+});
+
+// Dynamic DELETE proxy route
+app.delete('/proxy/*', async (req, res) => {
+    // Capture the part of the URL after '/proxy'
+    const path = req.params[0];
+
+    // Target server base URL
+    const targetBaseUrl = req.headers['x-real-url'];
+    delete req.headers['x-real-url'];
+
+    headersToRemove.forEach(header => {
+        delete req.headers[header.toLowerCase()];
+    });
+
+    try {
+        const response = await axios.delete(`${targetBaseUrl}/${path}`, {
+            headers: {
+                ...req.headers,
+                'Content-Type': 'application/json',
+                'Host': new URL(targetBaseUrl).hostname,  // Update the Host header for the target server
+                'Accept-Encoding': 'identity'
             }
         });
 
