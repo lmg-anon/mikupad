@@ -5835,7 +5835,9 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 							dry_base: dryBase,
 							dry_allowed_length: dryAllowedLength,
 							dry_penalty_last_n: dryPenaltyRange,
-							dry_sequence_breakers: drySequenceBreakers,
+							dry_sequence_breakers: endpointAPI == API_OPENAI_COMPAT ? 
+								drySequenceBreakers : 
+								JSON.parse(drySequenceBreakers),
 						}: {}),
 						...(enabledSamplers.includes('ban_tokens') ? {
 							banned_tokens: JSON.parse(bannedTokens),
@@ -6005,15 +6007,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			JSON.parse(drySequenceBreakers);
 			setDrySequenceBreakersError(undefined);
 		} catch (e) {
-			try {
-				const unescapedString = drySequenceBreakers
-					.replace(/\\\\/g, '\\')
-					.replace(/\\"/g, '"');
-				JSON.parse(unescapedString);
-				setDrySequenceBreakersError(undefined);
-			} catch (e2) {
-				setDrySequenceBreakersError(e2.toString());
-			}
+			setDrySequenceBreakersError(e.toString());
 		}
 	}, [drySequenceBreakers]);
 
