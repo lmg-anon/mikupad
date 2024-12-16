@@ -1606,6 +1606,9 @@ async function* parseEventStream(eventStream) {
 					break;
 				}
 				const json = JSON.parse(data);
+				if (json.error?.message) {
+					throw new Error(json.error.message);
+				}
 				// Both Chrome and Firefox suck at debugging
 				// text/event-stream, so make it easier by logging events
 				if (window.logSSEEvents) {
@@ -2017,6 +2020,7 @@ async function openaiModels({ endpoint, endpointAPIKey, proxyEndpoint, signal, .
 function openaiConvertOptions(options, endpoint){
 	const isOpenAI = endpoint.toLowerCase().includes("openai.com");
 	const isTogetherAI = endpoint.toLowerCase().includes("together.xyz");
+	const isOpenRouter = endpoint.toLowerCase().includes("openrouter.ai");
 	const swapOption = (lhs, rhs) => {
 		if (lhs in options) {
 			options[rhs] = options[lhs];
