@@ -2455,21 +2455,33 @@ function Sessions({ sessionStorage, disabled }) {
 	const importSession = () => {
 		const fileInput = document.createElement("input");
 		fileInput.type = 'file';
+		fileInput.multiple = true;
 		fileInput.style.display = 'none';
-		fileInput.onchange = (e) => {
-			const file = e.target.files[0];
-			if (!file)
+		fileInput.onchange = async (e) => {
+			const files = e.target.files;
+			if (files.length === 0)
 				return;
-			const reader = new FileReader();
-			reader.onload = (e) => {
-				const contents = e.target.result;
-				fileInput.func(contents);
+
+				const sortedFiles = Array.from(files).sort((a, b) => a.lastModified - b.lastModified);
+
+				const reader = new FileReader();
+				let lastNewId = null;
+
+				for (const file of sortedFiles) {
+					await new Promise((resolve, reject) => {
+						reader.onload = async (e) => {
+							lastNewId = await sessionStorage.createSessionFromObject(JSON.parse(e.target.result), false);
+							resolve();
+						};
+						reader.onerror = (e) => {
+							reject(e);
+						};
+						reader.readAsText(file);
+					});
 			}
-			reader.readAsText(file);
-		};
-		fileInput.func = async (text) => {
-			const newId = await sessionStorage.createSessionFromObject(JSON.parse(text), false);
-			await sessionStorage.switchSession(newId);
+			if (lastNewId !== null) {
+				await sessionStorage.switchSession(lastNewId);
+			}
 		};
 		document.body.appendChild(fileInput);
 		fileInput.click();
@@ -4629,6 +4641,30 @@ class IndexedDBAdapter {
 		});
 	}
 
+	async loadSessionInfoFromDatabase(db, storeName) {
+		return new Promise((resolve, reject) => {
+			const tx = db.transaction(storeName, 'readonly');
+			const store = tx.objectStore(storeName);
+			const request = store.openCursor();
+
+			let allTables = {};
+
+			request.onsuccess = async (event) => {
+				const cursor = event.target.result;
+				if (cursor) {
+					if (cursor.key !== 'nextSessionId' && cursor.key !== 'selectedSessionId') {
+						allTables[cursor.key] = cursor.value.name;
+					}
+					cursor.continue();
+				} else {
+					resolve(allTables);
+				}
+			};
+			request.onerror = () => reject(request.error);
+		});
+	}
+	
+
 	async saveToDatabase(db, storeName, key, data) {
 		return new Promise((resolve, reject) => {
 			const tx = db.transaction(storeName, 'readwrite');
@@ -4637,6 +4673,27 @@ class IndexedDBAdapter {
 
 			request.onsuccess = () => resolve();
 			request.onerror = () => reject(request.error);
+		});
+	}
+
+	async renameSessionInDatabase(db, storeName, key, newName) {
+		return new Promise((resolve, reject) => {
+			const tx = db.transaction(storeName, 'readwrite');
+			const store = tx.objectStore(storeName);
+			const getRequest = store.get(key);
+
+			getRequest.onsuccess = async () => {
+				const sessionData = getRequest.result;
+				if (sessionData) {
+					sessionData.name = newName;
+					const putRequest = store.put(sessionData, key);
+					putRequest.onsuccess = () => resolve();
+					putRequest.onerror = () => reject(putRequest.error);
+				} else {
+					reject(new Error(`Session with key '${key}' not found`));
+				}
+			};
+			getRequest.onerror = () => reject(request.error);
 		});
 	}
 
@@ -4716,9 +4773,33 @@ class ServerDBAdapter {
 		});
 	}
 
+	async loadSessionInfoFromDatabase(db, storeName) {
+		return new Promise(async (resolve, reject) => {
+			const res = await db("/sessions", { storeName });
+			if (!res.ok) {
+				reject(res.status);
+				return;
+			}
+			const { result } = await res.json();
+			resolve(result);
+		});
+	}
+
 	async saveToDatabase(db, storeName, key, data) {
 		return new Promise(async (resolve, reject) => {
 			const res = await db("/save", { storeName, key, data });
+			if (!res.ok) {
+				reject(res.status);
+				return;
+			}
+			const { result } = await res.json();
+			resolve(result);
+		});
+	}
+
+	async renameSessionInDatabase(db, storeName, key, newName) {
+		return new Promise(async (resolve, reject) => {
+			const res = await db("/rename", { storeName, key, newName });
 			if (!res.ok) {
 				reject(res.status);
 				return;
@@ -4804,9 +4885,27 @@ class AbstractStorage extends EventTarget {
 		}
 	}
 
+	async loadSessionInfoFromDatabase(db) {
+		try {
+			return await this.dbAdapter.loadSessionInfoFromDatabase(db, this.storeName);
+		} catch (e) {
+			this.dispatchErrorEvent(e);
+			throw e;
+		}
+	}
+
 	async saveToDatabase(db, key, data) {
 		try {
 			return await this.dbAdapter.saveToDatabase(db, this.storeName, key, data);
+		} catch (e) {
+			this.dispatchErrorEvent(e);
+			throw e;
+		}
+	}
+
+	async renameSessionInDatabase(db, key, newName) {
+		try {
+			return await this.dbAdapter.renameSessionInDatabase(db, this.storeName, key, newName);
 		} catch (e) {
 			this.dispatchErrorEvent(e);
 			throw e;
@@ -4939,11 +5038,9 @@ class SessionStorage extends AbstractStorage {
 	}
 
 	async loadSessions(db) {
-		const sessions = await this.loadAllFromDatabase(db);
-		for (const [key, value] of Object.entries(sessions)) {
-			if (key !== 'nextSessionId' && key !== 'selectedSessionId') {
-				this.sessions[key] = value;
-			}
+		const sessions = await this.loadSessionInfoFromDatabase(db);
+		for (const [key, name] of Object.entries(sessions)) {
+			this.sessions[key] = { name: name };
 		}
 		if (Object.keys(this.sessions).length === 0) {
 			if (!await this.migrateSessions()) {
@@ -4967,11 +5064,16 @@ class SessionStorage extends AbstractStorage {
 	async switchSession(sessionId) {
 		if (!this.sessions[sessionId])
 			return;
-		
+
+		//Clear data of old session in order to minimize memory usage.
+		if (this.sessions[this.selectedSession] && this.sessions[this.selectedSession]['name'])
+			this.sessions[this.selectedSession] = { name: this.sessions[this.selectedSession]['name'] };
+
 		const db = await this.openDatabase();
 		await this.saveToDatabase(db, 'selectedSessionId', +sessionId);
 
 		this.selectedSession = +sessionId;
+		this.sessions[this.selectedSession] = (await this.loadFromDatabase(db, this.selectedSession));
 
 		this.dispatchChangeEvent();
 		this.dispatchSessionChangeEvent();
@@ -4981,7 +5083,7 @@ class SessionStorage extends AbstractStorage {
 		this.sessions[sessionId]['name'] = renameSessionName;
 
 		const db = await this.openDatabase();
-		await this.saveToDatabase(db, sessionId, this.sessions[sessionId]);
+		await this.renameSessionInDatabase(db, sessionId, renameSessionName);
 
 		this.dispatchChangeEvent();
 	}
@@ -5037,6 +5139,10 @@ class SessionStorage extends AbstractStorage {
 
 		const db = await this.openDatabase();
 		await this.saveToDatabase(db, newId, this.sessions[newId]);
+
+		//Clear data of the session in order to minimize memory usage.
+		if (this.sessions[newId] && this.sessions[newId]['name'])
+			this.sessions[newId] = { name: this.sessions[newId]['name'] };
 
 		onchange?.();
 		return newId;
