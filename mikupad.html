@@ -4537,6 +4537,30 @@ class IndexedDBAdapter {
 		});
 	}
 
+	async loadSessionInfoFromDatabase(db, storeName) {
+		return new Promise((resolve, reject) => {
+			const tx = db.transaction(storeName, 'readonly');
+			const store = tx.objectStore(storeName);
+			const request = store.openCursor();
+
+			let allTables = {};
+
+			request.onsuccess = async (event) => {
+				const cursor = event.target.result;
+				if (cursor) {
+					if (cursor.key !== 'nextSessionId' && cursor.key !== 'selectedSessionId') {
+						allTables[cursor.key] = cursor.value.name;
+					}
+					cursor.continue();
+				} else {
+					resolve(allTables);
+				}
+			};
+			request.onerror = () => reject(request.error);
+		});
+	}
+	
+
 	async saveToDatabase(db, storeName, key, data) {
 		return new Promise((resolve, reject) => {
 			const tx = db.transaction(storeName, 'readwrite');
@@ -4545,6 +4569,27 @@ class IndexedDBAdapter {
 
 			request.onsuccess = () => resolve();
 			request.onerror = () => reject(request.error);
+		});
+	}
+
+	async renameSessionInDatabase(db, storeName, key, newName) {
+		return new Promise((resolve, reject) => {
+			const tx = db.transaction(storeName, 'readwrite');
+			const store = tx.objectStore(storeName);
+			const getRequest = store.get(key);
+
+			getRequest.onsuccess = async () => {
+				const sessionData = getRequest.result;
+				if (sessionData) {
+					sessionData.name = newName;
+					const putRequest = store.put(sessionData, key);
+					putRequest.onsuccess = () => resolve();
+					putRequest.onerror = () => reject(putRequest.error);
+				} else {
+					reject(new Error(`Session with key '${key}' not found`));
+				}
+			};
+			getRequest.onerror = () => reject(request.error);
 		});
 	}
 
