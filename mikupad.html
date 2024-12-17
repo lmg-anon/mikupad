@@ -7662,7 +7662,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			memoryTokens=${memoryTokens}
 			authorNoteTokens=${authorNoteTokens}
 			handleMemoryTokensChange=${handleMemoryTokensChange}
-			finalPromptText=${finalPromptText}
+			finalPromptText=${useChatAPI ? JSON.stringify(convertChatToJSON(finalPromptText, templates[selectedTemplate])) : finalPromptText}
 			defaultPresets=${defaultPresets}
 			cancel=${cancel}/>
 
