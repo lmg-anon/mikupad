@@ -2131,7 +2131,10 @@ async function* openaiCompletion({ endpoint, endpointAPIKey, proxyEndpoint, sign
 	if (options.stream) {
 		for await (const chunk of parseEventStream(res.body)) {
 			if (!chunk.choices || chunk.choices.length === 0) {
-				continue; // Skip if there are no choices (should never happen)
+				if (chunk.content) {
+					yield {	content: chunk.content };
+				}
+				continue;
 			}
 
 			const { text, logprobs } = chunk.choices[0];
@@ -2155,27 +2158,31 @@ async function* openaiCompletion({ endpoint, endpointAPIKey, proxyEndpoint, sign
 			};
 		}
 	} else {
-		const { choices } = await res.json();
+		const { content, choices } = await res.json();
 		const chunks = choices?.[0].logprobs?.content ?? [];
-		for (const chunk of chunks) {
-			const { token, top_logprobs } = chunk;
-			
-			const probs = Object.values(top_logprobs).map(({ token, logprob }) => ({
-				tok_str: token,
-				prob: Math.exp(logprob)
-			}));
-			const prob = probs.find(p => p.tok_str === token)?.prob;
+		if (chunks.length) {
+			for (const chunk of chunks) {
+				const { token, top_logprobs } = chunk;
+				
+				const probs = Object.values(top_logprobs).map(({ token, logprob }) => ({
+					tok_str: token,
+					prob: Math.exp(logprob)
+				}));
+				const prob = probs.find(p => p.tok_str === token)?.prob;
 
-			yield {
-				content: token,
-				...(probs.length > 0 ? {
-					prob: prob ?? -1,
-					completion_probabilities: [{
-						content: token,
-						probs
-					}]
-				} : {})
-			};
+				yield {
+					content: token,
+					...(probs.length > 0 ? {
+						prob: prob ?? -1,
+						completion_probabilities: [{
+							content: token,
+							probs
+						}]
+					} : {})
+				};
+			}
+		} else if (content) {
+			yield { content: content };
 		}
 	}
 }
@@ -2210,25 +2217,32 @@ async function* openaiChatCompletion({ endpoint, endpointAPIKey, proxyEndpoint, 
 	} else {
 		const { choices } = await res.json();
 		const chunks = choices?.[0].logprobs?.content ?? [];
-		for (const chunk of chunks) {
-			const { token, top_logprobs } = chunk;
-			
-			const probs = Object.values(top_logprobs).map(({ token, logprob }) => ({
-				tok_str: token,
-				prob: Math.exp(logprob)
-			}));
-			const prob = probs.find(p => p.tok_str === token)?.prob;
+		if (chunks.length) {
+			for (const chunk of chunks) {
+				const { token, top_logprobs } = chunk;
+				
+				const probs = Object.values(top_logprobs).map(({ token, logprob }) => ({
+					tok_str: token,
+					prob: Math.exp(logprob)
+				}));
+				const prob = probs.find(p => p.tok_str === token)?.prob;
 
-			yield {
-				content: token,
-				...(probs.length > 0 ? {
-					prob: prob ?? -1,
-					completion_probabilities: [{
-						content: token,
-						probs
-					}]
-				} : {})
-			};
+				yield {
+					content: token,
+					...(probs.length > 0 ? {
+						prob: prob ?? -1,
+						completion_probabilities: [{
+							content: token,
+							probs
+						}]
+					} : {})
+				};
+			}
+		} else {
+			const content = choices?.[0].message?.content;
+			if (content) {
+				yield { content: content };
+			}
 		}
 	}
 }
@@ -7662,7 +7676,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			memoryTokens=${memoryTokens}
 			authorNoteTokens=${authorNoteTokens}
 			handleMemoryTokensChange=${handleMemoryTokensChange}
-			finalPromptText=${useChatAPI ? JSON.stringify(convertChatToJSON(finalPromptText, templates[selectedTemplate])) : finalPromptText}
+			finalPromptText=${useChatAPI ? JSON.stringify(convertChatToJSON(finalPromptText, templates[selectedTemplate]), null, 4) : finalPromptText}
 			defaultPresets=${defaultPresets}
 			cancel=${cancel}/>
 
