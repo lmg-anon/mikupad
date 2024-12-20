@@ -999,6 +999,7 @@ html.monospace-dark .tooltip .tooltiptext.short {
 	margin-left: auto;
 	margin-right: auto;
 	padding: 2px 10px;
+	max-width: 215px;
 }
 
 button {
@@ -1473,7 +1474,7 @@ export async function getTokenCount({ endpoint, endpointAPI, endpointAPIKey, sig
 		case API_LLAMA_CPP:
 			return await llamaCppTokenCount({ endpoint, endpointAPIKey, signal, ...options });
 		case API_KOBOLD_CPP:
-			return await koboldCppTokenCount({ endpoint, signal, ...options });
+			return await koboldCppTokenCount({ endpoint, endpointAPIKey, signal, ...options });
 		case API_OPENAI_COMPAT:
 			// These endpoints don't have a token count endpoint...
 			if (new URL(endpoint).host === 'api.openai.com' || new URL(endpoint).host === 'api.together.xyz')
@@ -1507,7 +1508,7 @@ export async function getTokens({ endpoint, endpointAPI, endpointAPIKey, signal,
 		case API_LLAMA_CPP:
 			return await llamaCppTokenize({ endpoint, endpointAPIKey, signal, ...options });
 		case API_KOBOLD_CPP:
-			return await koboldCppTokenize({ endpoint, signal, ...options });
+			return await koboldCppTokenize({ endpoint, endpointAPIKey, signal, ...options });
 		case API_OPENAI_COMPAT:
 			// These endpoints don't have a tokenenizer endpoint...
 			if (new URL(endpoint).host === 'api.openai.com' || new URL(endpoint).host === 'api.together.xyz')
@@ -1546,11 +1547,19 @@ export async function* completion({ endpoint, endpointAPI, endpointAPIKey, signa
 		case API_LLAMA_CPP:
 			return yield* await llamaCppCompletion({ endpoint, endpointAPIKey, signal, ...options });
 		case API_KOBOLD_CPP:
-			return yield* await koboldCppCompletion({ endpoint, signal, ...options });
+			return yield* await koboldCppCompletion({ endpoint, endpointAPIKey, signal, ...options });
 		case API_OPENAI_COMPAT:
 			return yield* await openaiCompletion({ endpoint, endpointAPIKey, signal, ...options });
 		case API_AI_HORDE:
 			return yield* await aiHordeCompletion({ endpoint, endpointAPIKey, signal, ...options });
+	}
+}
+
+export async function* chatCompletion({ endpoint, endpointAPI, endpointAPIKey, signal, ...options }) {
+	endpoint = normalizeEndpoint(endpoint, endpointAPI);
+	switch (endpointAPI) {
+		case API_OPENAI_COMPAT:
+			return yield* await openaiChatCompletion({ endpoint, endpointAPIKey, signal, ...options });
 	}
 }
 
@@ -1695,31 +1704,46 @@ async function* llamaCppCompletion({ endpoint, endpointAPIKey, proxyEndpoint, si
 		},
 		body: JSON.stringify({
 			...options,
-			stream: true,
 			cache_prompt: true,
 		}),
 		signal,
 	});
 	if (!res.ok)
 		throw new Error(`HTTP ${res.status}`);
-	for await (const chunk of parseEventStream(res.body)) {
-		const probs = chunk.completion_probabilities?.[0]?.probs ?? [];
-		const prob = probs.find(p => p.tok_str === chunk.content)?.prob;
-		yield {
-			content: chunk.content,
-			...(probs.length > 0 ? {
-				prob: prob ?? -1,
-				completion_probabilities: chunk.completion_probabilities
-			} : {})
-		};
+	if (options.stream) {
+		for await (const chunk of parseEventStream(res.body)) {
+			const probs = chunk.completion_probabilities?.[0]?.probs ?? [];
+			const prob = probs.find(p => p.tok_str === chunk.content)?.prob;
+			yield {
+				content: chunk.content,
+				...(probs.length > 0 ? {
+					prob: prob ?? -1,
+					completion_probabilities: chunk.completion_probabilities
+				} : {})
+			};
+		}
+	} else {
+		const { completion_probabilities } = await res.json();
+		for (const chunk of completion_probabilities) {
+			const probs = chunk.probs ?? [];
+			const prob = probs.find(p => p.tok_str === chunk.content)?.prob;
+			yield {
+				content: chunk.content,
+				...(probs.length > 0 ? {
+					prob: prob ?? -1,
+					completion_probabilities: [chunk]
+				} : {})
+			};
+		}
 	}
 }
 
-async function koboldCppTokenCount({ endpoint, proxyEndpoint, signal, ...options }) {
+async function koboldCppTokenCount({ endpoint, endpointAPIKey, proxyEndpoint, signal, ...options }) {
 	const res = await fetch(`${proxyEndpoint ?? endpoint}/api/extra/tokencount`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
+			...(endpointAPIKey ? { 'Authorization': `Bearer ${endpointAPIKey}` } : {}),
 			...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
 		},
 		body: JSON.stringify({
@@ -1733,11 +1757,12 @@ async function koboldCppTokenCount({ endpoint, proxyEndpoint, signal, ...options
 	return value;
 }
 
-async function koboldCppTokenize({ endpoint, proxyEndpoint, signal, ...options }) {
+async function koboldCppTokenize({ endpoint, endpointAPIKey, proxyEndpoint, signal, ...options }) {
 	const res = await fetch(`${proxyEndpoint ?? endpoint}/api/extra/tokencount`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
+			...(endpointAPIKey ? { 'Authorization': `Bearer ${endpointAPIKey}` } : {}),
 			...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
 		},
 		body: JSON.stringify({
@@ -1769,6 +1794,7 @@ function koboldCppConvertOptions(options, endpoint) {
 	}
 	swapOption("n_ctx", "max_context_length");
 	swapOption("n_predict", "max_length");
+	swapOption("n_probs", "logprobs");
 	swapOption("repeat_penalty", "rep_pen");
 	swapOption("repeat_last_n", "rep_pen_range");
 	swapOption("tfs_z", "tfs");
@@ -1779,23 +1805,48 @@ function koboldCppConvertOptions(options, endpoint) {
 	return options;
 }
 
-async function* koboldCppCompletion({ endpoint, proxyEndpoint, signal, ...options }) {
-	const res = await fetch(`${proxyEndpoint ?? endpoint}/api/extra/generate/stream`, {
+async function* koboldCppCompletion({ endpoint, endpointAPIKey, proxyEndpoint, signal, ...options }) {
+	const res = await fetch(`${proxyEndpoint ?? endpoint}/api/${options.stream ? 'extra/generate/stream' : 'v1/generate'}`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
+			...(endpointAPIKey ? { 'Authorization': `Bearer ${endpointAPIKey}` } : {}),
 			...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
 		},
 		body: JSON.stringify({
-			...koboldCppConvertOptions(options, endpoint),
-			stream: true,
+			...koboldCppConvertOptions(options, endpoint)
 		}),
 		signal,
 	});
 	if (!res.ok)
 		throw new Error(`HTTP ${res.status}`);
-	for await (const chunk of parseEventStream(res.body)) {
-		yield { content: chunk.token };
+	if (options.stream) {
+		for await (const chunk of parseEventStream(res.body)) {
+			yield { content: chunk.token };
+		}
+	} else {
+		const { results } = await res.json();
+		const chunks = results?.[0].logprobs?.content ?? [];
+		for (const chunk of chunks) {
+			const { token, top_logprobs } = chunk;
+			
+			const probs = Object.values(top_logprobs).map(({ token, logprob }) => ({
+				tok_str: token,
+				prob: Math.exp(logprob)
+			}));
+			const prob = probs.find(p => p.tok_str === token)?.prob;
+
+			yield {
+				content: token,
+				...(probs.length > 0 ? {
+					prob: prob ?? -1,
+					completion_probabilities: [{
+						content: token,
+						probs
+					}]
+				} : {})
+			};
+		}
 	}
 }
 
@@ -2017,7 +2068,7 @@ async function openaiModels({ endpoint, endpointAPIKey, proxyEndpoint, signal, .
 	return data.map(item => item.id);
 }
 
-function openaiConvertOptions(options, endpoint){
+function openaiConvertOptions(options, endpoint, isChat) {
 	const isOpenAI = endpoint.toLowerCase().includes("openai.com");
 	const isTogetherAI = endpoint.toLowerCase().includes("together.xyz");
 	const isOpenRouter = endpoint.toLowerCase().includes("openrouter.ai");
@@ -2048,7 +2099,12 @@ function openaiConvertOptions(options, endpoint){
 	}
 	swapOption("n_ctx", "max_context_length");
 	swapOption("n_predict", "max_tokens");
-	swapOption("n_probs", "logprobs");
+	if (isChat) {
+		options.logprobs = true;
+		swapOption("n_probs", "top_logprobs");
+	} else {
+		swapOption("n_probs", "logprobs");
+	}
 	swapOption("repeat_penalty", "repetition_penalty");
 	swapOption("repeat_last_n", "repetition_penalty_range");
 	swapOption("tfs_z", "tfs");
@@ -2067,37 +2123,168 @@ async function* openaiCompletion({ endpoint, endpointAPIKey, proxyEndpoint, sign
 			...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
 		},
 		body: JSON.stringify({
-			...openaiConvertOptions(options, endpoint),
-			stream: true,
+			...openaiConvertOptions(options, endpoint)
 		}),
 		signal,
 	});
-	if (!res.ok)
-		throw new Error(`HTTP ${res.status}`);
-	for await (const chunk of parseEventStream(res.body)) {
-		if (!chunk.choices || chunk.choices.length === 0) {
-			continue; // Skip if there are no choices (should never happen)
+
+	if (!res.ok) {
+		let json;
+		try {
+			json = await res.json();
+		} catch {}
+		if (json?.error?.message) {
+			throw new Error(json.error.message);
 		}
+		throw new Error(`HTTP ${res.status}`);
+	}
 
-		const { text, logprobs } = chunk.choices[0];
-		const top_logprobs = logprobs?.top_logprobs?.[0] ?? {};
-		
-		const probs = Object.entries(top_logprobs).map(([tok, logprob]) => ({
-			tok_str: tok,
-			prob: Math.exp(logprob)
-		}));
-		const prob = probs.find(p => p.tok_str === text)?.prob;
+	if (options.stream) {
+		for await (const chunk of parseEventStream(res.body)) {
+			if (!chunk.choices || chunk.choices.length === 0) {
+				if (chunk.content) {
+					yield {	content: chunk.content };
+				}
+				continue;
+			}
 
-		yield {
-			content: text,
-			...(probs.length > 0 ? {
-				prob: prob ?? -1,
-				completion_probabilities: [{
+			const { text, logprobs } = chunk.choices[0];
+			const top_logprobs = logprobs?.top_logprobs?.[0] ?? {};
+			
+			const probs = Object.entries(top_logprobs).map(([tok, logprob]) => ({
+				tok_str: tok,
+				prob: Math.exp(logprob)
+			}));
+			const prob = probs.find(p => p.tok_str === text)?.prob;
+
+			yield {
+				content: text,
+				...(probs.length > 0 ? {
+					prob: prob ?? -1,
+					completion_probabilities: [{
+						content: text,
+						probs
+					}]
+				} : {})
+			};
+		}
+	} else {
+		const { choices } = await res.json();
+		if (choices?.[0].logprobs?.tokens) {
+			const logprobs = choices?.[0].logprobs;
+			const chunks = Object.values(logprobs.tokens).map((token, i) => {
+				return { text: token, logprobs: { top_logprobs: [ logprobs.top_logprobs[i] ] } };
+			});
+			for (const chunk of chunks) {
+				const { text, logprobs } = chunk;
+				const top_logprobs = logprobs?.top_logprobs?.[0] ?? {};
+				
+				const probs = Object.entries(top_logprobs).map(([tok, logprob]) => ({
+					tok_str: tok,
+					prob: Math.exp(logprob)
+				}));
+				const prob = probs.find(p => p.tok_str === text)?.prob;
+
+				yield {
 					content: text,
-					probs
-				}]
-			} : {})
-		};
+					...(probs.length > 0 ? {
+						prob: prob ?? -1,
+						completion_probabilities: [{
+							content: text,
+							probs
+						}]
+					} : {})
+				};
+			}
+		} else if (choices?.[0].text) {
+			yield { content: choices[0].text };
+		}
+	}
+}
+
+async function* openaiChatCompletion({ endpoint, endpointAPIKey, proxyEndpoint, signal, ...options }) {
+	const res = await fetch(`${proxyEndpoint ?? endpoint}/v1/chat/completions`, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+			'Authorization': `Bearer ${endpointAPIKey}`,
+			...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
+		},
+		body: JSON.stringify({
+			...openaiConvertOptions(options, endpoint, true)
+		}),
+		signal,
+	});
+
+	if (!res.ok) {
+		let json;
+		try {
+			json = await res.json();
+		} catch {}
+		if (json?.error?.message) {
+			throw new Error(json.error.message);
+		}
+		throw new Error(`HTTP ${res.status}`);
+	}
+
+	if (options.stream) {
+		for await (const chunk of parseEventStream(res.body)) {
+			const token = chunk.choices[0].delta.content;
+			const top_logprobs = chunk.choices[0].logprobs?.content?.[0]?.top_logprobs ?? {};
+			if (!token) {
+				continue
+			}
+			
+			const probs = Object.values(top_logprobs).map(({ token, logprob }) => ({
+				tok_str: token,
+				prob: Math.exp(logprob)
+			}));
+			const prob = probs.find(p => p.tok_str === token)?.prob;
+
+			yield {
+				content: token,
+				...(probs.length > 0 ? {
+					prob: prob ?? -1,
+					completion_probabilities: [{
+						content: token,
+						probs
+					}]
+				} : {})
+			};
+		}
+	} else {
+		const { choices } = await res.json();
+		const chunks = choices?.[0].logprobs?.content ?? [];
+		if (chunks.length) {
+			for (const chunk of chunks) {
+				const { token, top_logprobs } = chunk;
+				if (!token) {
+					continue
+				}
+
+				const probs = Object.values(top_logprobs).map(({ token, logprob }) => ({
+					tok_str: token,
+					prob: Math.exp(logprob)
+				}));
+				const prob = probs.find(p => p.tok_str === token)?.prob;
+
+				yield {
+					content: token,
+					...(probs.length > 0 ? {
+						prob: prob ?? -1,
+						completion_probabilities: [{
+							content: token,
+							probs
+						}]
+					} : {})
+				};
+			}
+		} else {
+			const content = choices?.[0].message?.content;
+			if (content) {
+				yield { content: content };
+			}
+		}
 	}
 }
 
@@ -2329,7 +2516,7 @@ function SelectBoxTemplate({ label, value, onValueChange, options, ...props }) {
 
 function Checkbox({ label, value, hidden, onValueChange, ...props }) {
 	return html`
-		<label className="Checkbox" style=${hidden ? {'display': 'none'} : {}}>
+		<label className="Checkbox" style=${hidden ? {'display': 'none'} : {}} ...${(props.title ? { 'title': props.title } : {})}>
 			<input
 				type="checkbox"
 				checked=${value}
@@ -2536,8 +2723,8 @@ function Sessions({ sessionStorage, disabled }) {
 								autoFocus
 							/>
 							<div className="flex-separator"></div>
-							<button onClick=${(e) => (createSession(), e.stopImmediatePropagation?.())}><${SVG_Confirm}/></button>
-							<button onClick=${(e) => (setIsCreating(false), e.stopImmediatePropagation?.())}><${SVG_Cancel}/></button>
+							<button onClick=${(e) => (createSession(), e.stopPropagation())}><${SVG_Confirm}/></button>
+							<button onClick=${(e) => (setIsCreating(false), e.stopPropagation())}><${SVG_Cancel}/></button>
 						</a>
 					</li>
 				`}
@@ -2555,8 +2742,8 @@ function Sessions({ sessionStorage, disabled }) {
 									autoFocus
 								/>
 								<div className="flex-separator"></div>
-								<button onClick=${(e) => (renameSession(+sessionId), e.stopImmediatePropagation())}><${SVG_Confirm}/></button>
-								<button onClick=${(e) => (setRenamingId(undefined), e.stopImmediatePropagation())}><${SVG_Cancel}/></button>
+								<button onClick=${(e) => (renameSession(+sessionId), e.stopPropagation())}><${SVG_Confirm}/></button>
+								<button onClick=${(e) => (setRenamingId(undefined), e.stopPropagation())}><${SVG_Cancel}/></button>
 							` : html`
 								${session.name}
 								<div className="flex-separator"></div>
@@ -4588,6 +4775,26 @@ class IndexedDBAdapter {
 	}
 
 	async init() {
+		try {
+			if (!await navigator.storage.persisted()) {
+				const startTime = performance.now();
+				const persistent = await navigator.storage.persist();
+				const elapsedTime = performance.now() - startTime;
+				
+				if (!persistent) {
+					// If the response came back in less than 200ms, it was likely an automatic denial
+					// (200ms is generally considered faster than human reaction time)
+					if (elapsedTime < 200) {
+						if (!localStorage.getItem('persistentStorageWarningShown')) {
+							alert('Your browser has automatically denied persistent storage for Mikupad. Be aware that the browser may clear the database when under storage pressure. You might need to adjust your browser settings to enable this feature, or alternatively, you can use the Mikupad server.');
+							localStorage.setItem('persistentStorageWarningShown', 'true');
+						}
+					} else {
+						alert('You have chosen not to enable persistent storage for Mikupad. Be aware that the browser may clear the database when under storage pressure. As an optional alternative, you can use the Mikupad server.');
+					}
+				}
+			}
+		} catch {}
 	}
 
 	async openDatabase() {
@@ -5321,6 +5528,79 @@ function regexSplitString(str, separator, limit) {
 	return [result, separators];
 }
 
+function regexIndexOf(string, regex, startpos) {
+    var indexOf = string.substring(startpos || 0).search(regex);
+    return (indexOf >= 0) ? (indexOf + (startpos || 0)) : indexOf;
+}
+
+function regexLastIndexOf(string, regex, startpos) {
+    regex = (regex.global) ? regex : new RegExp(regex.source, "g" + (regex.ignoreCase ? "i" : "") + (regex.multiLine ? "m" : ""));
+    if(typeof (startpos) == "undefined") {
+        startpos = string.length;
+    } else if(startpos < 0) {
+        startpos = 0;
+    }
+    var stringToWorkWith = string.substring(0, startpos + 1);
+    var lastIndexOf = -1;
+    var nextStop = 0;
+    var result;
+    while((result = regex.exec(stringToWorkWith)) != null) {
+        lastIndexOf = result.index;
+        regex.lastIndex = ++nextStop;
+    }
+    return lastIndexOf;
+}
+
+function memoize(fn) {
+	let cache = {};
+	return (...args) => {
+		let n = args[0];
+		if (n in cache) {
+			return cache[n];
+		}
+		else {
+			let result = fn(n);
+			cache[n] = result;
+			return result;
+		}
+	}
+}
+
+function escapeRegExp(string) {
+	return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
+function makeWhiteSpaceLenient(string) {
+	return string.replace(/\s+/g, '')
+		// Add \s* between characters, but preserve escaped sequences
+		.replace(/(?<!\\)(?:\\{2})*(?!\s)(?!$)/g, '$&\\s*');
+}
+
+const createLenientPrefixRegex = memoize((prefix) => {
+	return new RegExp("^" + makeWhiteSpaceLenient(escapeRegExp(prefix)), 'i');
+});
+
+const createLenientRegex = memoize((suffix) => {
+	return new RegExp(makeWhiteSpaceLenient(escapeRegExp(suffix)), 'i');
+});
+
+function prefixMatchLength(str1, str2) {
+	if (str1 === "" || str2 === "") {
+		return 0;
+	}
+
+	for (let len = str1.length; len > 0; len--) {
+		for (let i = 0; i <= str1.length - len; i++) {
+			const sub = str1.substring(i, i + len);
+			if (str2.startsWith(sub)) {
+				return len;
+			}
+		}
+	}
+
+	return 0;
+}
+
 function useSessionState(sessionStorage, name, initialState) {
 	const savedState = useMemo(() => {
 		try {
@@ -5408,7 +5688,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	const [templates, setTemplates] = useDBTemplates(defaultPresets.instructTemplates);
 	const [templateReplacements, setTemplateReplacements] = useState(false);
 	const [templatesImport, setTemplatesImport] = useState(false);
-	const [selectedTemplate, setSelectedTemplate] = useSessionState('template', "Llama 3");
+	const [selectedTemplate, setSelectedTemplate] = useSessionState('template', "Mistral");
 	const [chatMode, setChatMode] = useSessionState('chatMode', false);
 	const [templateList, setTemplateList] = useState([]);
 	const [currentPromptChunk, setCurrentPromptChunk] = useState(undefined);
@@ -5487,6 +5767,8 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	const [contextMenuState, setContextMenuState] = useState({ visible: false, x: 0, y: 0 });
 	const [instructModalState, setInstructModalState] = useState({});
 	const [hordeQueuePos, setHordeQueuePos] = useState(undefined);
+	const [useChatAPI, setUseChatAPI] = useSessionState('chatAPI', false);
+	const [useTokenStreaming, setUseTokenStreaming] = useSessionState('tokenStreaming', true);
 
 	function replacePlaceholders(string,placeholders) {
 		// give placeholders as json object
@@ -5906,6 +6188,81 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 
 		return true;
 	}
+	
+	function convertChatToJSON(chatString, template) {
+		function extractMessage(text, prefix, suffixes, role) {
+			const matches = text.match(createLenientPrefixRegex(prefix));
+			if (matches && matches.length) {
+				text = text.substring(matches[0].length);
+				let endIndex = suffixes[0] ? regexIndexOf(text, createLenientRegex(suffixes[0])) : -1;
+				if (endIndex === -1) {
+					if (suffixes.length > 1) {
+						const indices = suffixes.slice(1).map(suffix => suffix ? regexIndexOf(text, createLenientRegex(suffix)) : -1).filter(index => index !== -1);
+						endIndex = indices.length > 0 ? Math.min(...indices) : text.length;
+					}  else {
+						endIndex = text.length;
+					}
+				}
+				let content = text.substring(0, endIndex);
+				content = endIndex !== text.length ? content.trim() : content.trimLeft();
+				return {
+					message: { role, content },
+					remainingString: text.substring(endIndex)
+				};
+			}
+			return null;
+		}
+
+		function skipToNextKnownPrefix(text, ...prefixes) {
+			const indices = prefixes.map(prefix => prefix ? regexIndexOf(text, createLenientPrefixRegex(prefix)) : -1).filter(index => index !== -1);
+			const minIndex = indices.length > 0 ? Math.min(...indices) : text.length;
+			if (minIndex == 0) {
+				console.warn("Something went wrong!");
+				return "";
+			}
+			return text.substring(minIndex);
+		}
+		
+		const messages = [];
+		const { sysPre, sysSuf, instPre, instSuf } = replaceNewlines(template);
+
+		let remainingString = chatString.trimStart();
+
+		const indices = [sysPre, instPre].map(prefix => prefix ? regexIndexOf(remainingString, createLenientPrefixRegex(prefix)) : -1).filter(index => index !== -1);
+		const minIndex = indices.length > 0 ? Math.min(...indices) : remainingString.length;
+		if (minIndex !== 0) {
+			// The prompt doesn't start with any of the prefixes.
+			// So let's assume it's a instruction.
+			const matchLen = prefixMatchLength(instPre.trim(), remainingString);
+			remainingString = instPre + remainingString.substring(matchLen);
+		}
+
+		while (remainingString.length > 0) {
+			let extracted = null;
+			if (sysPre) {
+				extracted = extractMessage(remainingString, sysPre, [sysSuf, instPre, instSuf], 'system');
+			}
+			if (instPre && !extracted) {
+				extracted = extractMessage(remainingString, instPre, [instSuf], 'user');
+			}
+			if (instSuf && !extracted) {
+				extracted = extractMessage(remainingString, instSuf, [instPre], 'assistant');
+			}
+			if (!extracted) {
+				remainingString = skipToNextKnownPrefix(remainingString, sysPre, instPre, instSuf);
+				continue;
+			}
+			messages.push(extracted.message);
+			remainingString = extracted.remainingString;
+		}
+
+		const lastMessage = messages?.at(-1);
+		if (lastMessage && lastMessage.role === 'assistant' && lastMessage.content.length === 0) {
+			messages.pop();
+		}
+
+		return messages;
+	}
 
 	async function predict(prompt = finalPromptText, chunkCount = promptChunks.length, callback = undefined) {
 		if (cancel) {
@@ -5957,11 +6314,11 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 				setPredictStartTokens(tokenCount);
 
 				// Chat Mode
-				if (chatMode && !restartedPredict && templates[selectedTemplate]) {
+				if ((chatMode || useChatAPI) && !restartedPredict && templates[selectedTemplate]) {
 					// add user EOT template (instruct suffix) if not switch completion
 					const { instSuf, instPre } = replaceNewlines(templates[selectedTemplate]);
-					const instSufIndex = instSuf ? prompt.lastIndexOf(instSuf) : -1;
-					const instPreIndex = instPre ? prompt.lastIndexOf(instPre) : -1;
+					const instSufIndex = instSuf ? regexLastIndexOf(prompt, createLenientRegex(instSuf)) : -1;
+					const instPreIndex = instPre ? regexLastIndexOf(prompt, createLenientRegex(instPre)) : -1;
 					if (instSufIndex <= instPreIndex) {
 						setPromptChunks(p => [...p, { type: 'user', content: instSuf }])
 						prompt += instSuf;
@@ -5983,15 +6340,15 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 
 			let startTime = 0;
 			setTokensPerSec(0.0);
-
-			for await (const chunk of completion({
+			
+			for await (const chunk of (useChatAPI ? chatCompletion : completion)({
 				endpoint,
 				endpointAPI,
 				...(endpointAPI == API_OPENAI_COMPAT || endpointAPI == API_LLAMA_CPP || endpointAPI == API_AI_HORDE ? {
 					endpointAPIKey,
 					model: endpointModel
 				} : {}),
-				prompt,
+				...(useChatAPI ? { messages: convertChatToJSON(prompt, templates[selectedTemplate]) } : { prompt }),
 				...(seed != -1 ? { seed } : {}),
 				...(enabledSamplers.includes('temperature') ? {
 					temperature
@@ -6059,6 +6416,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 				}),
 				n_predict: maxPredictTokens,
 				n_probs: 10,
+				stream: useTokenStreaming,
 				...(JSON.parse(stoppingStrings).length ? { stop: JSON.parse(stoppingStrings) } : {}),
 				signal: ac.signal,
 				...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {})
@@ -6123,7 +6481,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		}
 
 		// Chat Mode
-		if (!callback && chatMode && predictCount > 0) {
+		if (!callback && (chatMode || useChatAPI) && predictCount > 0) {
 			// add bot EOT template (instruct prefix)
 			const eotBot = templates[selectedTemplate]?.instPre.replace(/\\n/g, '\n')
 			setPromptChunks(p => [...p, { type: 'user', content: eotBot }])
@@ -6292,7 +6650,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			const atBottom = (elem.scrollTarget ?? elem.scrollTop) + elem.clientHeight + 1 > oldHeight;
 			const oldLen = elem.value.length;
 			// disable preserveCursorPosition in chatMode
-			if ( (!isTextSelected && !preserveCursorPosition) || chatMode) {
+			if ( (!isTextSelected && !preserveCursorPosition) || (chatMode || useChatAPI)) {
 				elem.value = promptText;
 			} else {
 				elem.setRangeText(promptText.slice(oldLen), oldLen, oldLen, 'preserve');
@@ -6685,11 +7043,13 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		}
 		switch (value) {
 			case API_LLAMA_CPP:
+				setUseChatAPI(false);
 				if (url.protocol != 'http:' && url.protocol != 'https:')
 					url.protocol = "http:";
 				url.port = 8080;
 				break;
 			case API_KOBOLD_CPP:
+				setUseChatAPI(false);
 				if (url.protocol != 'http:' && url.protocol != 'https:')
 					url.protocol = "http:";
 				url.port = 5001;
@@ -6697,6 +7057,9 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			case API_OPENAI_COMPAT:
 				if (url.protocol != 'http:' && url.protocol != 'https:')
 					url.protocol = "http:";
+				break;
+			case API_AI_HORDE:
+				setUseChatAPI(false);
 				break;
 		}
 		setEndpoint(url.toString());
@@ -6707,7 +7070,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		const isHttps = window.location.protocol == 'https:';
 		let url;
 		try {
-			url = new URL(endpoint);
+			url = new URL(endpointAPI != API_AI_HORDE ? endpoint : 'https://aihorde.net/api');
 		} catch {
 			return false;
 		}
@@ -6901,13 +7264,12 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 				<${Sessions} sessionStorage=${sessionStorage} disabled=${!!cancel}/>
 			</${CollapsibleGroup}>
 			<${CollapsibleGroup} label="Parameters" expanded>
-				${(endpointAPI != API_AI_HORDE) && html`
-					<${InputBox} label="Server"
-						className="${isMixedContent() ? 'mixed-content' : ''}"
-						tooltip="${isMixedContent() ? 'This URL might be blocked due to mixed content. If the prediction fails, download mikupad.html and run it locally.' : ''}"
-						readOnly=${!!cancel}
-						value=${endpoint}
-						onValueChange=${setEndpoint}/>`}
+				<${InputBox} label="Server"
+					className="${isMixedContent() ? 'mixed-content' : ''}"
+					tooltip="${isMixedContent() ? 'This URL might be blocked due to mixed content. If the prediction fails, download mikupad.html and run it locally.' : ''}"
+					readOnly=${!!cancel || endpointAPI == API_AI_HORDE}
+					value=${endpointAPI != API_AI_HORDE ? endpoint : 'https://aihorde.net/api'}
+					onValueChange=${setEndpoint}/>
 				<${SelectBox}
 					label="API"
 					disabled=${!!cancel}
@@ -6919,29 +7281,38 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 						{ name: 'OpenAI Compatible', value: API_OPENAI_COMPAT },
 						{ name: 'AI Horde'         , value: API_AI_HORDE },
 					]}/>
-				${(endpointAPI === API_LLAMA_CPP || endpointAPI === API_OPENAI_COMPAT || endpointAPI == API_AI_HORDE) && html`
-					<div className="hbox-flex" style=${{"flex-wrap": "unset"}}>
-						<${InputBox} label="API Key" type="${!showAPIKey ? "password" : "text"}"
-							className="${rejectedAPIKey ? 'rejected' : ''}"
-							tooltip="${rejectedAPIKey ? 'This API Key was rejected by the backend.' : ''}"
-							tooltipSize="short"
-							readOnly=${!!cancel}
-							value=${endpointAPIKey}
-							onValueChange=${setEndpointAPIKey}/>
-						<button title="${!showAPIKey ? "Show API Key" : "Hide API Key"}"
-							className="eye-button"
-							disabled=${!!cancel}
-							onClick=${() => setShowAPIKey(!showAPIKey)}>
-							${!showAPIKey ? html`<${SVG_ShowKey}/>`
-										  : html`<${SVG_HideKey}/>`}
-						</button>
-					</div>`}
+				<div className="hbox-flex" style=${{"flex-wrap": "unset"}}>
+					<${InputBox} label="API Key" type="${!showAPIKey ? "password" : "text"}"
+						className="${rejectedAPIKey ? 'rejected' : ''}"
+						tooltip="${rejectedAPIKey ? 'This API Key was rejected by the backend.' : ''}"
+						tooltipSize="short"
+						readOnly=${!!cancel}
+						value=${endpointAPIKey}
+						onValueChange=${setEndpointAPIKey}/>
+					<button title="${!showAPIKey ? "Show API Key" : "Hide API Key"}"
+						className="eye-button"
+						disabled=${!!cancel}
+						onClick=${() => setShowAPIKey(!showAPIKey)}>
+						${!showAPIKey ? html`<${SVG_ShowKey}/>`
+										: html`<${SVG_HideKey}/>`}
+					</button>
+				</div>
 				${(endpointAPI == API_OPENAI_COMPAT || endpointAPI == API_AI_HORDE) && html`
 					<${InputBox} label="Model"
 						datalist=${openaiModels}
 						readOnly=${!!cancel}
 						value=${endpointModel}
 						onValueChange=${setEndpointModel}/>`}
+				${endpointAPI != API_AI_HORDE && html`
+					${endpointAPI == API_OPENAI_COMPAT && html`
+						<${Checkbox} label="Strict API"
+							title="If enabled, non-standard fields won't be included in API requests."
+							disabled=${!!cancel} value=${openaiPresets} onValueChange=${setOpenaiPresets}/>
+						<${Checkbox} label="Chat Completions API"
+							title="If enabled, the chat API endpoint will be used, and the prompt will be split into chat messages based on the delimiters defined in the selected instruct template."
+							disabled=${!!cancel} value=${useChatAPI} onValueChange=${setUseChatAPI}/>`}
+					<${Checkbox} label="Token Streaming"
+						disabled=${!!cancel} value=${useTokenStreaming} onValueChange=${setUseTokenStreaming}/>`}
 				<div className="buttons instructTemplateSidebar">
 					<${SelectBoxTemplate}
 						label="Instruct Template"
@@ -6972,12 +7343,12 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 					</button>
 					<button
 						title="Toggle Chat Mode ${ chatMode ? "Off" : "On"}"
-						disabled=${!!cancel}
+						disabled=${!!cancel || useChatAPI}
 						class="symbol-button"
 						onClick=${() => setChatMode( (prevState) => !prevState)}>
-						${ chatMode ? 
-							html`<${SVG_ChatMode} style=${{ 'width':'.9em' }} />`
-						: html`<${SVG_CompletionMode} style=${{ 'width':'1.05em' }} />`
+						${ (chatMode || useChatAPI) ? 
+							html`<${SVG_ChatMode} style=${{ 'width':'.9em' }} />` :
+							html`<${SVG_CompletionMode} style=${{ 'width':'1.05em' }} />`
 						}
 					</button>
 				</div>
@@ -7080,9 +7451,6 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 											  ? setEnabledSamplers((es) => [...es, 'ban_tokens'])
 											  : setEnabledSamplers((es) => es.filter((s) => s !== 'ban_tokens'))}/>
 				`}>
-				${endpointAPI == API_OPENAI_COMPAT && html`
-					<${Checkbox} label="Full OpenAI Compliance"
-						disabled=${!!cancel} value=${openaiPresets} onValueChange=${setOpenaiPresets}/>`}
 				<${InputSlider} label="Temperature" type="number" step="0.01" max="5"
 					hidden=${!enabledSamplers.includes('temperature')}
 					readOnly=${!!cancel} value=${temperature} onValueChange=${setTemperature}/>
@@ -7387,7 +7755,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			memoryTokens=${memoryTokens}
 			authorNoteTokens=${authorNoteTokens}
 			handleMemoryTokensChange=${handleMemoryTokensChange}
-			finalPromptText=${finalPromptText}
+			finalPromptText=${useChatAPI ? JSON.stringify(convertChatToJSON(finalPromptText, templates[selectedTemplate]), null, 4) : finalPromptText}
 			defaultPresets=${defaultPresets}
 			cancel=${cancel}/>
 
@@ -7567,6 +7935,11 @@ async function main() {
 		} catch (e) {
 			reportError(e);
 		}
+	}
+	
+	if (!isMikupadEndpoint) {
+		// Initialize IndexedDBAdapter
+		await dbAdapter.init();
 	}
 
 	const sessionStorage = new SessionStorage(dbAdapter);
