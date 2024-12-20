@@ -999,6 +999,7 @@ html.monospace-dark .tooltip .tooltiptext.short {
 	margin-left: auto;
 	margin-right: auto;
 	padding: 2px 10px;
+	max-width: 210px;
 }
 
 button {
@@ -2126,8 +2127,18 @@ async function* openaiCompletion({ endpoint, endpointAPIKey, proxyEndpoint, sign
 		}),
 		signal,
 	});
-	if (!res.ok)
+
+	if (!res.ok) {
+		let json;
+		try {
+			json = await res.json();
+		} catch {}
+		if (json?.error?.message) {
+			throw new Error(json.error.message);
+		}
 		throw new Error(`HTTP ${res.status}`);
+	}
+
 	if (options.stream) {
 		for await (const chunk of parseEventStream(res.body)) {
 			if (!chunk.choices || chunk.choices.length === 0) {
@@ -2200,8 +2211,18 @@ async function* openaiChatCompletion({ endpoint, endpointAPIKey, proxyEndpoint, 
 		}),
 		signal,
 	});
-	if (!res.ok)
+
+	if (!res.ok) {
+		let json;
+		try {
+			json = await res.json();
+		} catch {}
+		if (json?.error?.message) {
+			throw new Error(json.error.message);
+		}
 		throw new Error(`HTTP ${res.status}`);
+	}
+
 	if (options.stream) {
 		for await (const chunk of parseEventStream(res.body)) {
 			const logprobs = Object.entries(chunk.choices[0].logprobs?.top_logprobs?.[0] ?? {});
