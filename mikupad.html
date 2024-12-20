@@ -1558,7 +1558,7 @@ export async function* completion({ endpoint, endpointAPI, endpointAPIKey, signa
 export async function* chatCompletion({ endpoint, endpointAPI, endpointAPIKey, signal, ...options }) {
 	endpoint = normalizeEndpoint(endpoint, endpointAPI);
 	switch (endpointAPI) {
-		case 3: // openai
+		case API_OPENAI_COMPAT:
 			return yield* await openaiChatCompletion({ endpoint, endpointAPIKey, signal, ...options });
 	}
 }
