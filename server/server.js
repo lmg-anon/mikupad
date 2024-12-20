@@ -237,6 +237,27 @@ app.post('/save', (req, res) => {
     });
 });
 
+// POST route to update session name
+app.post('/rename', (req, res) => {
+    const { storeName, key, newName } = req.body;
+    const normStoreName = normalizeStoreName(storeName);
+    db.run(
+        `
+        UPDATE ${normStoreName}
+        SET data = json_set(data, '$.name', ?)
+        WHERE key = ?
+        `,
+        [newName, key],
+        (err) => {
+            if (err) {
+                res.status(500).json({ ok: false, message: 'Error updating the database' });
+            } else {
+                res.json({ ok: true, result: 'Session renamed successfully' });
+            }
+        }
+    );
+});
+
 // POST route to get all rows from a table
 app.post('/all', (req, res) => {
     const { storeName } = req.body;
@@ -252,6 +273,31 @@ app.post('/all', (req, res) => {
             res.json({ ok: true, result: all });
         }
     });
+});
+
+// POST route to get session info
+app.post('/sessions', (req, res) => {
+    const { storeName } = req.body;
+    const normStoreName = normalizeStoreName(storeName);
+    db.all(
+        `
+        SELECT key, json_extract(data, '$.name') AS name
+        FROM ${normStoreName}
+        WHERE key NOT IN ('selectedSessionId', 'nextSessionId')
+        `,
+        [],
+        (err, rows) => {
+            if (err) {
+                res.status(500).json({ ok: false, message: 'Error querying the database' });
+            } else {
+                const sessions = {};
+                rows.forEach((row) => {
+                    sessions[row.key] = row.name;
+                });
+                res.json({ ok: true, result: sessions });
+            }
+        }
+    );
 });
 
 // POST route to delete a session
