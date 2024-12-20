@@ -2302,23 +2302,23 @@ async function openaiOobaAbortCompletion({ endpoint, proxyEndpoint, ...options }
 }
 
 async function aiHordeModels({ endpoint, endpointAPIKey, proxyEndpoint, signal, ...options }) {
-    const res = await fetch(`${proxyEndpoint ?? endpoint}/v2/status/models?type=text`, {
-        method: 'GET',
-        headers: {
-            'Content-Type': 'application/json',
-            ...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
-        },
-        signal,
-    });
+	const res = await fetch(`${proxyEndpoint ?? endpoint}/v2/status/models?type=text`, {
+		method: 'GET',
+		headers: {
+			'Content-Type': 'application/json',
+			...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
+		},
+		signal,
+	});
 
-    if (!res.ok)
-        throw new Error(`HTTP ${res.status}`);
+	if (!res.ok)
+		throw new Error(`HTTP ${res.status}`);
 
-    const response = await res.json();
-    
-    return response
-        .filter(model => model.type === "text")
-        .map(model => model.name);
+	const response = await res.json();
+
+	return response
+		.filter(model => model.type === "text")
+		.map(model => model.name);
 }
 
 async function* aiHordeCompletion({ endpoint, endpointAPIKey, proxyEndpoint, signal, ...options }) {
@@ -2331,7 +2331,7 @@ async function* aiHordeCompletion({ endpoint, endpointAPIKey, proxyEndpoint, sig
 			...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
 		},
 		body: JSON.stringify({
-			...(model ? { models: [ model ] } : {}),
+			...(model ? { models: [model] } : {}),
 			params: { ...koboldCppConvertOptions(params, endpoint) },
 			prompt: prompt
 		}),
@@ -2340,34 +2340,34 @@ async function* aiHordeCompletion({ endpoint, endpointAPIKey, proxyEndpoint, sig
 	if (!submitRes.ok)
 		throw new Error(`HTTP ${submitRes.status}`);
 	const { id: taskId } = await submitRes.json();
-	
-	yield { status: 'queued', taskId: taskId };
-	
+
+	yield { status: 'queue_init', taskId: taskId };
+
 	// Poll for results
-    while (true) {
-        const checkRes = await fetch(`${proxyEndpoint ?? endpoint}/v2/generate/text/status/${taskId}`, {
-            headers: {
-                ...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
-            },
-            signal,
-        });
+	while (true) {
+		const checkRes = await fetch(`${proxyEndpoint ?? endpoint}/v2/generate/text/status/${taskId}`, {
+			headers: {
+				...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
+			},
+			signal,
+		});
 
-        if (!checkRes.ok)
+		if (!checkRes.ok)
 			throw new Error(`HTTP ${checkRes.status}`);
-        const status = await checkRes.json();
+		const status = await checkRes.json();
 
-		yield { status: 'queue', position: status.queue_position };
+		yield { status: 'queue_status', position: status.queue_position, waitTime: status.wait_time, processing: status.processing };
 
-        if (status.done) {
-            if (status.generations && status.generations.length > 0) {
-                yield { status: 'done', content: status.generations[0].text };
-            }
-            break;
-        }
+		if (status.done) {
+			if (status.generations && status.generations.length > 0) {
+				yield { status: 'done', content: status.generations[0].text };
+			}
+			break;
+		}
 
-        // Wait before polling again
-        await new Promise(resolve => setTimeout(resolve, 1000));
-    }
+		// Wait before polling again
+		await new Promise(resolve => setTimeout(resolve, 1000));
+	}
 }
 
 async function aiHordeAbortCompletion({ endpoint, proxyEndpoint, hordeTaskId, ...options }) {
@@ -5483,6 +5483,9 @@ const defaultPresets = {
 	},
 	scrollTop: 0,
 	enabledSamplers: ['temperature', 'rep_pen', 'pres_pen', 'freq_pen', 'mirostat', 'top_k', 'top_p', 'min_p'],
+	grammar: '',
+	chatAPI: false,
+	tokenStreaming: true,
 };
 
 function joinPrompt(prompt) {
@@ -5763,12 +5766,13 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	const [worldInfo, setWorldInfo] = useSessionState('worldInfo', defaultPresets.worldInfo);
 	const [sillyTarvernWorldInfoJSON, setSillyTarvernWorldInfoJSON] = useState(null);
 	const [enabledSamplers, setEnabledSamplers] = useSessionState('enabledSamplers', defaultPresets.enabledSamplers);
-	const [grammar, setGrammar] = useSessionState('grammar', '');
+	const [grammar, setGrammar] = useSessionState('grammar', defaultPresets.grammar);
 	const [contextMenuState, setContextMenuState] = useState({ visible: false, x: 0, y: 0 });
 	const [instructModalState, setInstructModalState] = useState({});
 	const [hordeQueuePos, setHordeQueuePos] = useState(undefined);
-	const [useChatAPI, setUseChatAPI] = useSessionState('chatAPI', false);
-	const [useTokenStreaming, setUseTokenStreaming] = useSessionState('tokenStreaming', true);
+	const [hordeProcessing, setHordeProcessing] = useState(false);
+	const [useChatAPI, setUseChatAPI] = useSessionState('chatAPI', defaultPresets.chatAPI);
+	const [useTokenStreaming, setUseTokenStreaming] = useSessionState('tokenStreaming', defaultPresets.tokenStreaming);
 
 	function replacePlaceholders(string,placeholders) {
 		// give placeholders as json object
@@ -6426,11 +6430,12 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 					chunk.content = chunk.stopping_word;
 				if (endpointAPI === API_AI_HORDE) {
 					switch (chunk.status) {
-					case 'queued':
+					case 'queue_init':
 						hordeTaskId.current = chunk.taskId;
 						continue;
-					case 'queue':
+					case 'queue_status':
 						setHordeQueuePos(chunk.position);
+						setHordeProcessing(chunk.processing);
 						continue;
 					}
 				}
@@ -6478,6 +6483,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			setTokensPerSec(0.0);
 			hordeTaskId.current = undefined;
 			setHordeQueuePos(undefined);
+			setHordeProcessing(false);
 		}
 
 		// Chat Mode
@@ -7632,7 +7638,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			<div className="buttons">
 				<button
 					title="Run next prediction (Ctrl + Enter)"
-					className=${cancel && !sessionEndpointConnecting ? (predictStartTokens === tokens ? 'processing' : 'completing') : ''}
+					className=${cancel && !sessionEndpointConnecting ? ((predictStartTokens === tokens && (endpointAPI != API_AI_HORDE || !hordeProcessing)) ? 'processing' : 'completing') : ''}
 					disabled=${!!cancel || stoppingStringsError || drySequenceBreakersError || bannedTokensError}
 					onClick=${() => predict()}>
 					Predict
