@@ -999,7 +999,7 @@ html.monospace-dark .tooltip .tooltiptext.short {
 	margin-left: auto;
 	margin-right: auto;
 	padding: 2px 10px;
-	max-width: 210px;
+	max-width: 215px;
 }
 
 button {
@@ -2169,31 +2169,35 @@ async function* openaiCompletion({ endpoint, endpointAPIKey, proxyEndpoint, sign
 			};
 		}
 	} else {
-		const { content, choices } = await res.json();
-		const chunks = choices?.[0].logprobs?.content ?? [];
-		if (chunks.length) {
+		const { choices } = await res.json();
+		if (choices?.[0].logprobs?.tokens) {
+			const logprobs = choices?.[0].logprobs;
+			const chunks = Object.values(logprobs.tokens).map((token, i) => {
+				return { text: token, logprobs: { top_logprobs: [ logprobs.top_logprobs[i] ] } };
+			});
 			for (const chunk of chunks) {
-				const { token, top_logprobs } = chunk;
+				const { text, logprobs } = chunk;
+				const top_logprobs = logprobs?.top_logprobs?.[0] ?? {};
 				
-				const probs = Object.values(top_logprobs).map(({ token, logprob }) => ({
-					tok_str: token,
+				const probs = Object.entries(top_logprobs).map(([tok, logprob]) => ({
+					tok_str: tok,
 					prob: Math.exp(logprob)
 				}));
-				const prob = probs.find(p => p.tok_str === token)?.prob;
+				const prob = probs.find(p => p.tok_str === text)?.prob;
 
 				yield {
-					content: token,
+					content: text,
 					...(probs.length > 0 ? {
 						prob: prob ?? -1,
 						completion_probabilities: [{
-							content: token,
+							content: text,
 							probs
 						}]
 					} : {})
 				};
 			}
-		} else if (content) {
-			yield { content: content };
+		} else if (choices?.[0].text) {
+			yield { content: choices.text };
 		}
 	}
 }
@@ -2225,14 +2229,27 @@ async function* openaiChatCompletion({ endpoint, endpointAPIKey, proxyEndpoint, 
 
 	if (options.stream) {
 		for await (const chunk of parseEventStream(res.body)) {
-			const logprobs = Object.entries(chunk.choices[0].logprobs?.top_logprobs?.[0] ?? {});
-			const probs = logprobs.map(([tok, logprob]) => ({ tok_str: tok, prob: Math.exp(logprob) }));
+			const token = chunk.choices[0].delta.content;
+			const top_logprobs = chunk.choices[0].logprobs?.content?.[0]?.top_logprobs ?? {};
+			if (!token) {
+				continue
+			}
+			
+			const probs = Object.values(top_logprobs).map(({ token, logprob }) => ({
+				tok_str: token,
+				prob: Math.exp(logprob)
+			}));
+			const prob = probs.find(p => p.tok_str === token)?.prob;
+
 			yield {
-				content: chunk.choices[0].delta.content,
-				completion_probabilities: [{
-					content: chunk.choices[0].delta.content,
-					probs
-				}]
+				content: token,
+				...(probs.length > 0 ? {
+					prob: prob ?? -1,
+					completion_probabilities: [{
+						content: token,
+						probs
+					}]
+				} : {})
 			};
 		}
 	} else {
@@ -2241,7 +2258,10 @@ async function* openaiChatCompletion({ endpoint, endpointAPIKey, proxyEndpoint, 
 		if (chunks.length) {
 			for (const chunk of chunks) {
 				const { token, top_logprobs } = chunk;
-				
+				if (!token) {
+					continue
+				}
+
 				const probs = Object.values(top_logprobs).map(({ token, logprob }) => ({
 					tok_str: token,
 					prob: Math.exp(logprob)
@@ -7239,6 +7259,12 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 										: html`<${SVG_HideKey}/>`}
 					</button>
 				</div>
+				${(endpointAPI == API_OPENAI_COMPAT || endpointAPI == API_AI_HORDE) && html`
+					<${InputBox} label="Model"
+						datalist=${openaiModels}
+						readOnly=${!!cancel}
+						value=${endpointModel}
+						onValueChange=${setEndpointModel}/>`}
 				${endpointAPI != API_AI_HORDE && html`
 					${endpointAPI == API_OPENAI_COMPAT && html`
 						<${Checkbox} label="Strict API"
@@ -7249,12 +7275,6 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 							disabled=${!!cancel} value=${useChatAPI} onValueChange=${setUseChatAPI}/>`}
 					<${Checkbox} label="Token Streaming"
 						disabled=${!!cancel} value=${useTokenStreaming} onValueChange=${setUseTokenStreaming}/>`}
-				${(endpointAPI == API_OPENAI_COMPAT || endpointAPI == API_AI_HORDE) && html`
-					<${InputBox} label="Model"
-						datalist=${openaiModels}
-						readOnly=${!!cancel}
-						value=${endpointModel}
-						onValueChange=${setEndpointModel}/>`}
 				<div className="buttons instructTemplateSidebar">
 					<${SelectBoxTemplate}
 						label="Instruct Template"
