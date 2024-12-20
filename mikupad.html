@@ -2197,7 +2197,7 @@ async function* openaiCompletion({ endpoint, endpointAPIKey, proxyEndpoint, sign
 				};
 			}
 		} else if (choices?.[0].text) {
-			yield { content: choices.text };
+			yield { content: choices[0].text };
 		}
 	}
 }
