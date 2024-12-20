@@ -2723,8 +2723,8 @@ function Sessions({ sessionStorage, disabled }) {
 								autoFocus
 							/>
 							<div className="flex-separator"></div>
-							<button onClick=${(e) => (createSession(), e.stopImmediatePropagation?.())}><${SVG_Confirm}/></button>
-							<button onClick=${(e) => (setIsCreating(false), e.stopImmediatePropagation?.())}><${SVG_Cancel}/></button>
+							<button onClick=${(e) => (createSession(), e.stopPropagation())}><${SVG_Confirm}/></button>
+							<button onClick=${(e) => (setIsCreating(false), e.stopPropagation())}><${SVG_Cancel}/></button>
 						</a>
 					</li>
 				`}
@@ -2742,8 +2742,8 @@ function Sessions({ sessionStorage, disabled }) {
 									autoFocus
 								/>
 								<div className="flex-separator"></div>
-								<button onClick=${(e) => (renameSession(+sessionId), e.stopImmediatePropagation())}><${SVG_Confirm}/></button>
-								<button onClick=${(e) => (setRenamingId(undefined), e.stopImmediatePropagation())}><${SVG_Cancel}/></button>
+								<button onClick=${(e) => (renameSession(+sessionId), e.stopPropagation())}><${SVG_Confirm}/></button>
+								<button onClick=${(e) => (setRenamingId(undefined), e.stopPropagation())}><${SVG_Cancel}/></button>
 							` : html`
 								${session.name}
 								<div className="flex-separator"></div>
