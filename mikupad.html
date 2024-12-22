@@ -5223,10 +5223,11 @@ class SessionStorage extends AbstractStorage {
 	}
 
 	async saveSessionToDB(sessionId) {
-		if (!this.sessions[sessionId] || this.sessions[sessionId].inactive)
+		const sessionData = this.sessions[sessionId];
+		if (!sessionData || sessionData.inactive)
 			return;
 		const db = await this.openDatabase();
-		await this.saveToDatabase(db, sessionId, this.sessions[sessionId]);
+		await this.saveToDatabase(db, sessionId, sessionData);
 	}
 
 	async getNewId() {
