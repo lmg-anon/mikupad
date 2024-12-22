@@ -318,6 +318,32 @@ html.ereader #prompt-container:hover #prompt-overlay > .machine {
 	outline: 1px solid var(--color-base-50);
 	outline-offset: 1px;
 }
+#prompt-container #prompt-overlay > .preview {
+	color: var(--color-dark);
+	opacity: 40%;
+}
+html.serif-dark #prompt-container #prompt-overlay > .preview,
+html.monospace-dark #prompt-container #prompt-overlay > .preview,
+html.nockoffAI #prompt-container #prompt-overlay > .preview {
+	color: var(--color-light);
+	opacity: 30%;
+}
+#prompt-container #prompt-overlay > .nudge {
+    outline: 1px solid var(--color-dark);
+    margin-left: 5px;
+	padding-bottom: 2px;
+    padding: 0 4px;
+    font-size: calc(11px * var(--font-size-multiplier));
+    background-color: transparent;
+    border-radius: 3px;
+	position: relative;
+	top: -2px;
+}
+html.serif-dark #prompt-container #prompt-overlay > .nudge,
+html.monospace-dark #prompt-container #prompt-overlay > .nudge,
+html.nockoffAI #prompt-container #prompt-overlay > .nudge {
+    border: 1px solid var(--color-light);
+}
 
 #probs {
 	position: absolute;
@@ -5488,6 +5514,8 @@ const defaultPresets = {
 	grammar: '',
 	chatAPI: false,
 	tokenStreaming: true,
+	promptPreview: false,
+	promptPreviewTokens: 20,
 };
 
 function joinPrompt(prompt) {
@@ -5690,6 +5718,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	const sessionReconnectTimer = useRef();
 	const useScrollSmoothing = useRef(true);
 	const hordeTaskId = useRef();
+	const promptPreviewElement = useRef();
 	const [templates, setTemplates] = useDBTemplates(defaultPresets.instructTemplates);
 	const [templateReplacements, setTemplateReplacements] = useState(false);
 	const [templatesImport, setTemplatesImport] = useState(false);
@@ -5775,6 +5804,10 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	const [hordeProcessing, setHordeProcessing] = useState(false);
 	const [useChatAPI, setUseChatAPI] = useSessionState('chatAPI', defaultPresets.chatAPI);
 	const [useTokenStreaming, setUseTokenStreaming] = useSessionState('tokenStreaming', defaultPresets.tokenStreaming);
+	const [promptPreviewChunks, setPromptPreviewChunks] = useState([]);
+	const [promptPreviewReroll, setPromptPreviewReroll] = useState(0);
+	const [showPromptPreview, setShowPromptPreview] = useSessionState('promptPreview', defaultPresets.promptPreview);
+	const [promptPreviewTokens, setPromptPreviewTokens] = useSessionState('promptPreviewTokens', defaultPresets.promptPreviewTokens);
 
 	function replacePlaceholders(string,placeholders) {
 		// give placeholders as json object
@@ -6176,6 +6209,31 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		return replacePlaceholders(additionalContextPrompt, templateReplacements);
 	}, [additionalContextPrompt, templates, selectedTemplate]);
 
+	// predicts the prompt preview
+	useEffect(() => {
+		if (fimPromptInfo !== undefined || cancel || !showPromptPreview)
+			return;
+		
+		setPromptPreviewChunks([]);
+
+		const ac = new AbortController();
+		const to = setTimeout(async () => {
+			const customParams = {
+				n_predict: promptPreviewTokens
+			};
+
+			const predicted = await predict(finalPromptText, promptChunks.length, (chunk) => {
+				setPromptPreviewChunks((c) => [...c, chunk]);
+				return true;
+			}, ac, customParams);
+		}, 500);
+
+		ac.signal.addEventListener('abort', () => clearTimeout(to));
+		return () => ac.abort();
+	}, [finalPromptText, showPromptPreview, promptPreviewReroll, promptPreviewTokens, cancel, endpoint, endpointAPI, endpointAPIKey]);
+
+	const promptPreviewText = useMemo(() => joinPrompt(promptPreviewChunks), [promptPreviewChunks]);
+
 	// predicts one {fill} placeholder
 	async function fillPredict() {
 		if (fimPromptInfo === undefined)
@@ -6270,8 +6328,8 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		return messages;
 	}
 
-	async function predict(prompt = finalPromptText, chunkCount = promptChunks.length, callback = undefined) {
-		if (cancel) {
+	async function predict(prompt = finalPromptText, chunkCount = promptChunks.length, callback = undefined, abortController = undefined, customParams = {}) {
+		if (!abortController && cancel) {
 			cancel?.();
 
 			// llama.cpp server sometimes generates gibberish if we stop and
@@ -6287,17 +6345,32 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		if (!callback && !restartedPredict && await fillPredict())
 			return true;
 
-		const ac = new AbortController();
-		const cancelThis = () => {
-			abortCompletion({
-				endpoint,
-				endpointAPI,
-				...(endpointAPI == API_AI_HORDE ? { hordeTaskId: hordeTaskId.current } : {}),
-				...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {})
-			});
-			ac.abort();
-		};
-		setCancel(() => cancelThis);
+		let ac;
+		let cancelThis;
+		if (!abortController) {
+			ac = new AbortController();
+			cancelThis = () => {
+				abortCompletion({
+					endpoint,
+					endpointAPI,
+					...(endpointAPI == API_AI_HORDE ? { hordeTaskId: hordeTaskId.current } : {}),
+					...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {})
+				});
+				ac.abort();
+			};
+			setCancel(() => cancelThis);
+		} else {
+			ac = abortController;
+			cancelThis = () => {
+				abortCompletion({
+					endpoint,
+					endpointAPI,
+					...(endpointAPI == API_AI_HORDE ? { hordeTaskId: hordeTaskId.current } : {}),
+					...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {})
+				});
+			};
+			ac.signal.addEventListener('abort', cancelThis);
+		}
 		setLastError(undefined);
 
 		let predictCount = 0;
@@ -6425,7 +6498,8 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 				stream: useTokenStreaming,
 				...(JSON.parse(stoppingStrings).length ? { stop: JSON.parse(stoppingStrings) } : {}),
 				signal: ac.signal,
-				...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {})
+				...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {}),
+				...customParams
 			})) {
 				ac.signal.throwIfAborted();
 				if (chunk.stopping_word)
@@ -6478,6 +6552,8 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			return false;
 		} finally {
 			setCancel(c => c === cancelThis ? null : c);
+			if (abortController)
+				ac.signal.removeEventListener('abort', cancelThis);
 			if (!callback) {
 				if (predictCount === 0)
 					undoStack.current.pop();
@@ -6681,7 +6757,32 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	}, [promptText]);
 
 	useLayoutEffect(() => {
-		if (cancel)
+		const elem = promptArea.current;
+		const previewElem = promptPreviewElement.current;
+		if (!elem || !previewElem)
+			return;
+		const oldHeight = elem.scrollHeight;
+		const atBottom = (elem.scrollTarget ?? elem.scrollTop) + elem.clientHeight + 1 > oldHeight;
+		previewElem.textContent = promptPreviewText;
+		elem.style.paddingBottom = previewElem.offsetHeight + 'px';
+		requestAnimationFrame(() => {
+			const newHeight = elem.scrollHeight;
+			if (atBottom && oldHeight !== newHeight) {
+				if (elem.scrollHeight - (elem.scrollTop + elem.clientHeight + 1) >= 100) {
+					// smooth scroll isn't keeping up with prediction speed =(
+					useScrollSmoothing.current = false;
+				}
+				elem.scrollTarget = newHeight - elem.clientHeight;
+				elem.scrollTo({
+					top: newHeight - elem.clientHeight,
+					behavior: useScrollSmoothing.current ? 'smooth' : 'instant',
+				});
+			}
+		});
+	}, [promptPreviewText]);
+
+	useLayoutEffect(() => {
+		if (cancel || promptPreviewText)
 			return;
 		promptArea.current.scrollTarget = undefined;
 		promptArea.current.scrollTop = savedScrollTop;
@@ -6755,7 +6856,22 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 					predict();
 					break;
 				case 'false:false:false:Escape':
-					cancel();
+					if (cancel) {
+						cancel();
+					} else if (promptPreviewText.length !== 0) {
+						setPromptPreviewReroll((r) => r + 1);
+					}
+					break;
+				case 'false:false:false:Tab':
+					if (promptPreviewText.length === 0)
+						break;
+
+					setPromptChunks(p => [
+						...p,
+						...promptPreviewChunks
+					]);
+					setTokens(t => t + promptPreviewChunks.length);
+					setPromptPreviewChunks([]);
 					break;
 				case 'false:true:false:r':
 				case 'false:false:true:r':
@@ -7090,6 +7206,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			redoStack.current = [];
 			undoStack.current = [];
 			setUndoHovered(false);
+			setPromptPreviewChunks([]);
 			setTitleToSession();
 		}
 		function onSessionError() {
@@ -7194,8 +7311,13 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 				id="prompt-area"
 				onInput=${onInput}
 				onScroll=${onScroll}
-				onContextMenu=${onContextMenu}/>
-			<div ref=${promptOverlay} id="prompt-overlay" aria-hidden>
+				onContextMenu=${onContextMenu}
+				...${showPromptPreview && { style: { 'padding-bottom': promptPreviewElement.current?.offsetHeight ?? '0px' } }}/>
+			<div
+				ref=${promptOverlay}
+				id="prompt-overlay"
+				aria-hidden
+				...${showPromptPreview && { style: { 'padding-bottom': promptPreviewElement.current?.offsetHeight ?? '0px' } }}>
 				${tokenHighlightMode !== -1 ? html`
 					${promptChunks.map((chunk, i) => {
 						const getRatioColor = (ratio) => {
@@ -7228,9 +7350,12 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 								data-promptchunk=${i}
 								style=${bgColor ? { '--bg-color': bgColor } : {}}
 								className=${`${(tokenHighlightMode === 1 && !isCurrent) || chunk.type === 'user' ? 'user' : 'machine'} ${isCurrent ? 'current' : ''} ${isNextUndo ? 'erase' : ''}`}>
-								${(chunk.content === '\n' ? ' \n' : chunk.content) + (i === promptChunks.length - 1 && chunk.content.endsWith('\n') ? '\u00a0' : '')}
+								${(chunk.content === '\n' ? ' \n' : chunk.content) + (i === promptChunks.length - 1 && chunk.content.endsWith('\n') && promptPreviewText?.length === 0 ? '\u00a0' : '')}
 							</span>`;
 					})}` : null}
+					${(showPromptPreview && promptPreviewText?.length) ? html`
+						<span ref=${promptPreviewElement} className="preview"></span>
+						<span class="preview nudge">Tab</span>` : null}
 			</div>
 			<${SearchAndReplaceWidget}
 				isOpen=${modalState.searchAndReplace}
@@ -7320,7 +7445,12 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 							title="If enabled, the chat API endpoint will be used, and the prompt will be split into chat messages based on the delimiters defined in the selected instruct template."
 							disabled=${!!cancel} value=${useChatAPI} onValueChange=${setUseChatAPI}/>`}
 					<${Checkbox} label="Token Streaming"
-						disabled=${!!cancel} value=${useTokenStreaming} onValueChange=${setUseTokenStreaming}/>`}
+						disabled=${!!cancel} value=${useTokenStreaming} onValueChange=${setUseTokenStreaming}/>
+					<${Checkbox} label="Prediction Preview"
+						disabled=${!!cancel} value=${showPromptPreview} onValueChange=${setShowPromptPreview}/>
+					${showPromptPreview && html`
+						<${InputBox} label="Max Preview Tokens" type="text" inputmode="numeric"
+							readOnly=${!!cancel} value=${promptPreviewTokens} onValueChange=${setPromptPreviewTokens}/>`}`}
 				<div className="buttons instructTemplateSidebar">
 					<${SelectBoxTemplate}
 						label="Instruct Template"
