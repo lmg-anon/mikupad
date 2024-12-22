@@ -6214,7 +6214,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		if (promptPreviewChunks.length)
 			setPromptPreviewChunks([]);
 		
-		if (fimPromptInfo !== undefined || cancel || !showPromptPreview || endpointAPI == API_AI_HORDE)
+		if (fimPromptInfo !== undefined || cancel || endpointAPI == API_AI_HORDE || tokenHighlightMode === -1 || !showPromptPreview)
 			return;
 
 		const ac = new AbortController();
@@ -6859,12 +6859,12 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 				case 'false:false:false:Escape':
 					if (cancel) {
 						cancel();
-					} else if (promptPreviewText.length !== 0) {
+					} else if (showPromptPreview && promptPreviewChunks.length !== 0) {
 						setPromptPreviewReroll((r) => r + 1);
 					}
 					break;
 				case 'false:false:false:Tab':
-					if (promptPreviewText.length === 0)
+					if (!showPromptPreview || promptPreviewChunks.length === 0)
 						break;
 
 					setPromptChunks(p => [
@@ -7351,12 +7351,12 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 								data-promptchunk=${i}
 								style=${bgColor ? { '--bg-color': bgColor } : {}}
 								className=${`${(tokenHighlightMode === 1 && !isCurrent) || chunk.type === 'user' ? 'user' : 'machine'} ${isCurrent ? 'current' : ''} ${isNextUndo ? 'erase' : ''}`}>
-								${(chunk.content === '\n' ? ' \n' : chunk.content) + (i === promptChunks.length - 1 && chunk.content.endsWith('\n') && promptPreviewText?.length === 0 ? '\u00a0' : '')}
+								${(chunk.content === '\n' ? ' \n' : chunk.content) + (i === promptChunks.length - 1 && chunk.content.endsWith('\n') && promptPreviewChunks.length === 0 ? '\u00a0' : '')}
 							</span>`;
-					})}` : null}
-					${(showPromptPreview && promptPreviewText?.length) ? html`
+					})}
+					${(showPromptPreview && promptPreviewChunks.length) ? html`
 						<span ref=${promptPreviewElement} className="preview"></span>
-						<span class="preview nudge">Tab</span>` : null}
+						<span class="preview nudge">Tab</span>` : null}` : null}
 			</div>
 			<${SearchAndReplaceWidget}
 				isOpen=${modalState.searchAndReplace}
@@ -7448,7 +7448,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 					<${Checkbox} label="Token Streaming"
 						disabled=${!!cancel} value=${useTokenStreaming} onValueChange=${setUseTokenStreaming}/>
 					<${Checkbox} label="Prediction Preview"
-						disabled=${!!cancel} value=${showPromptPreview} onValueChange=${setShowPromptPreview}/>
+						disabled=${!!cancel || tokenHighlightMode === -1} value=${showPromptPreview && tokenHighlightMode !== -1} onValueChange=${setShowPromptPreview}/>
 					${showPromptPreview && html`
 						<${InputBox} label="Max Preview Tokens" type="text" inputmode="numeric"
 							readOnly=${!!cancel} value=${promptPreviewTokens} onValueChange=${setPromptPreviewTokens}/>`}`}
