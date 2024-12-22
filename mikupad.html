@@ -5193,7 +5193,7 @@ class SessionStorage extends AbstractStorage {
 		this.nextId = (await this.loadFromDatabase(db, 'nextSessionId')) || 0;
 		this.selectedSession = (await this.loadFromDatabase(db, 'selectedSessionId')) || 0;
 		await this.loadSessions(db);
-		this.startSaveTimer((sessionId) => this.saveSessionToDB(sessionId));
+		this.startSaveTimer(async (sessionId) => await this.saveSessionToDB(sessionId));
 	}
 
 	async saveSessionToDB(sessionId) {
@@ -5269,6 +5269,10 @@ class SessionStorage extends AbstractStorage {
 	async switchSession(sessionId) {
 		if (!this.sessions[sessionId])
 			return;
+
+		// Flush saveQueue.
+		// TODO: Remove saveQueue, only one session actually needs to be saved at a time.
+		await this.saveTimerHandler(async (sessionId) => await this.saveSessionToDB(sessionId));
 
 		//Clear data of old session in order to minimize memory usage.
 		if (this.sessions[this.selectedSession] && this.sessions[this.selectedSession]['name'])
