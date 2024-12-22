@@ -6211,10 +6211,11 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 
 	// predicts the prompt preview
 	useEffect(() => {
-		if (fimPromptInfo !== undefined || cancel || !showPromptPreview)
-			return;
+		if (promptPreviewChunks.length)
+			setPromptPreviewChunks([]);
 		
-		setPromptPreviewChunks([]);
+		if (fimPromptInfo !== undefined || cancel || !showPromptPreview || endpointAPI == API_AI_HORDE)
+			return;
 
 		const ac = new AbortController();
 		const to = setTimeout(async () => {
