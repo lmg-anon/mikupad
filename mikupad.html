@@ -2223,7 +2223,7 @@ async function* openaiCompletion({ endpoint, endpointAPIKey, proxyEndpoint, sign
 			};
 		}
 	} else {
-		const { choices } = await res.json();
+		const { content, choices } = await res.json();
 		if (choices?.[0].logprobs?.tokens) {
 			const logprobs = choices?.[0].logprobs;
 			const chunks = Object.values(logprobs.tokens).map((token, i) => {
@@ -2252,6 +2252,8 @@ async function* openaiCompletion({ endpoint, endpointAPIKey, proxyEndpoint, sign
 			}
 		} else if (choices?.[0].text) {
 			yield { content: choices[0].text };
+		} else if (content) { // llama.cpp specific?
+			yield { content: content };
 		}
 	}
 }
