@@ -1738,26 +1738,54 @@ async function* llamaCppCompletion({ endpoint, endpointAPIKey, proxyEndpoint, si
 		throw new Error(`HTTP ${res.status}`);
 	if (options.stream) {
 		for await (const chunk of parseEventStream(res.body)) {
-			const probs = chunk.completion_probabilities?.[0]?.probs ?? [];
+			const choice = chunk.completion_probabilities?.[0];
+
+			let probs = [];
+			if (choice?.probs) {
+				probs = choice.probs ?? [];
+			} else if (choice?.top_logprobs) {
+				probs = Object.values(choice.top_logprobs).map(({ token, logprob }) => ({
+					tok_str: token,
+					prob: Math.exp(logprob)
+				}));
+			}
 			const prob = probs.find(p => p.tok_str === chunk.content)?.prob;
+			
 			yield {
 				content: chunk.content,
 				...(probs.length > 0 ? {
 					prob: prob ?? -1,
-					completion_probabilities: chunk.completion_probabilities
+					completion_probabilities: [{
+						content: chunk.content,
+						probs
+					}]
 				} : {})
 			};
 		}
 	} else {
 		const { completion_probabilities } = await res.json();
 		for (const chunk of completion_probabilities) {
-			const probs = chunk.probs ?? [];
-			const prob = probs.find(p => p.tok_str === chunk.content)?.prob;
+			const token = chunk.content ? chunk.content : chunk.token;
+
+			let probs = [];
+			if (chunk.probs) {
+				probs = chunk.probs ?? [];
+			} else if (chunk.top_logprobs) {
+				probs = Object.values(chunk.top_logprobs).map(({ token, logprob }) => ({
+					tok_str: token,
+					prob: Math.exp(logprob)
+				}));
+			}
+			const prob = probs.find(p => p.tok_str === token)?.prob;
+
 			yield {
-				content: chunk.content,
+				content: token,
 				...(probs.length > 0 ? {
 					prob: prob ?? -1,
-					completion_probabilities: [chunk]
+					completion_probabilities: [{
+						content: token,
+						probs
+					}]
 				} : {})
 			};
 		}
