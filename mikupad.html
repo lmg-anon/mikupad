@@ -1734,48 +1734,21 @@ async function* llamaCppCompletion({ endpoint, endpointAPIKey, proxyEndpoint, si
 		}),
 		signal,
 	});
-	if (!res.ok)
+
+	if (!res.ok) {
 		throw new Error(`HTTP ${res.status}`);
-	if (options.stream) {
-		for await (const chunk of parseEventStream(res.body)) {
+	}
+
+	async function* yieldTokens(chunks) {
+		for await (const chunk of chunks) {
+			const token = chunk.content || chunk.token;
 			const choice = chunk.completion_probabilities?.[0];
 
-			let probs = [];
-			if (choice?.probs) {
-				probs = choice.probs ?? [];
-			} else if (choice?.top_logprobs) {
-				probs = Object.values(choice.top_logprobs).map(({ token, logprob }) => ({
+			const probs = choice?.probs ??
+				Object.values(choice?.top_logprobs || chunk.top_logprobs || {}).map(({ token, logprob }) => ({
 					tok_str: token,
 					prob: Math.exp(logprob)
 				}));
-			}
-			const prob = probs.find(p => p.tok_str === chunk.content)?.prob;
-			
-			yield {
-				content: chunk.content,
-				...(probs.length > 0 ? {
-					prob: prob ?? -1,
-					completion_probabilities: [{
-						content: chunk.content,
-						probs
-					}]
-				} : {})
-			};
-		}
-	} else {
-		const { completion_probabilities } = await res.json();
-		for (const chunk of completion_probabilities) {
-			const token = chunk.content ? chunk.content : chunk.token;
-
-			let probs = [];
-			if (chunk.probs) {
-				probs = chunk.probs ?? [];
-			} else if (chunk.top_logprobs) {
-				probs = Object.values(chunk.top_logprobs).map(({ token, logprob }) => ({
-					tok_str: token,
-					prob: Math.exp(logprob)
-				}));
-			}
 			const prob = probs.find(p => p.tok_str === token)?.prob;
 
 			yield {
@@ -1789,6 +1762,13 @@ async function* llamaCppCompletion({ endpoint, endpointAPIKey, proxyEndpoint, si
 				} : {})
 			};
 		}
+	}
+
+	if (options.stream) {
+		yield* await yieldTokens(parseEventStream(res.body));
+	} else {
+		const { completion_probabilities } = await res.json();
+		yield* await yieldTokens(completion_probabilities);
 	}
 }
 
@@ -1872,19 +1852,16 @@ async function* koboldCppCompletion({ endpoint, endpointAPIKey, proxyEndpoint, s
 		}),
 		signal,
 	});
-	if (!res.ok)
+
+	if (!res.ok) {
 		throw new Error(`HTTP ${res.status}`);
-	if (options.stream) {
-		for await (const chunk of parseEventStream(res.body)) {
-			yield { content: chunk.token };
-		}
-	} else {
-		const { results } = await res.json();
-		const chunks = results?.[0].logprobs?.content ?? [];
-		for (const chunk of chunks) {
+	}
+
+	async function* yieldTokens(chunks) {
+		for await (const chunk of chunks) {
 			const { token, top_logprobs } = chunk;
-			
-			const probs = Object.values(top_logprobs).map(({ token, logprob }) => ({
+
+			const probs = Object.values(top_logprobs ?? {}).map(({ token, logprob }) => ({
 				tok_str: token,
 				prob: Math.exp(logprob)
 			}));
@@ -1901,6 +1878,13 @@ async function* koboldCppCompletion({ endpoint, endpointAPIKey, proxyEndpoint, s
 				} : {})
 			};
 		}
+	}
+
+	if (options.stream) {
+		yield* await yieldTokens(parseEventStream(res.body));
+	} else {
+		const { results } = await res.json();
+		yield* await yieldTokens(results?.[0].logprobs?.content ?? []);
 	}
 }
 
@@ -2193,18 +2177,16 @@ async function* openaiCompletion({ endpoint, endpointAPIKey, proxyEndpoint, sign
 		throw new Error(`HTTP ${res.status}`);
 	}
 
-	if (options.stream) {
-		for await (const chunk of parseEventStream(res.body)) {
+	async function* yieldTokens(chunks) {
+		for await (const chunk of chunks) {
 			if (!chunk.choices || chunk.choices.length === 0) {
-				if (chunk.content) {
-					yield {	content: chunk.content };
-				}
+				if (chunk.content) yield { content: chunk.content };
 				continue;
 			}
 
 			const { text, logprobs } = chunk.choices[0];
 			const top_logprobs = logprobs?.top_logprobs?.[0] ?? {};
-			
+
 			const probs = Object.entries(top_logprobs).map(([tok, logprob]) => ({
 				tok_str: tok,
 				prob: Math.exp(logprob)
@@ -2222,38 +2204,25 @@ async function* openaiCompletion({ endpoint, endpointAPIKey, proxyEndpoint, sign
 				} : {})
 			};
 		}
+	}
+
+	if (options.stream) {
+		yield* await yieldTokens(parseEventStream(res.body));
 	} else {
 		const { content, choices } = await res.json();
 		if (choices?.[0].logprobs?.tokens) {
-			const logprobs = choices?.[0].logprobs;
-			const chunks = Object.values(logprobs.tokens).map((token, i) => {
-				return { text: token, logprobs: { top_logprobs: [ logprobs.top_logprobs[i] ] } };
-			});
-			for (const chunk of chunks) {
-				const { text, logprobs } = chunk;
-				const top_logprobs = logprobs?.top_logprobs?.[0] ?? {};
-				
-				const probs = Object.entries(top_logprobs).map(([tok, logprob]) => ({
-					tok_str: tok,
-					prob: Math.exp(logprob)
-				}));
-				const prob = probs.find(p => p.tok_str === text)?.prob;
-
-				yield {
-					content: text,
-					...(probs.length > 0 ? {
-						prob: prob ?? -1,
-						completion_probabilities: [{
-							content: text,
-							probs
-						}]
-					} : {})
-				};
-			}
+			const logprobs = choices[0].logprobs;
+			const chunks = Object.values(logprobs.tokens).map((token, i) => ({
+				choices: [{
+					text: token,
+					logprobs: { top_logprobs: [logprobs.top_logprobs[i]] }
+				}]
+			}));
+			yield* await yieldTokens(chunks);
 		} else if (choices?.[0].text) {
 			yield { content: choices[0].text };
 		} else if (content) { // llama.cpp specific?
-			yield { content: content };
+			yield { content };
 		}
 	}
 }
@@ -2300,7 +2269,6 @@ async function* openaiBufferUtf8Stream(stream) {
 	}
 }
 
-
 async function* openaiChatCompletion({ endpoint, endpointAPIKey, proxyEndpoint, signal, ...options }) {
 	const res = await fetch(`${proxyEndpoint ?? endpoint}/v1/chat/completions`, {
 		method: 'POST',
@@ -2326,14 +2294,12 @@ async function* openaiChatCompletion({ endpoint, endpointAPIKey, proxyEndpoint, 
 		throw new Error(`HTTP ${res.status}`);
 	}
 
-	if (options.stream) {
-		for await (const chunk of parseEventStream(res.body)) {
+	async function* yieldTokens(chunks) {
+		for await (const chunk of chunks) {
 			const token = chunk.choices[0].delta.content;
 			const top_logprobs = chunk.choices[0].logprobs?.content?.[0]?.top_logprobs ?? {};
-			if (!token) {
-				continue
-			}
-			
+			if (!token) continue;
+
 			const probs = Object.values(top_logprobs).map(({ token, logprob }) => ({
 				tok_str: token,
 				prob: Math.exp(logprob)
@@ -2351,49 +2317,24 @@ async function* openaiChatCompletion({ endpoint, endpointAPIKey, proxyEndpoint, 
 				} : {})
 			};
 		}
+	}
+
+	if (options.stream) {
+		yield* await yieldTokens(parseEventStream(res.body));
 	} else {
 		const { choices } = await res.json();
-		const chunks = choices?.[0].logprobs?.content ?? [];
-		if (chunks.length) {
+		const chunks = choices?.[0].logprobs?.content;
+
+		if (chunks?.length) {
 			const formattedChunks = chunks.map(chunk => ({
 				choices: [{
 					delta: { content: chunk.token },
-					logprobs: {
-						content: [{
-							top_logprobs: chunk.top_logprobs
-						}]
-					}
+					logprobs: { content: [{ top_logprobs: chunk.top_logprobs }] }
 				}]
 			}));
-			for await (const chunk of openaiBufferUtf8Stream(formattedChunks)) {
-				const token = chunk.choices[0].delta.content;
-        		const top_logprobs = chunk.choices[0].logprobs?.content?.[0]?.top_logprobs ?? {};
-				if (!token) {
-					continue
-				}
-
-				const probs = Object.values(top_logprobs).map(({ token, logprob }) => ({
-					tok_str: token,
-					prob: Math.exp(logprob)
-				}));
-				const prob = probs.find(p => p.tok_str === token)?.prob;
-
-				yield {
-					content: token,
-					...(probs.length > 0 ? {
-						prob: prob ?? -1,
-						completion_probabilities: [{
-							content: token,
-							probs
-						}]
-					} : {})
-				};
-			}
-		} else {
-			const content = choices?.[0].message?.content;
-			if (content) {
-				yield { content: content };
-			}
+			yield* await yieldTokens(openaiBufferUtf8Stream(formattedChunks));
+		} else if (choices?.[0].message?.content) {
+			yield { content: choices[0].message.content };
 		}
 	}
 }
