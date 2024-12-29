@@ -2258,6 +2258,49 @@ async function* openaiCompletion({ endpoint, endpointAPIKey, proxyEndpoint, sign
 	}
 }
 
+async function* openaiBufferUtf8Stream(stream) {
+	const decoder = new TextDecoder('utf-8', { fatal: false });
+
+	function parseEscapedString(escapedStr) {
+		return new Uint8Array(
+			escapedStr
+				.split('\\x')
+				.slice(1)
+				.map(hex => parseInt(hex, 16))
+		);
+	}
+
+	const hasEscapedSequence = str => /\\x[0-9a-fA-F]{2}/.test(str);
+	const encoder = new TextEncoder();
+
+	for await (const chunk of stream) {
+		const content = chunk?.choices?.[0]?.delta?.content ?? chunk?.choices?.[0]?.text;
+
+		if (!content) {
+			yield chunk;
+			continue;
+		}
+
+		const binaryData = hasEscapedSequence(content)
+			? parseEscapedString(content)
+			: encoder.encode(content);
+
+		const decoded = decoder.decode(binaryData, { stream: true });
+
+		yield {
+			...chunk,
+			choices: [{
+				...chunk.choices[0],
+				...(chunk.choices[0].delta
+					? { delta: { ...chunk.choices[0].delta, content: decoded } }
+					: { text: decoded }
+				)
+			}]
+		};
+	}
+}
+
+
 async function* openaiChatCompletion({ endpoint, endpointAPIKey, proxyEndpoint, signal, ...options }) {
 	const res = await fetch(`${proxyEndpoint ?? endpoint}/v1/chat/completions`, {
 		method: 'POST',
@@ -2312,8 +2355,19 @@ async function* openaiChatCompletion({ endpoint, endpointAPIKey, proxyEndpoint, 
 		const { choices } = await res.json();
 		const chunks = choices?.[0].logprobs?.content ?? [];
 		if (chunks.length) {
-			for (const chunk of chunks) {
-				const { token, top_logprobs } = chunk;
+			const formattedChunks = chunks.map(chunk => ({
+				choices: [{
+					delta: { content: chunk.token },
+					logprobs: {
+						content: [{
+							top_logprobs: chunk.top_logprobs
+						}]
+					}
+				}]
+			}));
+			for await (const chunk of openaiBufferUtf8Stream(formattedChunks)) {
+				const token = chunk.choices[0].delta.content;
+        		const top_logprobs = chunk.choices[0].logprobs?.content?.[0]?.top_logprobs ?? {};
 				if (!token) {
 					continue
 				}
