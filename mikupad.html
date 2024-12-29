@@ -6305,7 +6305,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		}
 
 		function skipToNextKnownPrefix(text, ...prefixes) {
-			const indices = prefixes.map(prefix => prefix ? regexIndexOf(text, createLenientPrefixRegex(prefix)) : -1).filter(index => index !== -1);
+			const indices = prefixes.map(prefix => prefix ? regexIndexOf(text, createLenientRegex(prefix)) : -1).filter(index => index !== -1);
 			const minIndex = indices.length > 0 ? Math.min(...indices) : text.length;
 			if (minIndex == 0) {
 				console.warn("Something went wrong!");
