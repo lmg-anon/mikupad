@@ -313,6 +313,19 @@ html.ereader #prompt-container:hover #prompt-overlay > .machine {
 #prompt-container #prompt-overlay > .machine.erase {
 	background: color-mix(in srgb, #FF0000 10%, transparent);
 }
+#prompt-container #prompt-overlay > .machine.dialogue {
+	background: color-mix(in srgb, var(--bg-color, var(--color-miku)) 10%, var(--color-base-100));
+	color: orange;
+}
+#prompt-container #prompt-overlay > .machine.action {
+	background: color-mix(in srgb, var(--bg-color, var(--color-miku)) 10%, var(--color-base-100));
+	color: gray;
+	font-style: italic;
+}
+#prompt-container #prompt-overlay > .machine.inst {
+	background: color-mix(in srgb, var(--bg-color, var(--color-miku)) 10%, var(--color-base-100));
+	color: red;
+}
 #prompt-container #prompt-overlay > .machine.current {
 	border-radius: 3px;
 	outline: 1px solid var(--color-base-50);
@@ -7316,6 +7329,177 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		elem.scrollTop = scrollTop;
 	}, [instructModalState.result]);
 
+	const textFormatters = {
+		instPre: {
+			type: 'instPre',
+			isInProgress: false,
+			findBoundaries(text) {
+				const boundaries = [];
+				let pos = 0;
+				while ((pos = text.indexOf('[INST]', pos)) !== -1) {
+					boundaries.push({
+						position: pos,
+						isStart: true,
+						type: this.type
+					});
+					pos += '[INST]'.length; // Move past the [INST] tag
+					boundaries.push({
+						position: pos - 1,
+						isStart: false,
+						type: this.type
+					});
+				}
+				return boundaries;
+			}
+		},
+		instSuf: {
+			type: 'instSuf',
+			isInProgress: false,
+			findBoundaries(text) {
+				const boundaries = [];
+				let pos = 0;
+				while ((pos = text.indexOf('[/INST]', pos)) !== -1) {
+					boundaries.push({
+						position: pos,
+						isStart: true,
+						type: this.type
+					});
+					pos += '[/INST]'.length; // Move past the [/INST] tag
+					boundaries.push({
+						position: pos - 1,
+						isStart: false,
+						type: this.type
+					});
+				}
+				return boundaries;
+			}
+		},
+		dialogue: {
+			type: 'dialogue',
+			isInProgress: false,
+			findBoundaries(text) {
+				const boundaries = [];
+				let pos = 0;
+				while ((pos = text.indexOf('"', pos)) !== -1) {
+					boundaries.push({
+						position: pos,
+						isStart: !this.isInProgress,
+						type: this.type
+					});
+					this.isInProgress = !this.isInProgress;
+					pos++;
+				}
+				return boundaries;
+			}
+		},
+		action: {
+			type: 'action',
+			isInProgress: false,
+			findBoundaries(text) {
+				const boundaries = [];
+				let pos = 0;
+				while ((pos = text.indexOf('*', pos)) !== -1) {
+					boundaries.push({
+						position: pos,
+						isStart: !this.isInProgress,
+						type: this.type
+					});
+					this.isInProgress = !this.isInProgress;
+					pos++;
+				}
+				return boundaries;
+			}
+		}
+	};
+
+	function* splitText(chunks) {
+		for (let i = 0; i < chunks.length; i++) {
+			const chunk = chunks[i];
+			const text = chunk.content;
+			const isLastItem = (i === chunks.length - 1);
+
+			// Get current active format at the start of this chunk
+			const activeFormat = Object.values(textFormatters)
+				.find(f => f.isInProgress)?.type;
+
+			// Collect all format boundaries in this chunk
+			const boundaries = [];
+			for (const formatter of Object.values(textFormatters)) {
+				boundaries.push(...formatter.findBoundaries(text));
+			}
+
+			// If no boundaries and no active format, yield chunk as-is
+			if (boundaries.length === 0) {
+				yield {
+					...chunk,
+					type: activeFormat || chunk.type,
+					originalIndex: i,
+					isLastChunk: isLastItem
+				};
+				continue;
+			}
+
+			// Sort boundaries by position
+			boundaries.sort((a, b) => a.position - b.position);
+
+			// Split chunk at boundaries
+			let lastPos = 0;
+			let currentType = activeFormat || chunk.type;
+
+			for (let j = 0; j < boundaries.length; j++) {
+				const boundary = boundaries[j];
+
+				// Text before boundary
+				if (boundary.position > lastPos) {
+					yield {
+						...chunk,
+						content: text.substring(lastPos, boundary.position),
+						type: currentType,
+						originalIndex: i,
+						isLastChunk: false
+					};
+				}
+
+				// The quote itself goes with the dialogue part
+				const quoteContent = text.substring(boundary.position, boundary.position + 1);
+				yield {
+					...chunk,
+					content: quoteContent,
+					type: boundary.isStart ? boundary.type : currentType,
+					originalIndex: i,
+					isLastChunk: false
+				};
+
+				lastPos = boundary.position + 1;
+				currentType = boundary.isStart ? boundary.type : chunk.type;
+			}
+
+			// Remaining text
+			if (lastPos < text.length) {
+				yield {
+					...chunk,
+					content: text.substring(lastPos),
+					type: currentType,
+					originalIndex: i,
+					isLastChunk: isLastItem
+				};
+			}
+		}
+	}
+
+	function processChunksWithGenerator(promptChunks, createChunkElement) {
+		const generator = splitText(promptChunks);
+		const results = [];
+		let resultIndex = 0;
+
+		for (const chunk of generator) {
+			results.push(createChunkElement(chunk, chunk.originalIndex, resultIndex));
+			resultIndex++;
+		}
+
+		return results;
+	}
+
 	return html`
 		<div id="prompt-container" onMouseMove=${onPromptMouseMove} style=${{ 'margin-bottom': isMobile ? sidebarHeight + 'px' : 0 }}>
 			<button
@@ -7346,7 +7530,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 				aria-hidden
 				...${showPromptPreview && { style: { 'padding-bottom': promptPreviewElement.current?.offsetHeight ?? '0px' } }}>
 				${tokenHighlightMode !== -1 ? html`
-					${promptChunks.map((chunk, i) => {
+					${processChunksWithGenerator(promptChunks, (chunk, i, oi, last) => {
 						const getRatioColor = (ratio) => {
 							const sRatio = Math.max(0, Math.min(1, ratio));
 							if (sRatio <= 0.5) {
@@ -7373,11 +7557,11 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 						const isNextUndo = undoHovered && !!undoStack.current.length && undoStack.current.at(-1) <= i;
 						return html`
 							<span
-								key=${i}
+								key=${oi}
 								data-promptchunk=${i}
 								style=${bgColor ? { '--bg-color': bgColor } : {}}
-								className=${`${(tokenHighlightMode === 1 && !isCurrent) || chunk.type === 'user' ? 'user' : 'machine'} ${isCurrent ? 'current' : ''} ${isNextUndo ? 'erase' : ''}`}>
-								${(chunk.content === '\n' ? ' \n' : chunk.content) + (i === promptChunks.length - 1 && chunk.content.endsWith('\n') && promptPreviewChunks.length === 0 ? '\u00a0' : '')}
+								className=${`${(tokenHighlightMode === 1 && !isCurrent) || chunk.type === 'user' ? 'user' : 'machine'} ${isCurrent ? 'current' : ''} ${isNextUndo ? 'erase' : ''} ${chunk.type === 'dialogue' ? 'dialogue' : ''} ${chunk.type === 'action' ? 'action' : ''} ${chunk.type === 'instPre' ? 'inst' : ''} ${chunk.type === 'instSuf' ? 'inst' : ''}`}>
+								${(chunk.content === '\n' ? ' \n' : chunk.content) + (chunk.isLastChunk && chunk.content.endsWith('\n') && promptPreviewChunks.length === 0 ? '\u00a0' : '')}
 							</span>`;
 					})}
 					${(showPromptPreview && promptPreviewChunks.length) ? html`
