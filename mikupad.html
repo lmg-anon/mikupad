@@ -5834,6 +5834,14 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	const [grammar, setGrammar] = useSessionState('grammar', defaultPresets.grammar);
 	const [contextMenuState, setContextMenuState] = useState({ visible: false, x: 0, y: 0 });
 	const [instructModalState, setInstructModalState] = useState({});
+	const [hordeQueuePos, setHordeQueuePos] = useState(undefined);
+	const [hordeProcessing, setHordeProcessing] = useState(false);
+	const [useChatAPI, setUseChatAPI] = useSessionState('chatAPI', defaultPresets.chatAPI);
+	const [useTokenStreaming, setUseTokenStreaming] = useSessionState('tokenStreaming', defaultPresets.tokenStreaming);
+	const [promptPreviewChunks, setPromptPreviewChunks] = useState([]);
+	const [promptPreviewReroll, setPromptPreviewReroll] = useState(0);
+	const [showPromptPreview, setShowPromptPreview] = useSessionState('promptPreview', defaultPresets.promptPreview);
+	const [promptPreviewTokens, setPromptPreviewTokens] = useSessionState('promptPreviewTokens', defaultPresets.promptPreviewTokens);
 
 	function replacePlaceholders(string,placeholders) {
 		// give placeholders as json object
@@ -6587,6 +6595,9 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 					undoStack.current.pop();
 			}
 			setTokensPerSec(0.0);
+			hordeTaskId.current = undefined;
+			setHordeQueuePos(undefined);
+			setHordeProcessing(false);
 		}
 
 		// Chat Mode
@@ -6596,7 +6607,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			setPromptChunks(p => [...p, { type: 'user', content: eotBot }])
 			prompt += `${eotBot}`
 		}
-
+		
 		return true;
 	}
 
