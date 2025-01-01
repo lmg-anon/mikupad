@@ -318,6 +318,32 @@ html.ereader #prompt-container:hover #prompt-overlay > .machine {
 	outline: 1px solid var(--color-base-50);
 	outline-offset: 1px;
 }
+#prompt-container #prompt-overlay > .preview {
+	color: var(--color-dark);
+	opacity: 40%;
+}
+html.serif-dark #prompt-container #prompt-overlay > .preview,
+html.monospace-dark #prompt-container #prompt-overlay > .preview,
+html.nockoffAI #prompt-container #prompt-overlay > .preview {
+	color: var(--color-light);
+	opacity: 30%;
+}
+#prompt-container #prompt-overlay > .nudge {
+    outline: 1px solid var(--color-dark);
+    margin-left: 5px;
+	padding-bottom: 2px;
+    padding: 0 4px;
+    font-size: calc(11px * var(--font-size-multiplier));
+    background-color: transparent;
+    border-radius: 3px;
+	position: relative;
+	top: -2px;
+}
+html.serif-dark #prompt-container #prompt-overlay > .nudge,
+html.monospace-dark #prompt-container #prompt-overlay > .nudge,
+html.nockoffAI #prompt-container #prompt-overlay > .nudge {
+    border: 1px solid var(--color-light);
+}
 
 #probs {
 	position: absolute;
@@ -999,6 +1025,7 @@ html.monospace-dark .tooltip .tooltiptext.short {
 	margin-left: auto;
 	margin-right: auto;
 	padding: 2px 10px;
+	max-width: 215px;
 }
 
 button {
@@ -1419,36 +1446,7 @@ import { SVResizeObserver } from 'scrollview-resize';
 const API_LLAMA_CPP = 0;
 const API_KOBOLD_CPP = 2;
 const API_OPENAI_COMPAT = 3;
-
-window.TTS = {
-	prev_prompt: "",
-	new_prompt: "",
-	new_text: "",
-	voice: null,
-	voice_id: 0,
-	voices: [],
-	rate: 1,
-	pitch: 1,
-	volume: 1,
-	enabled: true
-};
-
-window.speechSynthesis.onvoiceschanged = function() {
-	const voices = window.speechSynthesis.getVoices();
-	window.TTS.voices = voices;
-	window.TTS.voice = voices[0];
-};
-
-function textToSpeech() {
-	// console.log("Text to read:\n" + window.TTS.new_text); // DEBUG
-	var text = new SpeechSynthesisUtterance(window.TTS.new_text);
-	text.voice = window.TTS.voice;
-	text.rate = window.TTS.rate;
-	text.pitch = window.TTS.pitch;
-	text.volume = window.TTS.volume;
-	if (window.speechSynthesis.speaking) { window.speechSynthesis.cancel() }
-	window.speechSynthesis.speak(text);
-}
+const API_AI_HORDE = 4;
 
 // Polyfill for piece of shit Chromium
 if (!(Symbol.asyncIterator in ReadableStream.prototype)) {
@@ -1489,6 +1487,8 @@ function normalizeEndpoint(endpoint, endpointAPI) {
 		urlString = urlString.replace(/\/v1\/?$/, ""); // remove "/v1" from the end of the string
 	if (endpointAPI == API_KOBOLD_CPP)
 		urlString = urlString.replace(/\/api\/?$/, ""); // remove "/api" from the end of the string
+	if (endpointAPI == API_AI_HORDE)
+		urlString = "https://aihorde.net/api";
 	urlString = urlString.replace(/\/$/, ""); // remove "/" from the end of the string
 
 	return urlString;
@@ -1500,7 +1500,7 @@ export async function getTokenCount({ endpoint, endpointAPI, endpointAPIKey, sig
 		case API_LLAMA_CPP:
 			return await llamaCppTokenCount({ endpoint, endpointAPIKey, signal, ...options });
 		case API_KOBOLD_CPP:
-			return await koboldCppTokenCount({ endpoint, signal, ...options });
+			return await koboldCppTokenCount({ endpoint, endpointAPIKey, signal, ...options });
 		case API_OPENAI_COMPAT:
 			// These endpoints don't have a token count endpoint...
 			if (new URL(endpoint).host === 'api.openai.com' || new URL(endpoint).host === 'api.together.xyz')
@@ -1519,6 +1519,8 @@ export async function getTokenCount({ endpoint, endpointAPI, endpointAPIKey, sig
 			if (tokenCount != -1)
 				return tokenCount;
 			return 0;
+		default:
+			return 0;
 	}
 }
 
@@ -1532,7 +1534,7 @@ export async function getTokens({ endpoint, endpointAPI, endpointAPIKey, signal,
 		case API_LLAMA_CPP:
 			return await llamaCppTokenize({ endpoint, endpointAPIKey, signal, ...options });
 		case API_KOBOLD_CPP:
-			return await koboldCppTokenize({ endpoint, signal, ...options });
+			return await koboldCppTokenize({ endpoint, endpointAPIKey, signal, ...options });
 		case API_OPENAI_COMPAT:
 			// These endpoints don't have a tokenenizer endpoint...
 			if (new URL(endpoint).host === 'api.openai.com' || new URL(endpoint).host === 'api.together.xyz')
@@ -1548,6 +1550,8 @@ export async function getTokens({ endpoint, endpointAPI, endpointAPIKey, signal,
 			if (tokens !== null)
 				return tokens;
 			return [];
+		default:
+			return [];
 	}
 }
 
@@ -1556,6 +1560,8 @@ export async function getModels({ endpoint, endpointAPI, endpointAPIKey, signal,
 	switch (endpointAPI) {
 		case API_OPENAI_COMPAT:
 			return await openaiModels({ endpoint, endpointAPIKey, signal, ...options });
+		case API_AI_HORDE:
+			return await aiHordeModels({ endpoint, endpointAPIKey, signal, ...options });
 		default:
 			return [];
 	}
@@ -1567,9 +1573,19 @@ export async function* completion({ endpoint, endpointAPI, endpointAPIKey, signa
 		case API_LLAMA_CPP:
 			return yield* await llamaCppCompletion({ endpoint, endpointAPIKey, signal, ...options });
 		case API_KOBOLD_CPP:
-			return yield* await koboldCppCompletion({ endpoint, signal, ...options });
+			return yield* await koboldCppCompletion({ endpoint, endpointAPIKey, signal, ...options });
 		case API_OPENAI_COMPAT:
 			return yield* await openaiCompletion({ endpoint, endpointAPIKey, signal, ...options });
+		case API_AI_HORDE:
+			return yield* await aiHordeCompletion({ endpoint, endpointAPIKey, signal, ...options });
+	}
+}
+
+export async function* chatCompletion({ endpoint, endpointAPI, endpointAPIKey, signal, ...options }) {
+	endpoint = normalizeEndpoint(endpoint, endpointAPI);
+	switch (endpointAPI) {
+		case API_OPENAI_COMPAT:
+			return yield* await openaiChatCompletion({ endpoint, endpointAPIKey, signal, ...options });
 	}
 }
 
@@ -1580,6 +1596,8 @@ export async function abortCompletion({ endpoint, endpointAPI, ...options }) {
 			return await koboldCppAbortCompletion({ endpoint, ...options });
 		case API_OPENAI_COMPAT:
 			return await openaiOobaAbortCompletion({ endpoint, ...options });
+		case API_AI_HORDE:
+			return await aiHordeAbortCompletion({ endpoint, ...options });
 	}
 }
 
@@ -1623,6 +1641,9 @@ async function* parseEventStream(eventStream) {
 					break;
 				}
 				const json = JSON.parse(data);
+				if (json.error?.message) {
+					throw new Error(json.error.message);
+				}
 				// Both Chrome and Firefox suck at debugging
 				// text/event-stream, so make it easier by logging events
 				if (window.logSSEEvents) {
@@ -1709,57 +1730,54 @@ async function* llamaCppCompletion({ endpoint, endpointAPIKey, proxyEndpoint, si
 		},
 		body: JSON.stringify({
 			...options,
-			stream: true,
 			cache_prompt: true,
 		}),
 		signal,
 	});
-	if (!res.ok)
+
+	if (!res.ok) {
 		throw new Error(`HTTP ${res.status}`);
-	window.TTS.new_prompt = options.prompt;
-	window.TTS.new_text = "";
-	for await (const chunk of parseEventStream(res.body)) {
-		const probs = chunk.completion_probabilities[0]?.probs ?? [];
-		const prob = probs.find(p => p.tok_str === chunk.content)?.prob;
-		window.TTS.new_text += chunk.content;
-		yield {
-			content: chunk.content,
-			...(probs.length > 0 ? {
-				prob: prob ?? -1,
-				completion_probabilities: chunk.completion_probabilities
-			} : {})
-		};
 	}
-	// Check if something has been added to the prompt, and read that too
-	if (window.TTS.prev_prompt != window.TTS.new_prompt) {
-		var prev = window.TTS.prev_prompt;
-		var next = window.TTS.new_prompt;
-		if (window.TTS.prev_prompt.length > 2000) { prev = window.TTS.prev_prompt.substr(1500) }
-		if (window.TTS.new_prompt.length > 2000) { next = window.TTS.new_prompt.substr(1500) }
-		window.TTS.prev_prompt = options.prompt + window.TTS.new_text;
-		// Find where the added/modified part begins
-		for (var c = 0; c < Math.min(prev.length, next.length); c++) {
-			if (prev[c] != next[c]) {
-				break;
-			}
+
+	async function* yieldTokens(chunks) {
+		for await (const chunk of chunks) {
+			const token = chunk.content || chunk.token;
+			const choice = chunk.completion_probabilities?.[0];
+
+			const probs = choice?.probs ??
+				Object.values(choice?.top_logprobs || chunk.top_logprobs || {}).map(({ token, logprob }) => ({
+					tok_str: token,
+					prob: Math.exp(logprob)
+				}));
+			const prob = probs.find(p => p.tok_str === token)?.prob;
+
+			yield {
+				content: token,
+				...(probs.length > 0 ? {
+					prob: prob ?? -1,
+					completion_probabilities: [{
+						content: token,
+						probs
+					}]
+				} : {})
+			};
 		}
-		if (c < next.length) {
-			window.TTS.new_text = next.substr(c) + window.TTS.new_text;				
-		}
+	}
+
+	if (options.stream) {
+		yield* await yieldTokens(parseEventStream(res.body));
 	} else {
-		window.TTS.prev_prompt = options.prompt + window.TTS.new_text;
+		const { completion_probabilities } = await res.json();
+		yield* await yieldTokens(completion_probabilities);
 	}
-	// Trim if string is too long
-	if (window.TTS.new_text.length > 500) { window.TTS.new_text = window.TTS.new_text.substr(-500) }
-	// Read out TTS.new_text
-	if (window.TTS.enabled) { setTimeout(textToSpeech, 20) }
 }
 
-async function koboldCppTokenCount({ endpoint, proxyEndpoint, signal, ...options }) {
+async function koboldCppTokenCount({ endpoint, endpointAPIKey, proxyEndpoint, signal, ...options }) {
 	const res = await fetch(`${proxyEndpoint ?? endpoint}/api/extra/tokencount`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
+			...(endpointAPIKey ? { 'Authorization': `Bearer ${endpointAPIKey}` } : {}),
 			...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
 		},
 		body: JSON.stringify({
@@ -1773,11 +1791,12 @@ async function koboldCppTokenCount({ endpoint, proxyEndpoint, signal, ...options
 	return value;
 }
 
-async function koboldCppTokenize({ endpoint, proxyEndpoint, signal, ...options }) {
+async function koboldCppTokenize({ endpoint, endpointAPIKey, proxyEndpoint, signal, ...options }) {
 	const res = await fetch(`${proxyEndpoint ?? endpoint}/api/extra/tokencount`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
+			...(endpointAPIKey ? { 'Authorization': `Bearer ${endpointAPIKey}` } : {}),
 			...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
 		},
 		body: JSON.stringify({
@@ -1793,7 +1812,8 @@ async function koboldCppTokenize({ endpoint, proxyEndpoint, signal, ...options }
 
 }
 
-function koboldCppConvertOptions(options) {
+function koboldCppConvertOptions(options, endpoint) {
+	const isHorde = endpoint.toLowerCase().includes("aihorde.net");
 	const swapOption = (lhs, rhs) => {
 		if (lhs in options) {
 			options[rhs] = options[lhs];
@@ -1801,10 +1821,14 @@ function koboldCppConvertOptions(options) {
 		}
 	};
 	if (options.n_predict === -1) {
-		options.n_predict = 1024;
+		options.n_predict = isHorde ? 512 : 1024;
+	}
+	if (options.n_predict < 16 && isHorde) {
+		options.n_predict = 16;
 	}
 	swapOption("n_ctx", "max_context_length");
 	swapOption("n_predict", "max_length");
+	swapOption("n_probs", "logprobs");
 	swapOption("repeat_penalty", "rep_pen");
 	swapOption("repeat_last_n", "rep_pen_range");
 	swapOption("tfs_z", "tfs");
@@ -1815,23 +1839,52 @@ function koboldCppConvertOptions(options) {
 	return options;
 }
 
-async function* koboldCppCompletion({ endpoint, proxyEndpoint, signal, ...options }) {
-	const res = await fetch(`${proxyEndpoint ?? endpoint}/api/extra/generate/stream`, {
+async function* koboldCppCompletion({ endpoint, endpointAPIKey, proxyEndpoint, signal, ...options }) {
+	const res = await fetch(`${proxyEndpoint ?? endpoint}/api/${options.stream ? 'extra/generate/stream' : 'v1/generate'}`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
+			...(endpointAPIKey ? { 'Authorization': `Bearer ${endpointAPIKey}` } : {}),
 			...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
 		},
 		body: JSON.stringify({
-			...koboldCppConvertOptions(options),
-			stream: true,
+			...koboldCppConvertOptions(options, endpoint)
 		}),
 		signal,
 	});
-	if (!res.ok)
+
+	if (!res.ok) {
 		throw new Error(`HTTP ${res.status}`);
-	for await (const chunk of parseEventStream(res.body)) {
-		yield { content: chunk.token };
+	}
+
+	async function* yieldTokens(chunks) {
+		for await (const chunk of chunks) {
+			const { token, top_logprobs } = chunk;
+
+			const probs = Object.values(top_logprobs ?? {}).map(({ token, logprob }) => ({
+				tok_str: token,
+				prob: Math.exp(logprob)
+			}));
+			const prob = probs.find(p => p.tok_str === token)?.prob;
+
+			yield {
+				content: token,
+				...(probs.length > 0 ? {
+					prob: prob ?? -1,
+					completion_probabilities: [{
+						content: token,
+						probs
+					}]
+				} : {})
+			};
+		}
+	}
+
+	if (options.stream) {
+		yield* await yieldTokens(parseEventStream(res.body));
+	} else {
+		const { results } = await res.json();
+		yield* await yieldTokens(results?.[0].logprobs?.content ?? []);
 	}
 }
 
@@ -2053,9 +2106,10 @@ async function openaiModels({ endpoint, endpointAPIKey, proxyEndpoint, signal, .
 	return data.map(item => item.id);
 }
 
-function openaiConvertOptions(options, endpoint){
+function openaiConvertOptions(options, endpoint, isChat) {
 	const isOpenAI = endpoint.toLowerCase().includes("openai.com");
 	const isTogetherAI = endpoint.toLowerCase().includes("together.xyz");
+	const isOpenRouter = endpoint.toLowerCase().includes("openrouter.ai");
 	const swapOption = (lhs, rhs) => {
 		if (lhs in options) {
 			options[rhs] = options[lhs];
@@ -2083,7 +2137,12 @@ function openaiConvertOptions(options, endpoint){
 	}
 	swapOption("n_ctx", "max_context_length");
 	swapOption("n_predict", "max_tokens");
-	swapOption("n_probs", "logprobs");
+	if (isChat) {
+		options.logprobs = true;
+		swapOption("n_probs", "top_logprobs");
+	} else {
+		swapOption("n_probs", "logprobs");
+	}
 	swapOption("repeat_penalty", "repetition_penalty");
 	swapOption("repeat_last_n", "repetition_penalty_range");
 	swapOption("tfs_z", "tfs");
@@ -2102,37 +2161,181 @@ async function* openaiCompletion({ endpoint, endpointAPIKey, proxyEndpoint, sign
 			...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
 		},
 		body: JSON.stringify({
-			...openaiConvertOptions(options, endpoint),
-			stream: true,
+			...openaiConvertOptions(options, endpoint)
 		}),
 		signal,
 	});
-	if (!res.ok)
+
+	if (!res.ok) {
+		let json;
+		try {
+			json = await res.json();
+		} catch {}
+		if (json?.error?.message) {
+			throw new Error(json.error.message);
+		}
 		throw new Error(`HTTP ${res.status}`);
-	for await (const chunk of parseEventStream(res.body)) {
-		if (!chunk.choices || chunk.choices.length === 0) {
-			continue; // Skip if there are no choices (should never happen)
+	}
+
+	async function* yieldTokens(chunks) {
+		for await (const chunk of chunks) {
+			if (!chunk.choices || chunk.choices.length === 0) {
+				if (chunk.content) yield { content: chunk.content };
+				continue;
+			}
+
+			const { text, logprobs } = chunk.choices[0];
+			const top_logprobs = logprobs?.top_logprobs?.[0] ?? {};
+
+			const probs = Object.entries(top_logprobs).map(([tok, logprob]) => ({
+				tok_str: tok,
+				prob: Math.exp(logprob)
+			}));
+			const prob = probs.find(p => p.tok_str === text)?.prob;
+
+			yield {
+				content: text,
+				...(probs.length > 0 ? {
+					prob: prob ?? -1,
+					completion_probabilities: [{
+						content: text,
+						probs
+					}]
+				} : {})
+			};
+		}
+	}
+
+	if (options.stream) {
+		yield* await yieldTokens(parseEventStream(res.body));
+	} else {
+		const { content, choices } = await res.json();
+		if (choices?.[0].logprobs?.tokens) {
+			const logprobs = choices[0].logprobs;
+			const chunks = Object.values(logprobs.tokens).map((token, i) => ({
+				choices: [{
+					text: token,
+					logprobs: { top_logprobs: [logprobs.top_logprobs[i]] }
+				}]
+			}));
+			yield* await yieldTokens(chunks);
+		} else if (choices?.[0].text) {
+			yield { content: choices[0].text };
+		} else if (content) { // llama.cpp specific?
+			yield { content };
+		}
+	}
+}
+
+async function* openaiBufferUtf8Stream(stream) {
+	const decoder = new TextDecoder('utf-8', { fatal: false });
+
+	function parseEscapedString(escapedStr) {
+		return new Uint8Array(
+			escapedStr
+				.split('\\x')
+				.slice(1)
+				.map(hex => parseInt(hex, 16))
+		);
+	}
+
+	const hasEscapedSequence = str => /\\x[0-9a-fA-F]{2}/.test(str);
+	const encoder = new TextEncoder();
+
+	for await (const chunk of stream) {
+		const content = chunk?.choices?.[0]?.delta?.content ?? chunk?.choices?.[0]?.text;
+
+		if (!content) {
+			yield chunk;
+			continue;
 		}
 
-		const { text, logprobs } = chunk.choices[0];
-		const top_logprobs = logprobs?.top_logprobs?.[0] ?? {};
-		
-		const probs = Object.entries(top_logprobs).map(([tok, logprob]) => ({
-			tok_str: tok,
-			prob: Math.exp(logprob)
-		}));
-		const prob = probs.find(p => p.tok_str === text)?.prob;
+		const binaryData = hasEscapedSequence(content)
+			? parseEscapedString(content)
+			: encoder.encode(content);
+
+		const decoded = decoder.decode(binaryData, { stream: true });
 
 		yield {
-			content: text,
-			...(probs.length > 0 ? {
-				prob: prob ?? -1,
-				completion_probabilities: [{
-					content: text,
-					probs
-				}]
-			} : {})
+			...chunk,
+			choices: [{
+				...chunk.choices[0],
+				...(chunk.choices[0].delta
+					? { delta: { ...chunk.choices[0].delta, content: decoded } }
+					: { text: decoded }
+				)
+			}]
 		};
+	}
+}
+
+async function* openaiChatCompletion({ endpoint, endpointAPIKey, proxyEndpoint, signal, ...options }) {
+	const res = await fetch(`${proxyEndpoint ?? endpoint}/v1/chat/completions`, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+			'Authorization': `Bearer ${endpointAPIKey}`,
+			...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
+		},
+		body: JSON.stringify({
+			...openaiConvertOptions(options, endpoint, true)
+		}),
+		signal,
+	});
+
+	if (!res.ok) {
+		let json;
+		try {
+			json = await res.json();
+		} catch {}
+		if (json?.error?.message) {
+			throw new Error(json.error.message);
+		}
+		throw new Error(`HTTP ${res.status}`);
+	}
+
+	async function* yieldTokens(chunks) {
+		for await (const chunk of chunks) {
+			const token = chunk.choices[0].delta.content;
+			const top_logprobs = chunk.choices[0].logprobs?.content?.[0]?.top_logprobs ?? {};
+			if (!token) continue;
+
+			const probs = Object.values(top_logprobs).map(({ token, logprob }) => ({
+				tok_str: token,
+				prob: Math.exp(logprob)
+			}));
+			const prob = probs.find(p => p.tok_str === token)?.prob;
+
+			yield {
+				content: token,
+				...(probs.length > 0 ? {
+					prob: prob ?? -1,
+					completion_probabilities: [{
+						content: token,
+						probs
+					}]
+				} : {})
+			};
+		}
+	}
+
+	if (options.stream) {
+		yield* await yieldTokens(parseEventStream(res.body));
+	} else {
+		const { choices } = await res.json();
+		const chunks = choices?.[0].logprobs?.content;
+
+		if (chunks?.length) {
+			const formattedChunks = chunks.map(chunk => ({
+				choices: [{
+					delta: { content: chunk.token },
+					logprobs: { content: [{ top_logprobs: chunk.top_logprobs }] }
+				}]
+			}));
+			yield* await yieldTokens(openaiBufferUtf8Stream(formattedChunks));
+		} else if (choices?.[0].message?.content) {
+			yield { content: choices[0].message.content };
+		}
 	}
 }
 
@@ -2146,6 +2349,88 @@ async function openaiOobaAbortCompletion({ endpoint, proxyEndpoint, ...options }
 		});
 	} catch (e) {
 		// do nothing
+	}
+}
+
+async function aiHordeModels({ endpoint, endpointAPIKey, proxyEndpoint, signal, ...options }) {
+	const res = await fetch(`${proxyEndpoint ?? endpoint}/v2/status/models?type=text`, {
+		method: 'GET',
+		headers: {
+			'Content-Type': 'application/json',
+			...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
+		},
+		signal,
+	});
+
+	if (!res.ok)
+		throw new Error(`HTTP ${res.status}`);
+
+	const response = await res.json();
+
+	return response
+		.filter(model => model.type === "text")
+		.map(model => model.name);
+}
+
+async function* aiHordeCompletion({ endpoint, endpointAPIKey, proxyEndpoint, signal, ...options }) {
+	const { model, prompt, ...params } = options;
+	const submitRes = await fetch(`${proxyEndpoint ?? endpoint}/v2/generate/text/async`, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+			'Apikey': endpointAPIKey?.trim() ? endpointAPIKey : '0000000000',
+			...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
+		},
+		body: JSON.stringify({
+			...(model ? { models: [model] } : {}),
+			params: { ...koboldCppConvertOptions(params, endpoint) },
+			prompt: prompt
+		}),
+		signal,
+	});
+	if (!submitRes.ok)
+		throw new Error(`HTTP ${submitRes.status}`);
+	const { id: taskId } = await submitRes.json();
+
+	yield { status: 'queue_init', taskId: taskId };
+
+	// Poll for results
+	while (true) {
+		const checkRes = await fetch(`${proxyEndpoint ?? endpoint}/v2/generate/text/status/${taskId}`, {
+			headers: {
+				...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
+			},
+			signal,
+		});
+
+		if (!checkRes.ok)
+			throw new Error(`HTTP ${checkRes.status}`);
+		const status = await checkRes.json();
+
+		yield { status: 'queue_status', position: status.queue_position, waitTime: status.wait_time, processing: status.processing };
+
+		if (status.done) {
+			if (status.generations && status.generations.length > 0) {
+				yield { status: 'done', content: status.generations[0].text };
+			}
+			break;
+		}
+
+		// Wait before polling again
+		await new Promise(resolve => setTimeout(resolve, 1000));
+	}
+}
+
+async function aiHordeAbortCompletion({ endpoint, proxyEndpoint, hordeTaskId, ...options }) {
+	try {
+		await fetch(`${proxyEndpoint ?? endpoint}/v2/generate/text/status/${hordeTaskId}`, {
+			method: 'DELETE',
+			headers: {
+				...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
+			},
+		});
+	} catch (e) {
+		reportError(e);
 	}
 }
 
@@ -2282,7 +2567,7 @@ function SelectBoxTemplate({ label, value, onValueChange, options, ...props }) {
 
 function Checkbox({ label, value, hidden, onValueChange, ...props }) {
 	return html`
-		<label className="Checkbox" style=${hidden ? {'display': 'none'} : {}}>
+		<label className="Checkbox" style=${hidden ? {'display': 'none'} : {}} ...${(props.title ? { 'title': props.title } : {})}>
 			<input
 				type="checkbox"
 				checked=${value}
@@ -2408,21 +2693,33 @@ function Sessions({ sessionStorage, disabled }) {
 	const importSession = () => {
 		const fileInput = document.createElement("input");
 		fileInput.type = 'file';
+		fileInput.multiple = true;
 		fileInput.style.display = 'none';
-		fileInput.onchange = (e) => {
-			const file = e.target.files[0];
-			if (!file)
+		fileInput.onchange = async (e) => {
+			const files = e.target.files;
+			if (files.length === 0)
 				return;
-			const reader = new FileReader();
-			reader.onload = (e) => {
-				const contents = e.target.result;
-				fileInput.func(contents);
+
+				const sortedFiles = Array.from(files).sort((a, b) => a.lastModified - b.lastModified);
+
+				const reader = new FileReader();
+				let lastNewId = null;
+
+				for (const file of sortedFiles) {
+					await new Promise((resolve, reject) => {
+						reader.onload = async (e) => {
+							lastNewId = await sessionStorage.createSessionFromObject(JSON.parse(e.target.result), false);
+							resolve();
+						};
+						reader.onerror = (e) => {
+							reject(e);
+						};
+						reader.readAsText(file);
+					});
 			}
-			reader.readAsText(file);
-		};
-		fileInput.func = async (text) => {
-			const newId = await sessionStorage.createSessionFromObject(JSON.parse(text), false);
-			await sessionStorage.switchSession(newId);
+			if (lastNewId !== null) {
+				await sessionStorage.switchSession(lastNewId);
+			}
 		};
 		document.body.appendChild(fileInput);
 		fileInput.click();
@@ -2477,8 +2774,8 @@ function Sessions({ sessionStorage, disabled }) {
 								autoFocus
 							/>
 							<div className="flex-separator"></div>
-							<button onClick=${(e) => (createSession(), e.stopImmediatePropagation?.())}><${SVG_Confirm}/></button>
-							<button onClick=${(e) => (setIsCreating(false), e.stopImmediatePropagation?.())}><${SVG_Cancel}/></button>
+							<button onClick=${(e) => (createSession(), e.stopPropagation())}><${SVG_Confirm}/></button>
+							<button onClick=${(e) => (setIsCreating(false), e.stopPropagation())}><${SVG_Cancel}/></button>
 						</a>
 					</li>
 				`}
@@ -2496,8 +2793,8 @@ function Sessions({ sessionStorage, disabled }) {
 									autoFocus
 								/>
 								<div className="flex-separator"></div>
-								<button onClick=${(e) => (renameSession(+sessionId), e.stopImmediatePropagation())}><${SVG_Confirm}/></button>
-								<button onClick=${(e) => (setRenamingId(undefined), e.stopImmediatePropagation())}><${SVG_Cancel}/></button>
+								<button onClick=${(e) => (renameSession(+sessionId), e.stopPropagation())}><${SVG_Confirm}/></button>
+								<button onClick=${(e) => (setRenamingId(undefined), e.stopPropagation())}><${SVG_Cancel}/></button>
 							` : html`
 								${session.name}
 								<div className="flex-separator"></div>
@@ -2838,6 +3135,14 @@ const SVG_Moveable = ({...props}) => {
 		...${props}
 		viewBox="0 0 11 11">
 		<path d="M 5.5 11 L 7 9 L 6 9 L 6 6 L 9 6 L 9 7 L 11 5.5 L 9 4 L 9 5 L 6 5 L 6 2 L 7 2 L 5.5 0 L 4 2 L 5 2 L 5 5 L 2 5 L 2 4 L 0 5.5 L 2 7 L 2 6 L 5 6 L 5 9 L 4 9 Z"/>
+	</${SVG}>
+`};
+const SVG_Stop = ({ ...props }) => {
+		return html`
+	<${SVG}
+		...${props}
+		viewBox="0 0 24 24">
+		<path fill="var(--color-light)" fillRule="evenodd" d="M3 4a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4z"/>
 	</${SVG}>
 `};
 
@@ -3467,6 +3772,7 @@ function LogitBiasModal({ isOpen, closeModal, logitBias, setLogitBias, logitBias
 				llamaCppSetLogitBiasParams();
 				break;
 			case API_KOBOLD_CPP:
+			case API_AI_HORDE:
 				koboldCppSetLogitBiasParams();
 				break;
 			case API_OPENAI_COMPAT:
@@ -4528,6 +4834,24 @@ class IndexedDBAdapter {
 	}
 
 	async init() {
+		try {
+			if (!await navigator.storage.persisted()) {
+				const startTime = performance.now();
+				const persistent = await navigator.storage.persist();
+				const elapsedTime = performance.now() - startTime;
+				
+				if (!persistent && !localStorage.getItem('persistentStorageWarningShown')) {
+					// If the response came back in less than 500ms, it was likely an automatic denial
+					// (500ms is generally considered faster than human reaction time)
+					if (elapsedTime < 500) {
+						alert('Your browser has automatically denied persistent storage for Mikupad. Be aware that the browser may clear the database when under storage pressure. You might need to adjust your browser settings to enable this feature, or alternatively, you can use the Mikupad server.');
+					} else {
+						alert('You have chosen not to enable persistent storage for Mikupad. Be aware that the browser may clear the database when under storage pressure. As an optional alternative, you can use the Mikupad server.');
+					}
+					localStorage.setItem('persistentStorageWarningShown', 'true');
+				}
+			}
+		} catch {}
 	}
 
 	async openDatabase() {
@@ -4581,6 +4905,30 @@ class IndexedDBAdapter {
 		});
 	}
 
+	async loadSessionInfoFromDatabase(db, storeName) {
+		return new Promise((resolve, reject) => {
+			const tx = db.transaction(storeName, 'readonly');
+			const store = tx.objectStore(storeName);
+			const request = store.openCursor();
+
+			let allTables = {};
+
+			request.onsuccess = async (event) => {
+				const cursor = event.target.result;
+				if (cursor) {
+					if (cursor.key !== 'nextSessionId' && cursor.key !== 'selectedSessionId') {
+						allTables[cursor.key] = cursor.value.name;
+					}
+					cursor.continue();
+				} else {
+					resolve(allTables);
+				}
+			};
+			request.onerror = () => reject(request.error);
+		});
+	}
+	
+
 	async saveToDatabase(db, storeName, key, data) {
 		return new Promise((resolve, reject) => {
 			const tx = db.transaction(storeName, 'readwrite');
@@ -4589,6 +4937,27 @@ class IndexedDBAdapter {
 
 			request.onsuccess = () => resolve();
 			request.onerror = () => reject(request.error);
+		});
+	}
+
+	async renameSessionInDatabase(db, storeName, key, newName) {
+		return new Promise((resolve, reject) => {
+			const tx = db.transaction(storeName, 'readwrite');
+			const store = tx.objectStore(storeName);
+			const getRequest = store.get(key);
+
+			getRequest.onsuccess = async () => {
+				const sessionData = getRequest.result;
+				if (sessionData) {
+					sessionData.name = newName;
+					const putRequest = store.put(sessionData, key);
+					putRequest.onsuccess = () => resolve();
+					putRequest.onerror = () => reject(putRequest.error);
+				} else {
+					reject(new Error(`Session with key '${key}' not found`));
+				}
+			};
+			getRequest.onerror = () => reject(request.error);
 		});
 	}
 
@@ -4668,9 +5037,33 @@ class ServerDBAdapter {
 		});
 	}
 
+	async loadSessionInfoFromDatabase(db, storeName) {
+		return new Promise(async (resolve, reject) => {
+			const res = await db("/sessions", { storeName });
+			if (!res.ok) {
+				reject(res.status);
+				return;
+			}
+			const { result } = await res.json();
+			resolve(result);
+		});
+	}
+
 	async saveToDatabase(db, storeName, key, data) {
 		return new Promise(async (resolve, reject) => {
 			const res = await db("/save", { storeName, key, data });
+			if (!res.ok) {
+				reject(res.status);
+				return;
+			}
+			const { result } = await res.json();
+			resolve(result);
+		});
+	}
+
+	async renameSessionInDatabase(db, storeName, key, newName) {
+		return new Promise(async (resolve, reject) => {
+			const res = await db("/rename", { storeName, key, newName });
 			if (!res.ok) {
 				reject(res.status);
 				return;
@@ -4756,9 +5149,27 @@ class AbstractStorage extends EventTarget {
 		}
 	}
 
+	async loadSessionInfoFromDatabase(db) {
+		try {
+			return await this.dbAdapter.loadSessionInfoFromDatabase(db, this.storeName);
+		} catch (e) {
+			this.dispatchErrorEvent(e);
+			throw e;
+		}
+	}
+
 	async saveToDatabase(db, key, data) {
 		try {
 			return await this.dbAdapter.saveToDatabase(db, this.storeName, key, data);
+		} catch (e) {
+			this.dispatchErrorEvent(e);
+			throw e;
+		}
+	}
+
+	async renameSessionInDatabase(db, key, newName) {
+		try {
+			return await this.dbAdapter.renameSessionInDatabase(db, this.storeName, key, newName);
 		} catch (e) {
 			this.dispatchErrorEvent(e);
 			throw e;
@@ -4841,14 +5252,15 @@ class SessionStorage extends AbstractStorage {
 		this.nextId = (await this.loadFromDatabase(db, 'nextSessionId')) || 0;
 		this.selectedSession = (await this.loadFromDatabase(db, 'selectedSessionId')) || 0;
 		await this.loadSessions(db);
-		this.startSaveTimer((sessionId) => this.saveSessionToDB(sessionId));
+		this.startSaveTimer(async (sessionId) => await this.saveSessionToDB(sessionId));
 	}
 
 	async saveSessionToDB(sessionId) {
-		if (!this.sessions[sessionId])
+		const sessionData = this.sessions[sessionId];
+		if (!sessionData || sessionData.inactive)
 			return;
 		const db = await this.openDatabase();
-		await this.saveToDatabase(db, sessionId, this.sessions[sessionId]);
+		await this.saveToDatabase(db, sessionId, sessionData);
 	}
 
 	async getNewId() {
@@ -4891,11 +5303,9 @@ class SessionStorage extends AbstractStorage {
 	}
 
 	async loadSessions(db) {
-		const sessions = await this.loadAllFromDatabase(db);
-		for (const [key, value] of Object.entries(sessions)) {
-			if (key !== 'nextSessionId' && key !== 'selectedSessionId') {
-				this.sessions[key] = value;
-			}
+		const sessions = await this.loadSessionInfoFromDatabase(db);
+		for (const [key, name] of Object.entries(sessions)) {
+			this.sessions[key] = { name: name };
 		}
 		if (Object.keys(this.sessions).length === 0) {
 			if (!await this.migrateSessions()) {
@@ -4919,11 +5329,20 @@ class SessionStorage extends AbstractStorage {
 	async switchSession(sessionId) {
 		if (!this.sessions[sessionId])
 			return;
-		
+
+		// Flush saveQueue.
+		// TODO: Remove saveQueue, only one session actually needs to be saved at a time.
+		await this.saveTimerHandler(async (sessionId) => await this.saveSessionToDB(sessionId));
+
+		//Clear data of old session in order to minimize memory usage.
+		if (this.sessions[this.selectedSession] && this.sessions[this.selectedSession]['name'])
+			this.sessions[this.selectedSession] = { name: this.sessions[this.selectedSession]['name'], inactive: true };
+
 		const db = await this.openDatabase();
 		await this.saveToDatabase(db, 'selectedSessionId', +sessionId);
 
 		this.selectedSession = +sessionId;
+		this.sessions[this.selectedSession] = (await this.loadFromDatabase(db, this.selectedSession));
 
 		this.dispatchChangeEvent();
 		this.dispatchSessionChangeEvent();
@@ -4933,7 +5352,7 @@ class SessionStorage extends AbstractStorage {
 		this.sessions[sessionId]['name'] = renameSessionName;
 
 		const db = await this.openDatabase();
-		await this.saveToDatabase(db, sessionId, this.sessions[sessionId]);
+		await this.renameSessionInDatabase(db, sessionId, renameSessionName);
 
 		this.dispatchChangeEvent();
 	}
@@ -4989,6 +5408,10 @@ class SessionStorage extends AbstractStorage {
 
 		const db = await this.openDatabase();
 		await this.saveToDatabase(db, newId, this.sessions[newId]);
+
+		//Clear data of the session in order to minimize memory usage.
+		if (this.sessions[newId] && this.sessions[newId]['name'])
+			this.sessions[newId] = { name: this.sessions[newId]['name'] };
 
 		onchange?.();
 		return newId;
@@ -5122,6 +5545,11 @@ const defaultPresets = {
 	},
 	scrollTop: 0,
 	enabledSamplers: ['temperature', 'rep_pen', 'pres_pen', 'freq_pen', 'mirostat', 'top_k', 'top_p', 'min_p'],
+	grammar: '',
+	chatAPI: false,
+	tokenStreaming: true,
+	promptPreview: false,
+	promptPreviewTokens: 20,
 };
 
 function joinPrompt(prompt) {
@@ -5165,6 +5593,79 @@ function regexSplitString(str, separator, limit) {
 	result.push(str.slice(lastIndex)); // Add the remainder of the string
 	
 	return [result, separators];
+}
+
+function regexIndexOf(string, regex, startpos) {
+    var indexOf = string.substring(startpos || 0).search(regex);
+    return (indexOf >= 0) ? (indexOf + (startpos || 0)) : indexOf;
+}
+
+function regexLastIndexOf(string, regex, startpos) {
+    regex = (regex.global) ? regex : new RegExp(regex.source, "g" + (regex.ignoreCase ? "i" : "") + (regex.multiLine ? "m" : ""));
+    if(typeof (startpos) == "undefined") {
+        startpos = string.length;
+    } else if(startpos < 0) {
+        startpos = 0;
+    }
+    var stringToWorkWith = string.substring(0, startpos + 1);
+    var lastIndexOf = -1;
+    var nextStop = 0;
+    var result;
+    while((result = regex.exec(stringToWorkWith)) != null) {
+        lastIndexOf = result.index;
+        regex.lastIndex = ++nextStop;
+    }
+    return lastIndexOf;
+}
+
+function memoize(fn) {
+	let cache = {};
+	return (...args) => {
+		let n = args[0];
+		if (n in cache) {
+			return cache[n];
+		}
+		else {
+			let result = fn(n);
+			cache[n] = result;
+			return result;
+		}
+	}
+}
+
+function escapeRegExp(string) {
+	return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
+function makeWhiteSpaceLenient(string) {
+	return string.replace(/\s+/g, '')
+		// Add \s* between characters, but preserve escaped sequences
+		.replace(/(?<!\\)(?:\\{2})*(?!\s)(?!$)/g, '$&\\s*');
+}
+
+const createLenientPrefixRegex = memoize((prefix) => {
+	return new RegExp("^" + makeWhiteSpaceLenient(escapeRegExp(prefix)), 'i');
+});
+
+const createLenientRegex = memoize((suffix) => {
+	return new RegExp(makeWhiteSpaceLenient(escapeRegExp(suffix)), 'i');
+});
+
+function prefixMatchLength(str1, str2) {
+	if (str1 === "" || str2 === "") {
+		return 0;
+	}
+
+	for (let len = str1.length; len > 0; len--) {
+		for (let i = 0; i <= str1.length - len; i++) {
+			const sub = str1.substring(i, i + len);
+			if (str2.startsWith(sub)) {
+				return len;
+			}
+		}
+	}
+
+	return 0;
 }
 
 function useSessionState(sessionStorage, name, initialState) {
@@ -5250,10 +5751,12 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	const keyState = useRef({});
 	const sessionReconnectTimer = useRef();
 	const useScrollSmoothing = useRef(true);
+	const hordeTaskId = useRef();
+	const promptPreviewElement = useRef();
 	const [templates, setTemplates] = useDBTemplates(defaultPresets.instructTemplates);
 	const [templateReplacements, setTemplateReplacements] = useState(false);
 	const [templatesImport, setTemplatesImport] = useState(false);
-	const [selectedTemplate, setSelectedTemplate] = useSessionState('template', "Llama 3");
+	const [selectedTemplate, setSelectedTemplate] = useSessionState('template', "Mistral");
 	const [chatMode, setChatMode] = useSessionState('chatMode', false);
 	const [templateList, setTemplateList] = useState([]);
 	const [currentPromptChunk, setCurrentPromptChunk] = useState(undefined);
@@ -5274,11 +5777,6 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	const [sessionEndpointConnecting, setSessionEndpointConnecting] = useState(false);
 	const [sessionEndpointError, setSessionEndpointError] = useState(undefined);
 	const [showAPIKey, setShowAPIKey] = useState(false);
-	const [ttsEnabled, setTTSEnabled] = usePersistentState('ttsEnabled', 0);
-	const [ttsVoice, setTTSVoice] = usePersistentState('ttsVoice', 0);
-	const [ttsPitch, setTTSPitch] = usePersistentState('ttsPitch', 1);
-	const [ttsRate, setTTSRate] = usePersistentState('ttsRate', 1);
-	const [ttsVolume, setTTSVolume] = usePersistentState('ttsVolume', 1);
 	const [endpoint, setEndpoint] = useSessionState('endpoint', defaultPresets.endpoint);
 	const [endpointAPI, setEndpointAPI] = useSessionState('endpointAPI', defaultPresets.endpointAPI);
 	const [endpointAPIKey, setEndpointAPIKey] = useSessionState('endpointAPIKey', defaultPresets.endpointAPIKey);
@@ -5333,9 +5831,29 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	const [worldInfo, setWorldInfo] = useSessionState('worldInfo', defaultPresets.worldInfo);
 	const [sillyTarvernWorldInfoJSON, setSillyTarvernWorldInfoJSON] = useState(null);
 	const [enabledSamplers, setEnabledSamplers] = useSessionState('enabledSamplers', defaultPresets.enabledSamplers);
-	const [grammar, setGrammar] = useSessionState('grammar', '');
+	const [grammar, setGrammar] = useSessionState('grammar', defaultPresets.grammar);
 	const [contextMenuState, setContextMenuState] = useState({ visible: false, x: 0, y: 0 });
 	const [instructModalState, setInstructModalState] = useState({});
+	const [hordeQueuePos, setHordeQueuePos] = useState(undefined);
+	const [hordeProcessing, setHordeProcessing] = useState(false);
+	const [useChatAPI, setUseChatAPI] = useSessionState('chatAPI', defaultPresets.chatAPI);
+	const [useTokenStreaming, setUseTokenStreaming] = useSessionState('tokenStreaming', defaultPresets.tokenStreaming);
+	const [promptPreviewChunks, setPromptPreviewChunks] = useState([]);
+	const [promptPreviewReroll, setPromptPreviewReroll] = useState(0);
+	const [showPromptPreview, setShowPromptPreview] = useSessionState('promptPreview', defaultPresets.promptPreview);
+	const [promptPreviewTokens, setPromptPreviewTokens] = useSessionState('promptPreviewTokens', defaultPresets.promptPreviewTokens);
+	// Text-To-Speech stuff
+	const ttsNewText = useRef("");
+	const ttsLastChunk = useRef("");
+	const ttsQueue = useRef([]);
+	const ttsVoices = useRef([]);
+	const ttsPaused = useRef(false);
+	const [ttsEnabled, setTTSEnabled] = usePersistentState('ttsEnabled', false);
+	const [ttsVoiceId, setTTSVoiceId] = usePersistentState('ttsVoiceId', 0);
+	const [ttsPitch, setTTSPitch] = usePersistentState('ttsPitch', 1);
+	const [ttsRate, setTTSRate] = usePersistentState('ttsRate', 1);
+	const [ttsVolume, setTTSVolume] = usePersistentState('ttsVolume', 1);
+	const [ttsSpeakInputs, setTTSSpeakInputs] = usePersistentState('ttsSpeakInputs', true);
 
 	function replacePlaceholders(string,placeholders) {
 		// give placeholders as json object
@@ -5737,6 +6255,32 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		return replacePlaceholders(additionalContextPrompt, templateReplacements);
 	}, [additionalContextPrompt, templates, selectedTemplate]);
 
+	// predicts the prompt preview
+	useEffect(() => {
+		if (promptPreviewChunks.length)
+			setPromptPreviewChunks([]);
+		
+		if (fimPromptInfo !== undefined || cancel || endpointAPI == API_AI_HORDE || tokenHighlightMode === -1 || !showPromptPreview)
+			return;
+
+		const ac = new AbortController();
+		const to = setTimeout(async () => {
+			const customParams = {
+				n_predict: promptPreviewTokens
+			};
+
+			const predicted = await predict(finalPromptText, promptChunks.length, (chunk) => {
+				setPromptPreviewChunks((c) => [...c, chunk]);
+				return true;
+			}, ac, customParams);
+		}, 500);
+
+		ac.signal.addEventListener('abort', () => clearTimeout(to));
+		return () => ac.abort();
+	}, [finalPromptText, showPromptPreview, promptPreviewReroll, cancel, endpoint, endpointAPI, endpointAPIKey]);
+
+	const promptPreviewText = useMemo(() => joinPrompt(promptPreviewChunks), [promptPreviewChunks]);
+
 	// predicts one {fill} placeholder
 	async function fillPredict() {
 		if (fimPromptInfo === undefined)
@@ -5755,9 +6299,84 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 
 		return true;
 	}
+	
+	function convertChatToJSON(chatString, template) {
+		function extractMessage(text, prefix, suffixes, role) {
+			const matches = text.match(createLenientPrefixRegex(prefix));
+			if (matches && matches.length) {
+				text = text.substring(matches[0].length);
+				let endIndex = suffixes[0] ? regexIndexOf(text, createLenientRegex(suffixes[0])) : -1;
+				if (endIndex === -1) {
+					if (suffixes.length > 1) {
+						const indices = suffixes.slice(1).map(suffix => suffix ? regexIndexOf(text, createLenientRegex(suffix)) : -1).filter(index => index !== -1);
+						endIndex = indices.length > 0 ? Math.min(...indices) : text.length;
+					}  else {
+						endIndex = text.length;
+					}
+				}
+				let content = text.substring(0, endIndex);
+				content = endIndex !== text.length ? content.trim() : content.trimLeft();
+				return {
+					message: { role, content },
+					remainingString: text.substring(endIndex)
+				};
+			}
+			return null;
+		}
 
-	async function predict(prompt = finalPromptText, chunkCount = promptChunks.length, callback = undefined) {
-		if (cancel) {
+		function skipToNextKnownPrefix(text, ...prefixes) {
+			const indices = prefixes.map(prefix => prefix ? regexIndexOf(text, createLenientRegex(prefix)) : -1).filter(index => index !== -1);
+			const minIndex = indices.length > 0 ? Math.min(...indices) : text.length;
+			if (minIndex == 0) {
+				console.warn("Something went wrong!");
+				return "";
+			}
+			return text.substring(minIndex);
+		}
+		
+		const messages = [];
+		const { sysPre, sysSuf, instPre, instSuf } = replaceNewlines(template);
+
+		let remainingString = chatString.trimStart();
+
+		const indices = [sysPre, instPre].map(prefix => prefix ? regexIndexOf(remainingString, createLenientPrefixRegex(prefix)) : -1).filter(index => index !== -1);
+		const minIndex = indices.length > 0 ? Math.min(...indices) : remainingString.length;
+		if (minIndex !== 0) {
+			// The prompt doesn't start with any of the prefixes.
+			// So let's assume it's a instruction.
+			const matchLen = prefixMatchLength(instPre.trim(), remainingString);
+			remainingString = instPre + remainingString.substring(matchLen);
+		}
+
+		while (remainingString.length > 0) {
+			let extracted = null;
+			if (sysPre) {
+				extracted = extractMessage(remainingString, sysPre, [sysSuf, instPre, instSuf], 'system');
+			}
+			if (instPre && !extracted) {
+				extracted = extractMessage(remainingString, instPre, [instSuf], 'user');
+			}
+			if (instSuf && !extracted) {
+				extracted = extractMessage(remainingString, instSuf, [instPre], 'assistant');
+			}
+			if (!extracted) {
+				remainingString = skipToNextKnownPrefix(remainingString, sysPre, instPre, instSuf);
+				continue;
+			}
+			messages.push(extracted.message);
+			remainingString = extracted.remainingString;
+		}
+
+		const lastMessage = messages?.at(-1);
+		if (lastMessage && lastMessage.role === 'assistant' && lastMessage.content.length === 0) {
+			messages.pop();
+		}
+
+		return messages;
+	}
+
+	async function predict(prompt = finalPromptText, chunkCount = promptChunks.length, callback = undefined, abortController = undefined, customParams = {}) {
+		if (!abortController && cancel) {
 			cancel?.();
 
 			// llama.cpp server sometimes generates gibberish if we stop and
@@ -5773,20 +6392,36 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		if (!callback && !restartedPredict && await fillPredict())
 			return true;
 
-		const ac = new AbortController();
-		const cancelThis = () => {
-			abortCompletion({
-				endpoint,
-				endpointAPI,
-				...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {})
-			});
-			ac.abort();
-		};
-		setCancel(() => cancelThis);
+		let ac;
+		let cancelThis;
+		if (!abortController) {
+			ac = new AbortController();
+			cancelThis = () => {
+				abortCompletion({
+					endpoint,
+					endpointAPI,
+					...(endpointAPI == API_AI_HORDE ? { hordeTaskId: hordeTaskId.current } : {}),
+					...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {})
+				});
+				ac.abort();
+			};
+			setCancel(() => cancelThis);
+		} else {
+			ac = abortController;
+			cancelThis = () => {
+				abortCompletion({
+					endpoint,
+					endpointAPI,
+					...(endpointAPI == API_AI_HORDE ? { hordeTaskId: hordeTaskId.current } : {}),
+					...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {})
+				});
+			};
+			ac.signal.addEventListener('abort', cancelThis);
+		}
 		setLastError(undefined);
 
 		let predictCount = 0;
-
+		ttsPushUserInput(); ttsPaused.current = false;
 		try {
 			// sometimes "getTokenCount" can take a while because the server is busy
 			// so let's set the predictStartTokens beforehand.
@@ -5805,11 +6440,11 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 				setPredictStartTokens(tokenCount);
 
 				// Chat Mode
-				if (chatMode && !restartedPredict && templates[selectedTemplate]) {
+				if ((chatMode || useChatAPI) && !restartedPredict && templates[selectedTemplate]) {
 					// add user EOT template (instruct suffix) if not switch completion
 					const { instSuf, instPre } = replaceNewlines(templates[selectedTemplate]);
-					const instSufIndex = instSuf ? prompt.lastIndexOf(instSuf) : -1;
-					const instPreIndex = instPre ? prompt.lastIndexOf(instPre) : -1;
+					const instSufIndex = instSuf ? regexLastIndexOf(prompt, createLenientRegex(instSuf)) : -1;
+					const instPreIndex = instPre ? regexLastIndexOf(prompt, createLenientRegex(instPre)) : -1;
 					if (instSufIndex <= instPreIndex) {
 						setPromptChunks(p => [...p, { type: 'user', content: instSuf }])
 						prompt += instSuf;
@@ -5831,15 +6466,15 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 
 			let startTime = 0;
 			setTokensPerSec(0.0);
-
-			for await (const chunk of completion({
+			
+			for await (const chunk of (useChatAPI ? chatCompletion : completion)({
 				endpoint,
 				endpointAPI,
-				...(endpointAPI == API_OPENAI_COMPAT || endpointAPI == API_LLAMA_CPP ? {
+				...(endpointAPI == API_OPENAI_COMPAT || endpointAPI == API_LLAMA_CPP || endpointAPI == API_AI_HORDE ? {
 					endpointAPIKey,
 					model: endpointModel
 				} : {}),
-				prompt,
+				...(useChatAPI ? { messages: convertChatToJSON(prompt, templates[selectedTemplate]) } : { prompt }),
 				...(seed != -1 ? { seed } : {}),
 				...(enabledSamplers.includes('temperature') ? {
 					temperature
@@ -5896,7 +6531,9 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 							dry_base: dryBase,
 							dry_allowed_length: dryAllowedLength,
 							dry_penalty_last_n: dryPenaltyRange,
-							dry_sequence_breakers: JSON.parse(drySequenceBreakers),
+							dry_sequence_breakers: endpointAPI == API_OPENAI_COMPAT ? 
+								drySequenceBreakers : 
+								JSON.parse(drySequenceBreakers),
 						}: {}),
 						...(enabledSamplers.includes('ban_tokens') ? {
 							banned_tokens: JSON.parse(bannedTokens),
@@ -5905,15 +6542,29 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 				}),
 				n_predict: maxPredictTokens,
 				n_probs: 10,
+				stream: useTokenStreaming,
 				...(JSON.parse(stoppingStrings).length ? { stop: JSON.parse(stoppingStrings) } : {}),
 				signal: ac.signal,
-				...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {})
+				...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {}),
+				...customParams
 			})) {
 				ac.signal.throwIfAborted();
 				if (chunk.stopping_word)
 					chunk.content = chunk.stopping_word;
-				if (!chunk.content)
+				if (endpointAPI === API_AI_HORDE) {
+					switch (chunk.status) {
+					case 'queue_init':
+						hordeTaskId.current = chunk.taskId;
+						continue;
+					case 'queue_status':
+						setHordeQueuePos(chunk.position);
+						setHordeProcessing(chunk.processing);
+						continue;
+					}
+				}
+				if (!chunk.content) {
 					continue;
+				}
 				if (startTime === 0) {
 					startTime = performance.now();
 				} else {
@@ -5931,6 +6582,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 					setTokens(t => t + (chunk?.completion_probabilities?.length ?? 1));
 				}
 				predictCount += 1;
+				ttsAddChunk(chunk.content);
 			}
 		} catch (e) {
 			if (e.name !== 'AbortError') {
@@ -5948,21 +6600,32 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			return false;
 		} finally {
 			setCancel(c => c === cancelThis ? null : c);
+			if (abortController)
+				ac.signal.removeEventListener('abort', cancelThis);
 			if (!callback) {
 				if (predictCount === 0)
 					undoStack.current.pop();
 			}
 			setTokensPerSec(0.0);
+			hordeTaskId.current = undefined;
+			setHordeQueuePos(undefined);
+			setHordeProcessing(false);
+			if (ttsNewText.current.length) {
+				if (!ttsPaused.current)
+					ttsQueue.current.push(ttsNewText.current);
+				ttsNewText.current = "";
+			}
+			if (!window.speechSynthesis.speaking && !window.speechSynthesis.pending) ttsProcessQueue();
 		}
 
 		// Chat Mode
-		if (!callback && chatMode && predictCount > 0) {
+		if (!callback && (chatMode || useChatAPI) && predictCount > 0) {
 			// add bot EOT template (instruct prefix)
 			const eotBot = templates[selectedTemplate]?.instPre.replace(/\\n/g, '\n')
 			setPromptChunks(p => [...p, { type: 'user', content: eotBot }])
 			prompt += `${eotBot}`
 		}
-		
+
 		return true;
 	}
 
@@ -6125,7 +6788,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			const atBottom = (elem.scrollTarget ?? elem.scrollTop) + elem.clientHeight + 1 > oldHeight;
 			const oldLen = elem.value.length;
 			// disable preserveCursorPosition in chatMode
-			if ( (!isTextSelected && !preserveCursorPosition) || chatMode) {
+			if ( (!isTextSelected && !preserveCursorPosition) || (chatMode || useChatAPI)) {
 				elem.value = promptText;
 			} else {
 				elem.setRangeText(promptText.slice(oldLen), oldLen, oldLen, 'preserve');
@@ -6148,7 +6811,32 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	}, [promptText]);
 
 	useLayoutEffect(() => {
-		if (cancel)
+		const elem = promptArea.current;
+		const previewElem = promptPreviewElement.current;
+		if (!elem || !previewElem)
+			return;
+		const oldHeight = elem.scrollHeight;
+		const atBottom = (elem.scrollTarget ?? elem.scrollTop) + elem.clientHeight + 1 > oldHeight;
+		previewElem.textContent = promptPreviewText;
+		elem.style.paddingBottom = previewElem.offsetHeight + 'px';
+		requestAnimationFrame(() => {
+			const newHeight = elem.scrollHeight;
+			if (atBottom && oldHeight !== newHeight) {
+				if (elem.scrollHeight - (elem.scrollTop + elem.clientHeight + 1) >= 100) {
+					// smooth scroll isn't keeping up with prediction speed =(
+					useScrollSmoothing.current = false;
+				}
+				elem.scrollTarget = newHeight - elem.clientHeight;
+				elem.scrollTo({
+					top: newHeight - elem.clientHeight,
+					behavior: useScrollSmoothing.current ? 'smooth' : 'instant',
+				});
+			}
+		});
+	}, [promptPreviewText]);
+
+	useLayoutEffect(() => {
+		if (cancel || promptPreviewText)
 			return;
 		promptArea.current.scrollTarget = undefined;
 		promptArea.current.scrollTop = savedScrollTop;
@@ -6180,7 +6868,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	}, [modalState["context"], promptText, endpoint, endpointAPI]);
 
 	useEffect(() => {
-		if (endpointAPI !== API_OPENAI_COMPAT) {
+		if (endpointAPI !== API_OPENAI_COMPAT && endpointAPI !== API_AI_HORDE) {
 			return;
 		}
 		setRejectedAPIKey(false);
@@ -6190,7 +6878,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 				const models = await getModels({
 					endpoint,
 					endpointAPI,
-					...(endpointAPI == API_OPENAI_COMPAT ? { endpointAPIKey } : {}),
+					endpointAPIKey,
 					signal: ac.signal,
 					...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {})
 				});
@@ -6222,7 +6910,22 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 					predict();
 					break;
 				case 'false:false:false:Escape':
-					cancel();
+					if (cancel) {
+						cancel();
+					} else if (showPromptPreview && promptPreviewChunks.length !== 0) {
+						setPromptPreviewReroll((r) => r + 1);
+					}
+					break;
+				case 'false:false:false:Tab':
+					if (!showPromptPreview || promptPreviewChunks.length === 0)
+						break;
+
+					setPromptChunks(p => [
+						...p,
+						...promptPreviewChunks
+					]);
+					setTokens(t => t + promptPreviewChunks.length);
+					setPromptPreviewChunks([]);
 					break;
 				case 'false:true:false:r':
 				case 'false:false:true:r':
@@ -6237,7 +6940,11 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 				case 'false:false:true:y':
 					if (cancel || !redo()) return;
 					break;
-
+				case 'false:true:false:e':
+				case 'false:false:true:e':
+					ttsStop();
+					break;
+				
 				default:
 					keyState.current = e;
 					return;
@@ -6518,11 +7225,13 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		}
 		switch (value) {
 			case API_LLAMA_CPP:
+				setUseChatAPI(false);
 				if (url.protocol != 'http:' && url.protocol != 'https:')
 					url.protocol = "http:";
 				url.port = 8080;
 				break;
 			case API_KOBOLD_CPP:
+				setUseChatAPI(false);
 				if (url.protocol != 'http:' && url.protocol != 'https:')
 					url.protocol = "http:";
 				url.port = 5001;
@@ -6531,54 +7240,19 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 				if (url.protocol != 'http:' && url.protocol != 'https:')
 					url.protocol = "http:";
 				break;
+			case API_AI_HORDE:
+				setUseChatAPI(false);
+				break;
 		}
 		setEndpoint(url.toString());
 		setEndpointAPI(value);
-	}
-
-	function selectNewVoice(value) {
-		window.TTS.voice = window.TTS.voices[value];
-		window.TTS.voice_id = value;
-		setTTSVoice(value);
-	}
-
-	function listTTSVoices() {
-		const voices = [];
-		for (var v = 0; v < window.TTS.voices.length; v++) {
-			voices[v] = { name: window.TTS.voices[v].name, value: v }
-		}
-		return voices;
-	}
-
-	function changeTTSEnabled(value) {
-		window.TTS.enabled = value;
-		setTTSEnabled(value);
-	}
-
-	function changeTTSPitch(value) {
-		window.TTS.pitch = value;
-		setTTSPitch(value);
-	}
-	
-	function changeTTSRate(value) {
-		window.TTS.rate = value;
-		setTTSRate(value);
-	}
-	
-	function changeTTSVolume(value) {
-		window.TTS.volume = value;
-		setTTSVolume(value);
-	}
-
-	function ttsStop() {
-		window.speechSynthesis.cancel();
 	}
 
 	function isMixedContent() {
 		const isHttps = window.location.protocol == 'https:';
 		let url;
 		try {
-			url = new URL(endpoint);
+			url = new URL(endpointAPI != API_AI_HORDE ? endpoint : 'https://aihorde.net/api');
 		} catch {
 			return false;
 		}
@@ -6590,6 +7264,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			redoStack.current = [];
 			undoStack.current = [];
 			setUndoHovered(false);
+			setPromptPreviewChunks([]);
 			setTitleToSession();
 		}
 		function onSessionError() {
@@ -6672,6 +7347,84 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		elem.scrollTop = scrollTop;
 	}, [instructModalState.result]);
 
+	// Text-To-Speech functions
+	window.speechSynthesis.onvoiceschanged = () => {
+		const voices = window.speechSynthesis.getVoices();
+		ttsVoices.current = voices;
+	};
+
+	async function ttsProcessQueue() {
+		if (ttsEnabled && ttsQueue.current.length > 0) {
+			if (window.speechSynthesis.speaking)
+				window.speechSynthesis.cancel();
+			var utterance = new SpeechSynthesisUtterance(ttsQueue.current.shift().trim());
+			utterance.voice = ttsVoices.current[ttsVoiceId];
+			utterance.pitch = ttsPitch;
+			utterance.rate = ttsRate;
+			utterance.volume = ttsVolume;
+			utterance.addEventListener("end", (event) = ttsProcessQueue);
+			window.speechSynthesis.speak(utterance);
+		}
+	}
+
+	function ttsStop() {
+		ttsPaused.current = true;
+		ttsQueue.current = [];
+		window.speechSynthesis.cancel();
+	}
+
+	function ttsPushUserInput() {
+		if (!ttsSpeakInputs || !ttsEnabled)
+			return;
+		if (promptChunks.length > 0 && promptChunks[promptChunks.length - 1].type == 'user') {
+			var textToRead = "";
+			let text = promptChunks[promptChunks.length - 1].content;
+			// Limit user input to 40 words
+			let words = text.split(/(?<=[ \n])/);
+			if (words.length > 40) {
+				text = words.slice(-40).join('');
+			}
+			// Split string using punctuation
+			var strings = text.split(/(?<=[!\.\?\n])/);
+			for (var s in strings) {
+				if (s == strings.length -1 && !/[!\.\?\n]/.test(strings[s].slice(-1))) {
+					// Put unterminated sentence in ttsNewText instead
+					ttsNewText.current += strings[s];
+				} else if (/[0-9a-zÀ-ÿ]/.test(strings[s]))	// Make sure it contains at least one pronounceable character
+					textToRead += strings[s];
+			}
+			if (textToRead.length > 0 && !ttsPaused.current)
+				ttsQueue.current.push(textToRead);
+			if (!window.speechSynthesis.speaking && !window.speechSynthesis.pending) ttsProcessQueue();
+		}
+	}
+
+	function ttsAddChunk(text) {
+		if (!ttsEnabled)
+			return;
+		ttsNewText.current += text;
+		var last = text.slice(-1);
+		if (text.slice(-3) == "..." || (last == "." && !/(Ms|Mr|Mrs)/.test(ttsLastChunk.current.slice(-3))) || last == "!" || last == "\n" || last == "?" || last == "\u{2026}") {
+			if (/[0-9a-zÀ-ÿ]/.test(ttsNewText.current)) {
+				if (!ttsPaused.current)
+					ttsQueue.current.push(ttsNewText.current);
+				ttsNewText.current = "";
+				ttsLastChunk.current = "";
+				if (!window.speechSynthesis.speaking && !window.speechSynthesis.pending) ttsProcessQueue();
+			}
+		} else {
+			ttsLastChunk.current = text;
+		}
+	}
+
+	function listTTSVoices() {
+		const voices = [];
+		for (var v = 0; v < ttsVoices.current.length; v++) {
+			voices[v] = { name: ttsVoices.current[v].name, value: v }
+		}
+		return voices;
+	}
+
 	return html`
 		<div id="prompt-container" onMouseMove=${onPromptMouseMove} style=${{ 'margin-bottom': isMobile ? sidebarHeight + 'px' : 0 }}>
 			<button
@@ -6694,8 +7447,13 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 				id="prompt-area"
 				onInput=${onInput}
 				onScroll=${onScroll}
-				onContextMenu=${onContextMenu}/>
-			<div ref=${promptOverlay} id="prompt-overlay" aria-hidden>
+				onContextMenu=${onContextMenu}
+				...${showPromptPreview && { style: { 'padding-bottom': promptPreviewElement.current?.offsetHeight ?? '0px' } }}/>
+			<div
+				ref=${promptOverlay}
+				id="prompt-overlay"
+				aria-hidden
+				...${showPromptPreview && { style: { 'padding-bottom': promptPreviewElement.current?.offsetHeight ?? '0px' } }}>
 				${tokenHighlightMode !== -1 ? html`
 					${promptChunks.map((chunk, i) => {
 						const getRatioColor = (ratio) => {
@@ -6728,9 +7486,12 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 								data-promptchunk=${i}
 								style=${bgColor ? { '--bg-color': bgColor } : {}}
 								className=${`${(tokenHighlightMode === 1 && !isCurrent) || chunk.type === 'user' ? 'user' : 'machine'} ${isCurrent ? 'current' : ''} ${isNextUndo ? 'erase' : ''}`}>
-								${(chunk.content === '\n' ? ' \n' : chunk.content) + (i === promptChunks.length - 1 && chunk.content.endsWith('\n') ? '\u00a0' : '')}
+								${(chunk.content === '\n' ? ' \n' : chunk.content) + (i === promptChunks.length - 1 && chunk.content.endsWith('\n') && promptPreviewChunks.length === 0 ? '\u00a0' : '')}
 							</span>`;
-					})}` : null}
+					})}
+					${(showPromptPreview && promptPreviewChunks.length) ? html`
+						<span ref=${promptPreviewElement} className="preview"></span>
+						<span class="preview nudge">Tab</span>` : null}` : null}
 			</div>
 			<${SearchAndReplaceWidget}
 				isOpen=${modalState.searchAndReplace}
@@ -6775,8 +7536,8 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 				<${InputBox} label="Server"
 					className="${isMixedContent() ? 'mixed-content' : ''}"
 					tooltip="${isMixedContent() ? 'This URL might be blocked due to mixed content. If the prediction fails, download mikupad.html and run it locally.' : ''}"
-					readOnly=${!!cancel}
-					value=${endpoint}
+					readOnly=${!!cancel || endpointAPI == API_AI_HORDE}
+					value=${endpointAPI != API_AI_HORDE ? endpoint : 'https://aihorde.net/api'}
 					onValueChange=${setEndpoint}/>
 				<${SelectBox}
 					label="API"
@@ -6786,31 +7547,46 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 					options=${[
 						{ name: 'llama.cpp'        , value: API_LLAMA_CPP },
 						{ name: 'KoboldCpp'        , value: API_KOBOLD_CPP },
-						{ name: 'OpenAI compatible', value: API_OPENAI_COMPAT },
+						{ name: 'OpenAI Compatible', value: API_OPENAI_COMPAT },
+						{ name: 'AI Horde'         , value: API_AI_HORDE },
 					]}/>
-				${(endpointAPI === API_LLAMA_CPP || endpointAPI === API_OPENAI_COMPAT) && html`
-					<div className="hbox-flex" style=${{"flex-wrap": "unset"}}>
-						<${InputBox} label="API Key" type="${!showAPIKey ? "password" : "text"}"
-							className="${rejectedAPIKey ? 'rejected' : ''}"
-							tooltip="${rejectedAPIKey ? 'This API Key was rejected by the backend.' : ''}"
-							tooltipSize="short"
-							readOnly=${!!cancel}
-							value=${endpointAPIKey}
-							onValueChange=${setEndpointAPIKey}/>
-						<button title="${!showAPIKey ? "Show API Key" : "Hide API Key"}"
-							className="eye-button"
-							disabled=${!!cancel}
-							onClick=${() => setShowAPIKey(!showAPIKey)}>
-							${!showAPIKey ? html`<${SVG_ShowKey}/>`
-										  : html`<${SVG_HideKey}/>`}
-						</button>
-					</div>`}
-				${endpointAPI == API_OPENAI_COMPAT && html`
+				<div className="hbox-flex" style=${{"flex-wrap": "unset"}}>
+					<${InputBox} label="API Key" type="${!showAPIKey ? "password" : "text"}"
+						className="${rejectedAPIKey ? 'rejected' : ''}"
+						tooltip="${rejectedAPIKey ? 'This API Key was rejected by the backend.' : ''}"
+						tooltipSize="short"
+						readOnly=${!!cancel}
+						value=${endpointAPIKey}
+						onValueChange=${setEndpointAPIKey}/>
+					<button title="${!showAPIKey ? "Show API Key" : "Hide API Key"}"
+						className="eye-button"
+						disabled=${!!cancel}
+						onClick=${() => setShowAPIKey(!showAPIKey)}>
+						${!showAPIKey ? html`<${SVG_ShowKey}/>`
+										: html`<${SVG_HideKey}/>`}
+					</button>
+				</div>
+				${(endpointAPI == API_OPENAI_COMPAT || endpointAPI == API_AI_HORDE) && html`
 					<${InputBox} label="Model"
 						datalist=${openaiModels}
 						readOnly=${!!cancel}
 						value=${endpointModel}
 						onValueChange=${setEndpointModel}/>`}
+				${endpointAPI != API_AI_HORDE && html`
+					${endpointAPI == API_OPENAI_COMPAT && html`
+						<${Checkbox} label="Strict API"
+							title="If enabled, non-standard fields won't be included in API requests."
+							disabled=${!!cancel} value=${openaiPresets} onValueChange=${setOpenaiPresets}/>
+						<${Checkbox} label="Chat Completions API"
+							title="If enabled, the chat API endpoint will be used, and the prompt will be split into chat messages based on the delimiters defined in the selected instruct template."
+							disabled=${!!cancel} value=${useChatAPI} onValueChange=${setUseChatAPI}/>`}
+					<${Checkbox} label="Token Streaming"
+						disabled=${!!cancel} value=${useTokenStreaming} onValueChange=${setUseTokenStreaming}/>
+					<${Checkbox} label="Prediction Preview"
+						disabled=${!!cancel || tokenHighlightMode === -1} value=${showPromptPreview && tokenHighlightMode !== -1} onValueChange=${setShowPromptPreview}/>
+					${showPromptPreview && html`
+						<${InputBox} label="Max Preview Tokens" type="text" inputmode="numeric"
+							readOnly=${!!cancel} value=${promptPreviewTokens} onValueChange=${setPromptPreviewTokens}/>`}`}
 				<div className="buttons instructTemplateSidebar">
 					<${SelectBoxTemplate}
 						label="Instruct Template"
@@ -6841,12 +7617,12 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 					</button>
 					<button
 						title="Toggle Chat Mode ${ chatMode ? "Off" : "On"}"
-						disabled=${!!cancel}
+						disabled=${!!cancel || useChatAPI}
 						class="symbol-button"
 						onClick=${() => setChatMode( (prevState) => !prevState)}>
-						${ chatMode ? 
-							html`<${SVG_ChatMode} style=${{ 'width':'.9em' }} />`
-						: html`<${SVG_CompletionMode} style=${{ 'width':'1.05em' }} />`
+						${ (chatMode || useChatAPI) ? 
+							html`<${SVG_ChatMode} style=${{ 'width':'.9em' }} />` :
+							html`<${SVG_CompletionMode} style=${{ 'width':'1.05em' }} />`
 						}
 					</button>
 				</div>
@@ -6854,7 +7630,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 					readOnly=${!!cancel} value=${seed} onValueChange=${setSeed}/>
 				<${InputBox} tooltip="Currently not accurate to the token count, it will be used as an estimate." label="Max Context Length" type="text" inputmode="numeric"
 					readOnly=${!!cancel} value=${contextLength} onValueChange=${setContextLength}/>
-				<${InputBox} label="Max Predict Tokens${endpointAPI != API_LLAMA_CPP ? ' (-1 = 1024)' : ' (-1 = infinite)'}" type="text" inputmode="numeric"
+				<${InputBox} label="Max Predict Tokens${endpointAPI != API_LLAMA_CPP ? (endpointAPI == API_AI_HORDE ? ' (-1 = 512)' : ' (-1 = 1024)') : ' (-1 = infinite)'}" type="text" inputmode="numeric"
 					readOnly=${!!cancel} value=${maxPredictTokens} onValueChange=${setMaxPredictTokens}/>
 				<${InputBox} label="Stopping Strings (JSON array)" type="text" pattern="^\\[.*?\\]$"
 					className="${stoppingStringsError ? 'rejected' : ''}"
@@ -6949,9 +7725,6 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 											  ? setEnabledSamplers((es) => [...es, 'ban_tokens'])
 											  : setEnabledSamplers((es) => es.filter((s) => s !== 'ban_tokens'))}/>
 				`}>
-				${endpointAPI == API_OPENAI_COMPAT && html`
-					<${Checkbox} label="Full OpenAI Compliance"
-						disabled=${!!cancel} value=${openaiPresets} onValueChange=${setOpenaiPresets}/>`}
 				<${InputSlider} label="Temperature" type="number" step="0.01" max="5"
 					hidden=${!enabledSamplers.includes('temperature')}
 					readOnly=${!!cancel} value=${temperature} onValueChange=${setTemperature}/>
@@ -6960,7 +7733,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 						<div className="hbox">
 							<${InputSlider} label="DynaTemp Range" type="number" step="0.01"
 								readOnly=${!!cancel} value=${dynaTempRange} onValueChange=${setDynaTempRange}/>
-							${(endpointAPI != API_KOBOLD_CPP) && html`
+							${(endpointAPI != API_KOBOLD_CPP && endpointAPI != API_AI_HORDE) && html`
 								<${InputSlider} label="DynaTemp Exp" type="number" step="0.01"
 									readOnly=${!!cancel} value=${dynaTempExp} onValueChange=${setDynaTempExp}/>`}
 						</div>`}
@@ -7128,10 +7901,12 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			</${CollapsibleGroup}>
 			${!!tokens && html`
 				<${InputBox} label="Tokens" value="${tokens}${tokensPerSec ? ` (${tokensPerSec.toFixed(2)} T/s)` : ``}" readOnly/>`}
+			${!!hordeQueuePos && html`
+				<${InputBox} label="Queue Position" value="${hordeQueuePos}" readOnly/>`}
 			<div className="buttons">
 				<button
 					title="Run next prediction (Ctrl + Enter)"
-					className=${cancel && !sessionEndpointConnecting ? (predictStartTokens === tokens ? 'processing' : 'completing') : ''}
+					className=${cancel && !sessionEndpointConnecting ? ((predictStartTokens === tokens && (endpointAPI != API_AI_HORDE || !hordeProcessing)) ? 'processing' : 'completing') : ''}
 					disabled=${!!cancel || stoppingStringsError || drySequenceBreakersError || bannedTokensError}
 					onClick=${() => predict()}>
 					Predict
@@ -7230,25 +8005,29 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 				</button>
 			</div>
 			<${Checkbox} label="Enable Text-to-Speech"
-						disabled=${!!cancel} value=${window.TTS.enabled} onValueChange=${changeTTSEnabled}/>
+						disabled=${!!cancel} value=${ttsEnabled} onValueChange=${setTTSEnabled}/>
+			${ttsEnabled && html`
 			<div className="hbox-flex" style=${{ "flex-wrap": "unset" }}>
 					<${SelectBox}
 						id="voices"
 						label="Voice"
 						disabled=${!!cancel}
-						value=${window.TTS.voice_id}
-						onValueChange=${selectNewVoice}
+						value=${ttsVoiceId}
+						onValueChange=${setTTSVoiceId}
 						options=${listTTSVoices}/>
-					<button title="Stop TTS" className="symbol-button" disabled=${cancel} onClick=${ttsStop}>
-						<${SVG_Cancel} style=${{ 'width': '.95em', 'transform': 'translate(-50%, -45%)' }}/>
+					<button title="Stop TTS (Ctrl + E)" className="symbol-button" disabled=${cancel} onClick=${() => ttsStop()}>
+						<${SVG_Stop} style=${{ 'width': '.95em', 'transform': 'translate(-45%, -45%)' }}/>
 					</button>
-				</div>
+			</div>
+			<${Checkbox} label="Speak User Inputs"
+						disabled=${!!cancel} value=${ttsSpeakInputs} onValueChange=${setTTSSpeakInputs}/>
 			<${InputSlider} label="TTS Pitch" type="number" step="0.1" max="2"
-				readOnly=${!!cancel} value=${window.TTS.pitch} onValueChange=${changeTTSPitch}/>
-				<${InputSlider} label="TTS Rate" type="number" step="0.1" max="2"
-				readOnly=${!!cancel} value=${window.TTS.rate} onValueChange=${changeTTSRate}/>
+				readOnly=${!!cancel} value=${ttsPitch} onValueChange=${setTTSPitch}/>
+				<${InputSlider} label="TTS Rate" type="number" step="0.1" max="10"
+				readOnly=${!!cancel} value=${ttsRate} onValueChange=${setTTSRate}/>
 				<${InputSlider} label="TTS Volume" type="number" step="0.1" max="2"
-				readOnly=${!!cancel} value=${window.TTS.volume} onValueChange=${changeTTSVolume}/>
+				readOnly=${!!cancel} value=${ttsVolume} onValueChange=${setTTSVolume}/>
+			`}
 		</${EditorPreferencesModal}>
 
 		<${MemoryModal}
@@ -7274,7 +8053,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			memoryTokens=${memoryTokens}
 			authorNoteTokens=${authorNoteTokens}
 			handleMemoryTokensChange=${handleMemoryTokensChange}
-			finalPromptText=${finalPromptText}
+			finalPromptText=${useChatAPI ? JSON.stringify(convertChatToJSON(finalPromptText, templates[selectedTemplate]), null, 4) : finalPromptText}
 			defaultPresets=${defaultPresets}
 			cancel=${cancel}/>
 
@@ -7454,6 +8233,11 @@ async function main() {
 		} catch (e) {
 			reportError(e);
 		}
+	}
+	
+	if (!isMikupadEndpoint) {
+		// Initialize IndexedDBAdapter
+		await dbAdapter.init();
 	}
 
 	const sessionStorage = new SessionStorage(dbAdapter);
