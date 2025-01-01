@@ -5834,26 +5834,6 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	const [grammar, setGrammar] = useSessionState('grammar', defaultPresets.grammar);
 	const [contextMenuState, setContextMenuState] = useState({ visible: false, x: 0, y: 0 });
 	const [instructModalState, setInstructModalState] = useState({});
-	const [hordeQueuePos, setHordeQueuePos] = useState(undefined);
-	const [hordeProcessing, setHordeProcessing] = useState(false);
-	const [useChatAPI, setUseChatAPI] = useSessionState('chatAPI', defaultPresets.chatAPI);
-	const [useTokenStreaming, setUseTokenStreaming] = useSessionState('tokenStreaming', defaultPresets.tokenStreaming);
-	const [promptPreviewChunks, setPromptPreviewChunks] = useState([]);
-	const [promptPreviewReroll, setPromptPreviewReroll] = useState(0);
-	const [showPromptPreview, setShowPromptPreview] = useSessionState('promptPreview', defaultPresets.promptPreview);
-	const [promptPreviewTokens, setPromptPreviewTokens] = useSessionState('promptPreviewTokens', defaultPresets.promptPreviewTokens);
-	// Text-To-Speech stuff
-	const ttsNewText = useRef("");
-	const ttsLastChunk = useRef("");
-	const ttsQueue = useRef([]);
-	const ttsVoices = useRef([]);
-	const ttsPaused = useRef(false);
-	const [ttsEnabled, setTTSEnabled] = usePersistentState('ttsEnabled', false);
-	const [ttsVoiceId, setTTSVoiceId] = usePersistentState('ttsVoiceId', 0);
-	const [ttsPitch, setTTSPitch] = usePersistentState('ttsPitch', 1);
-	const [ttsRate, setTTSRate] = usePersistentState('ttsRate', 1);
-	const [ttsVolume, setTTSVolume] = usePersistentState('ttsVolume', 1);
-	const [ttsSpeakInputs, setTTSSpeakInputs] = usePersistentState('ttsSpeakInputs', true);
 
 	function replacePlaceholders(string,placeholders) {
 		// give placeholders as json object
@@ -6607,15 +6587,6 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 					undoStack.current.pop();
 			}
 			setTokensPerSec(0.0);
-			hordeTaskId.current = undefined;
-			setHordeQueuePos(undefined);
-			setHordeProcessing(false);
-			if (ttsNewText.current.length) {
-				if (!ttsPaused.current)
-					ttsQueue.current.push(ttsNewText.current);
-				ttsNewText.current = "";
-			}
-			if (!window.speechSynthesis.speaking && !window.speechSynthesis.pending) ttsProcessQueue();
 		}
 
 		// Chat Mode
