@@ -5842,6 +5842,18 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	const [promptPreviewReroll, setPromptPreviewReroll] = useState(0);
 	const [showPromptPreview, setShowPromptPreview] = useSessionState('promptPreview', defaultPresets.promptPreview);
 	const [promptPreviewTokens, setPromptPreviewTokens] = useSessionState('promptPreviewTokens', defaultPresets.promptPreviewTokens);
+	// Text-To-Speech stuff
+	const ttsNewText = useRef("");
+	const ttsLastChunk = useRef("");
+	const ttsQueue = useRef([]);
+	const ttsVoices = useRef([]);
+	const ttsPaused = useRef(false);
+	const [ttsEnabled, setTTSEnabled] = usePersistentState('ttsEnabled', false);
+	const [ttsVoiceId, setTTSVoiceId] = usePersistentState('ttsVoiceId', 0);
+	const [ttsPitch, setTTSPitch] = usePersistentState('ttsPitch', 1);
+	const [ttsRate, setTTSRate] = usePersistentState('ttsRate', 1);
+	const [ttsVolume, setTTSVolume] = usePersistentState('ttsVolume', 1);
+	const [ttsSpeakInputs, setTTSSpeakInputs] = usePersistentState('ttsSpeakInputs', true);
 
 	function replacePlaceholders(string,placeholders) {
 		// give placeholders as json object
@@ -6598,6 +6610,12 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			hordeTaskId.current = undefined;
 			setHordeQueuePos(undefined);
 			setHordeProcessing(false);
+			if (ttsNewText.current.length) {
+				if (!ttsPaused.current)
+					ttsQueue.current.push(ttsNewText.current);
+				ttsNewText.current = "";
+			}
+			if (!window.speechSynthesis.speaking && !window.speechSynthesis.pending) ttsProcessQueue();
 		}
 
 		// Chat Mode
