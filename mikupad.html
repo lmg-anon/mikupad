@@ -5854,6 +5854,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	const [ttsRate, setTTSRate] = usePersistentState('ttsRate', 1);
 	const [ttsVolume, setTTSVolume] = usePersistentState('ttsVolume', 1);
 	const [ttsSpeakInputs, setTTSSpeakInputs] = usePersistentState('ttsSpeakInputs', true);
+	const [ttsMaxUserInput, setTTSMaxUserInput] = usePersistentState('ttsMaxUserInput', 50);
 
 	function replacePlaceholders(string,placeholders) {
 		// give placeholders as json object
@@ -7379,10 +7380,10 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		if (promptChunks.length > 0 && promptChunks[promptChunks.length - 1].type == 'user') {
 			var textToRead = "";
 			let text = promptChunks[promptChunks.length - 1].content;
-			// Limit user input to 40 words
+			// Limit user input
 			let words = text.split(/(?<=[ \n])/);
-			if (words.length > 40) {
-				text = words.slice(-40).join('');
+			if (words.length > ttsMaxUserInput) {
+				text = words.slice(-ttsMaxUserInput).join('');
 			}
 			// Split string using punctuation
 			var strings = text.split(/(?<=[!\.\?\n])/);
@@ -8015,18 +8016,22 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 						value=${ttsVoiceId}
 						onValueChange=${setTTSVoiceId}
 						options=${listTTSVoices}/>
-					<button title="Stop TTS (Ctrl + E)" className="symbol-button" disabled=${cancel} onClick=${() => ttsStop()}>
+					<button title="Stop TTS (Ctrl + E)" className="symbol-button" disabled=${!speechSynthesis.speaking} onClick=${() => ttsStop()}>
 						<${SVG_Stop} style=${{ 'width': '.95em', 'transform': 'translate(-45%, -45%)' }}/>
 					</button>
 			</div>
 			<${Checkbox} label="Speak User Inputs"
 						disabled=${!!cancel} value=${ttsSpeakInputs} onValueChange=${setTTSSpeakInputs}/>
-			<${InputSlider} label="TTS Pitch" type="number" step="0.1" max="2"
-				readOnly=${!!cancel} value=${ttsPitch} onValueChange=${setTTSPitch}/>
-				<${InputSlider} label="TTS Rate" type="number" step="0.1" max="10"
-				readOnly=${!!cancel} value=${ttsRate} onValueChange=${setTTSRate}/>
-				<${InputSlider} label="TTS Volume" type="number" step="0.1" max="2"
-				readOnly=${!!cancel} value=${ttsVolume} onValueChange=${setTTSVolume}/>
+			<${InputSlider} label="Max User Input Length" type="number" step="1" min="1" max="400"
+				disabled=${!ttsSpeakInputs} readonly=${!!cancel} value=${ttsMaxUserInput} onValueChange=${setTTSMaxUserInput}/>
+			<div className="hbox">
+				<${InputSlider} label="TTS Pitch" type="number" step="0.1" max="2"
+					readOnly=${!!cancel} value=${ttsPitch} onValueChange=${setTTSPitch}/>
+					<${InputSlider} label="TTS Rate" type="number" step="0.1" max="10"
+					readOnly=${!!cancel} value=${ttsRate} onValueChange=${setTTSRate}/>
+					<${InputSlider} label="TTS Volume" type="number" step="0.1" max="2"
+					readOnly=${!!cancel} value=${ttsVolume} onValueChange=${setTTSVolume}/>
+			</div>
 			`}
 		</${EditorPreferencesModal}>
 
