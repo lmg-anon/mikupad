@@ -5534,6 +5534,12 @@ const defaultPresets = {
 			'instPre': '<end_of_turn>\\n<start_of_turn>user\\n',
 			'instSuf': '<end_of_turn>\\n<start_of_turn>model\\n',
 		},
+		'R1': { 
+                        'sysPre' : '', 
+                        'sysSuf' : '', 
+                        'instPre': '<｜User｜>', 
+                        'instSuf': '<｜Assistant｜><think>\n', 
+                }, 
 	},
 	scrollTop: 0,
 	enabledSamplers: ['temperature', 'rep_pen', 'pres_pen', 'freq_pen', 'mirostat', 'top_k', 'top_p', 'min_p'],
