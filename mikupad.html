@@ -7385,8 +7385,9 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			if (words.length > ttsMaxUserInput) {
 				text = words.slice(-ttsMaxUserInput).join('');
 			}
-			// Remove special tokens (anything between <>)
+			// Remove special tokens (anything between <> and [])
 			text = text.replaceAll(/\<.+?\>/g, "");
+			text = text.replaceAll(/\[.+?\]/g, "");
 			// Split string using punctuation
 			var strings = text.split(/(?<=[!\.\?\n])/);
 			for (var s in strings) {
