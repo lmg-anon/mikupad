@@ -5222,12 +5222,19 @@ class TemplateStorage extends AbstractStorage {
 	}
 }
 
+class NameStorage extends AbstractStorage {
+        constructor(dbAdapter) {
+                super('Names', dbAdapter);
+        }
+}
+
 class SessionStorage extends AbstractStorage {
 	constructor(dbAdapter) {
 		super('Sessions', dbAdapter);
 		this.nextId = undefined;
 		this.sessions = {};
 		this.selectedSession = undefined;
+		this.nameStorage = new NameStorage(dbAdapter);
 
 		if (dbAdapter.sessionEndpoint) {
 			this.sessionEndpoint = dbAdapter.sessionEndpoint;
@@ -5245,6 +5252,21 @@ class SessionStorage extends AbstractStorage {
 		this.selectedSession = (await this.loadFromDatabase(db, 'selectedSessionId')) || 0;
 		await this.loadSessions(db);
 		this.startSaveTimer(async (sessionId) => await this.saveSessionToDB(sessionId));
+	}
+
+	async saveToDatabase(db, key, data) {
+		await super.saveToDatabase(db, key, data);
+		if (data.hasOwnProperty('name')) {
+			await this.nameStorage.saveToDatabase(db, key, data['name']);
+		}		
+	}
+
+	async loadFromDatabase(db, key) {
+		const data = (await super.loadFromDatabase(db, key));
+		if(!['selectedSessionId', 'nextSessionId'].includes(key)){
+			data['name'] = (await this.nameStorage.loadFromDatabase(db, key));		
+		}
+		return data;
 	}
 
 	async saveSessionToDB(sessionId) {

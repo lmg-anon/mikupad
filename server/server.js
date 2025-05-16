@@ -67,8 +67,21 @@ const db = new sqlite3.Database('./web-session-storage.db', (err) => {
             key TEXT PRIMARY KEY,
             data TEXT
         )`);
+        db.run(`CREATE TABLE IF NOT EXISTS names (
+            key TEXT PRIMARY KEY,
+            data TEXT
+        )`);
     }
 });
+
+//db.loadExtension('./libsqlite_zstd.so', (err) => {
+//    if (err) {
+//        console.error(err.message);
+//        throw err;
+//    } else {
+//        //Apply compression?
+//    }
+//});
 
 // GET route to serve Mikupad html
 app.get('/', (req, res) => {
@@ -217,7 +230,7 @@ app.post('/load', (req, res) => {
         if (err) {
             res.status(500).json({ ok: false, message: 'Error querying the database' });
         } else if (row) {
-            res.json({ ok: true, result: JSON.parse(row.data) });
+            res.json({ ok: true, result: storeName === "Names" ? row.data : JSON.parse(row.data) });
         } else {
             res.status(404).json({ ok: false, message: 'Key not found' });
         }
@@ -228,7 +241,7 @@ app.post('/load', (req, res) => {
 app.post('/save', (req, res) => {
     const { storeName, key, data } = req.body;
     const normStoreName = normalizeStoreName(storeName);
-    db.run(`INSERT OR REPLACE INTO ${normStoreName} (key, data) VALUES (?, ?)`, [key, JSON.stringify(data)], (err) => {
+    db.run(`INSERT OR REPLACE INTO ${normStoreName} (key, data) VALUES (?, ?)`, [key, storeName === "Names" ? data : JSON.stringify(data)], (err) => {
         if (err) {
             res.status(500).json({ ok: false, message: 'Error writing to the database' });
         } else {
@@ -240,11 +253,11 @@ app.post('/save', (req, res) => {
 // POST route to update session name
 app.post('/rename', (req, res) => {
     const { storeName, key, newName } = req.body;
-    const normStoreName = normalizeStoreName(storeName);
+    const normStoreName = normalizeStoreName("Names");
     db.run(
         `
         UPDATE ${normStoreName}
-        SET data = json_set(data, '$.name', ?)
+        SET data = ?
         WHERE key = ?
         `,
         [newName, key],
@@ -278,12 +291,34 @@ app.post('/all', (req, res) => {
 // POST route to get session info
 app.post('/sessions', (req, res) => {
     const { storeName } = req.body;
-    const normStoreName = normalizeStoreName(storeName);
+    const normStoreName = normalizeStoreName("Names");
     db.all(
         `
-        SELECT key, json_extract(data, '$.name') AS name
+        SELECT key, data AS name
         FROM ${normStoreName}
-        WHERE key NOT IN ('selectedSessionId', 'nextSessionId')
+        `,
+        [],
+        (err, rows) => {
+            if (err) {
+                res.status(500).json({ ok: false, message: 'Error querying the database' });
+            } else {
+                const sessions = {};
+                rows.forEach((row) => {
+                    sessions[row.key] = row.name;
+                });
+                res.json({ ok: true, result: sessions });
+            }
+        }
+    );
+});
+
+// GET route to get session info
+app.get('/sessions', (req, res) => {
+    const normStoreName = normalizeStoreName("Names");   
+    db.all(
+        `
+        SELECT key, data AS name
+        FROM ${normStoreName}
         `,
         [],
         (err, rows) => {
