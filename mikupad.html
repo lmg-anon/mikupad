@@ -5269,6 +5269,11 @@ class SessionStorage extends AbstractStorage {
 		return data;
 	}
 
+        async deleteFromDatabase(db, key) {
+                await super.deleteFromDatabase(db, key);
+                await this.nameStorage.deleteFromDatabase(db, key);
+        }
+
 	async saveSessionToDB(sessionId) {
 		const sessionData = this.sessions[sessionId];
 		if (!sessionData || sessionData.inactive)
