@@ -7358,7 +7358,13 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		if (ttsEnabled && ttsQueue.current.length > 0) {
 			if (window.speechSynthesis.speaking)
 				window.speechSynthesis.cancel();
-			var utterance = new SpeechSynthesisUtterance(ttsQueue.current.shift().trim());
+			var text = ttsQueue.current.shift().trim();
+			// Remove special tokens (anything between <> and [])
+			text = text.replaceAll(/\<.+?\>/g, "");
+			text = text.replaceAll(/\[.+?\]/g, "");
+			// Remove asterisks
+			text = text.replaceAll("*", "");
+			var utterance = new SpeechSynthesisUtterance(text);
 			utterance.voice = ttsVoices.current[ttsVoiceId];
 			utterance.pitch = ttsPitch;
 			utterance.rate = ttsRate;
@@ -7385,9 +7391,6 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			if (words.length > ttsMaxUserInput) {
 				text = words.slice(-ttsMaxUserInput).join('');
 			}
-			// Remove special tokens (anything between <> and [])
-			text = text.replaceAll(/\<.+?\>/g, "");
-			text = text.replaceAll(/\[.+?\]/g, "");
 			// Split string using punctuation
 			var strings = text.split(/(?<=[!\.\?\n])/);
 			for (var s in strings) {
