@@ -90,6 +90,10 @@ app.post('/proxy/*', async (req, res) => {
     const targetBaseUrl = req.headers['x-real-url'];
     delete req.headers['x-real-url'];
 
+    // Proxy authorization (since we use authorization headers as well)
+    const authorization = req.headers['x-real-authorization'];
+    delete req.headers['x-real-authorization'];
+
     headersToRemove.forEach(header => {
         delete req.headers[header.toLowerCase()];
     });
@@ -103,7 +107,8 @@ app.post('/proxy/*', async (req, res) => {
                 ...req.headers,
                 'Content-Type': 'application/json',
                 'Host': new URL(targetBaseUrl).hostname,  // Update the Host header for the target server
-                'Accept-Encoding': 'identity'
+                'Accept-Encoding': 'identity',
+                'Authorization': authorization
             },
             responseType: 'stream'
         });
@@ -142,6 +147,10 @@ app.get('/proxy/*', async (req, res) => {
     const targetBaseUrl = req.headers['x-real-url'];
     delete req.headers['x-real-url'];
 
+    // Proxy authorization (since we use authorization headers as well)
+    const authorization = req.headers['x-real-authorization'];
+    delete req.headers['x-real-authorization'];
+
     headersToRemove.forEach(header => {
         delete req.headers[header.toLowerCase()];
     });
@@ -153,7 +162,8 @@ app.get('/proxy/*', async (req, res) => {
                 ...req.headers,
                 'Content-Type': 'application/json',
                 'Host': new URL(targetBaseUrl).hostname,  // Update the Host header for the target server
-                'Accept-Encoding': 'identity'
+                'Accept-Encoding': 'identity',
+                'Authorization': authorization
             }
         });
 
@@ -178,6 +188,10 @@ app.delete('/proxy/*', async (req, res) => {
     const targetBaseUrl = req.headers['x-real-url'];
     delete req.headers['x-real-url'];
 
+    // Proxy authorization (since we use authorization headers as well)
+    const authorization = req.headers['x-real-authorization'];
+    delete req.headers['x-real-authorization'];
+
     headersToRemove.forEach(header => {
         delete req.headers[header.toLowerCase()];
     });
@@ -188,7 +202,8 @@ app.delete('/proxy/*', async (req, res) => {
                 ...req.headers,
                 'Content-Type': 'application/json',
                 'Host': new URL(targetBaseUrl).hostname,  // Update the Host header for the target server
-                'Accept-Encoding': 'identity'
+                'Accept-Encoding': 'identity',
+                'Authorization': authorization
             }
         });
 
