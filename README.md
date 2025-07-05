@@ -56,6 +56,27 @@ Note that by default, the server will automatically start when Docker starts (wh
 docker compose down
 ```
 
+### Adding HTTPS support
+
+You can also add HTTPS support, for example, if you wish to use **mikupad** remotely without revealing your generations or password to the entire world.
+
+First, copy and rename `docker-compose.override.example.yml` to `docker-compose.override.yml`. Then, uncomment `services:`, as well as the `ADD HTTPS SUPPORT` section. You may also wish to remove unencrypted HTTP support by uncommenting the `REMOVE HTTP SUPPORT` section.
+
+You will also need to provide a SSL certificate. You can do this in any way you wish, such as obtaining one from a [certificate authority](https://letsencrypt.org/) or creating a self-signed one yourself. Regardless, place the public certificate and the private key files in the `https` folder like so:
+
+```shell
+mikupad/https$ ls
+nginx.conf  private.key  public.crt
+```
+
+If you have already started the server, run this command to start up the HTTPS server as well:
+
+```shell
+docker compose up -d
+```
+
+Then visit https://localhost:3443/.
+
 ## Contributing
 
 Contributions from the open-source community are welcome. Whether it's fixing a bug, adding a feature, or improving the documentation, your contributions are greatly appreciated. To contribute to **mikupad**, follow these steps:
