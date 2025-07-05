@@ -22,3 +22,10 @@
 
 #   mikupad:
 #     ports: !reset []
+
+# ADD LOCALHOST AI SERVER SUPPORT FOR LINUX USERS:
+# (DELETE `mikupad:` IF ALREADY DEFINED ABOVE)
+  
+#   mikupad:
+#     extra_hosts:
+#       - host.docker.internal:host-gateway

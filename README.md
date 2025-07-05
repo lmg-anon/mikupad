@@ -77,6 +77,14 @@ docker compose up -d
 
 Then visit https://localhost:3443/.
 
+### Using AI servers running on localhost when running mikupad in Docker
+
+By default, **mikupad** running in server mode will proxy requests to any endpoints. For example, if you are running Ollama (which is OpenAI compatible), you can set the endpoint to `http://localhost:11434` and it'll work.
+
+However, in Docker, you need to replace `localhost` with `host.docker.internal`. For example, the correct endpoint to use for Ollama is `http://host.docker.internal:11434`.
+
+If you are on Linux, you'd need to copy and rename `docker-compose.override.example.yml` to `docker-compose.override.yml`. Then, uncomment `services:`, as well as the `ADD LOCALHOST AI SERVER SUPPORT FOR LINUX USERS` section.
+
 ## Contributing
 
 Contributions from the open-source community are welcome. Whether it's fixing a bug, adding a feature, or improving the documentation, your contributions are greatly appreciated. To contribute to **mikupad**, follow these steps:
