@@ -36,6 +36,26 @@ To use **mikupad** fully offline, run the provided `compile` script or download 
 
 You can also [try it on GitHub Pages](https://lmg-anon.github.io/mikupad/mikupad.html).
 
+## Running with Docker
+
+You can also run **mikupad** using Docker. This automatically compiles the HTML and runs the custom NodeJS server, which serves the HTML, among other functions.
+
+First, copy `.env.example` to `.env`. Then, **change your username and password**; anyone who has access to your hosted **mikupad** can store and load sessions, and proxy network requests through your server!
+
+To run the server:
+
+```shell
+docker compose up --build -d
+```
+
+Then visit http://localhost:3000/.
+
+Note that by default, the server will automatically start when Docker starts (which likely also starts on login). To stop the server, and at the same time also stop it from automatically starting up:
+
+```shell
+docker compose down
+```
+
 ## Contributing
 
 Contributions from the open-source community are welcome. Whether it's fixing a bug, adding a feature, or improving the documentation, your contributions are greatly appreciated. To contribute to **mikupad**, follow these steps:
