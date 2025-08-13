@@ -6910,12 +6910,12 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 					if (!showPromptPreview || promptPreviewChunks.length === 0)
 						break;
 					
-						setPromptChunks(p => [
-							...p,
-							promptPreviewChunks[0]
-						]);
-						setTokens(t => t + 1);
-						setPromptPreviewChunks(promptPreviewChunks.slice(1));
+					setPromptChunks(p => [
+						...p,
+						promptPreviewChunks[0]
+					]);
+					setTokens(t => t + 1);
+					setPromptPreviewChunks(promptPreviewChunks.slice(1));
 					break;
 				case 'false:true:false:r':
 				case 'false:false:true:r':
