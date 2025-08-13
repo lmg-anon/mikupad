@@ -6905,17 +6905,39 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 					setPromptPreviewChunks([]);
 					break;
 				case 'false:true:false:ArrowRight':
-					// Accept prompt preview token-by-token
+					// Accept prompt preview word-by-word
 					// by pressing Ctrl+ArrowRight.
+
 					if (!showPromptPreview || promptPreviewChunks.length === 0)
 						break;
+
+					let newPromptChunks = [ ...promptChunks ];
+					let newPromptPreviewChunks = [ ...promptPreviewChunks ];
+					let newTokens = tokens;
+
+					do {
+						newPromptChunks = newPromptChunks.concat(newPromptPreviewChunks.splice(0, 1));
+					} while (
+						// We still have suggested chunks to go through
+						newPromptPreviewChunks.length > 0 &&
+						// The next suggested chunk does not start with a space
+						newPromptPreviewChunks[0].content[0] != " " &&
+						(
+							// The prompt is empty
+							newPromptChunks.length == 0 ||
+							// Or...
+							(
+								// The prompt is not empty
+								newPromptChunks.length > 0 &&
+								// And the new prompt does not begin with a space 
+								newPromptChunks[newPromptChunks.length - 1].content[newPromptChunks[newPromptChunks.length - 1].content.length - 1] != " "
+							)
+						)
+					)
 					
-					setPromptChunks(p => [
-						...p,
-						promptPreviewChunks[0]
-					]);
-					setTokens(t => t + 1);
-					setPromptPreviewChunks(promptPreviewChunks.slice(1));
+					setPromptChunks(newPromptChunks);
+					setPromptPreviewChunks(newPromptPreviewChunks);
+					setTokens(newTokens);
 					break;
 				case 'false:true:false:r':
 				case 'false:false:true:r':
