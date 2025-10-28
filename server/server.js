@@ -206,7 +206,11 @@ app.delete('/proxy/*', async (req, res) => {
 const normalizeStoreName = (storeName) => {
     if (!storeName)
         return "Sessions";
-    return storeName.split(' ')[0].toLowerCase();
+    const normalizedStoreName = storeName.split(' ')[0].toLowerCase();
+    if (["sessions", "templates"].includes(normalizedStoreName)) {
+        return normalizedStoreName;
+    }
+    return "Sessions";
 };
 
 // POST route to load data
