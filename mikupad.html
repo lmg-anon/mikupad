@@ -6237,8 +6237,8 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 
 	// predicts the prompt preview
 	useEffect(() => {
-		if (promptPreviewChunks.length)
-			setPromptPreviewChunks([]);
+		if (promptPreviewChunks.length) // Don't predict a new preview if we already have one.
+			return;
 		
 		if (fimPromptInfo !== undefined || cancel || endpointAPI == API_AI_HORDE || tokenHighlightMode === -1 || !showPromptPreview)
 			return;
@@ -6406,6 +6406,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			// sometimes "getTokenCount" can take a while because the server is busy
 			// so let's set the predictStartTokens beforehand.
 			setPredictStartTokens(tokens);
+			if (showPromptPreview) setPromptPreviewChunks([]); // Discard current preview.
 
 			if (!callback) {
 				const tokenCount = await getTokenCount({
@@ -6605,6 +6606,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	function undo() {
 		if (!undoStack.current.length)
 			return false;
+		if (showPromptPreview) setPromptPreviewChunks([]); // Discard current preview so that a new one is generated.
 		redoStack.current.push(promptChunks.slice(undoStack.current.at(-1)));
 		setPromptChunks(p => p.slice(0, undoStack.current.pop()));
 		return true;
@@ -6613,6 +6615,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	function redo() {
 		if (!redoStack.current.length)
 			return false;
+		if (showPromptPreview) setPromptPreviewChunks([]); // Discard current preview so that a new one is generated.
 		undoStack.current.push(promptChunks.length);
 		setPromptChunks(p => [...p, ...redoStack.current.pop()]);
 		setUndoHovered(false);
@@ -6886,6 +6889,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 					if (cancel) {
 						cancel();
 					} else if (showPromptPreview && promptPreviewChunks.length !== 0) {
+						setPromptPreviewChunks([]); // Discard current preview so that a new one is generated.
 						setPromptPreviewReroll((r) => r + 1);
 					}
 					break;
@@ -6900,21 +6904,63 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 					setTokens(t => t + promptPreviewChunks.length);
 					setPromptPreviewChunks([]);
 					break;
+				case 'false:true:false:ArrowRight':
+					// Accept prompt preview word-by-word
+					// by pressing Ctrl+ArrowRight.
+
+					if (!showPromptPreview || promptPreviewChunks.length === 0)
+						break;
+
+					let newPromptChunks = [ ...promptChunks ];
+					let newPromptPreviewChunks = [ ...promptPreviewChunks ];
+					let newTokens = tokens;
+
+					do {
+						newPromptChunks = newPromptChunks.concat(newPromptPreviewChunks.splice(0, 1));
+					} while (
+						// We still have suggested chunks to go through
+						newPromptPreviewChunks.length > 0 &&
+						// The next suggested chunk does not start with a space
+						newPromptPreviewChunks[0].content[0] != " " &&
+						(
+							// The prompt is empty
+							newPromptChunks.length == 0 ||
+							// Or...
+							(
+								// The prompt is not empty
+								newPromptChunks.length > 0 &&
+								// And the new prompt does not begin with a space 
+								newPromptChunks[newPromptChunks.length - 1].content[newPromptChunks[newPromptChunks.length - 1].content.length - 1] != " "
+							)
+						)
+					)
+					
+					setPromptChunks(newPromptChunks);
+					setPromptPreviewChunks(newPromptPreviewChunks);
+					setTokens(newTokens);
+					break;
 				case 'false:true:false:r':
 				case 'false:false:true:r':
 					undoAndPredict();
 					break;
 				case 'false:true:false:z':
 				case 'false:false:true:z':
+					if (showPromptPreview) setPromptPreviewChunks([]); // Discard current preview so that a new one is generated.
 					if (cancel || !undo()) return;
 					break;
 				case 'false:true:true:Z':
 				case 'false:true:false:y':
 				case 'false:false:true:y':
+					if (showPromptPreview) setPromptPreviewChunks([]); // Discard current preview so that a new one is generated.
 					if (cancel || !redo()) return;
 					break;
 
 				default:
+					if (showPromptPreview && (e.key.length == 1 || e.key == "Dead" || e.key == "Backspace")) {
+						// If character is printable, backspace, or a diacritic,
+						// clear prompt preview so that it can be re-rolled.
+						setPromptPreviewChunks([]);
+					}
 					keyState.current = e;
 					return;
 			}
