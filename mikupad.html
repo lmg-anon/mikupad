@@ -4934,7 +4934,7 @@ class IndexedDBAdapter {
 				const cursor = event.target.result;
 				if (cursor) {
 					if (cursor.key !== 'nextSessionId' && cursor.key !== 'selectedSessionId') {
-						allTables[cursor.key] = cursor.value.name;
+						allTables[cursor.key] = cursor.value;
 					}
 					cursor.continue();
 				} else {
@@ -5286,13 +5286,13 @@ class SessionStorage extends AbstractStorage {
 		return data;
 	}
 
-        async deleteFromDatabase(db, key) {
-                await super.deleteFromDatabase(db, key);
-                await this.nameStorage.deleteFromDatabase(db, key);
-        }
+	async deleteFromDatabase(db, key) {
+		await super.deleteFromDatabase(db, key);
+		await this.nameStorage.deleteFromDatabase(db, key);
+	}
 
 	async saveSessionToDB(sessionId) {
-		const sessionData = this.sessions[sessionId];
+		const { name, ...sessionData } = this.sessions[sessionId];
 		if (!sessionData || sessionData.inactive)
 			return;
 		const db = await this.openDatabase();

@@ -6,6 +6,7 @@ const path = require('path');
 const minimist = require('minimist');
 const axios = require('axios');
 const open = require('open');
+const zlib = require('zlib');
 
 const app = express();
 
@@ -56,55 +57,96 @@ app.use((req, res, next) => {
     res.status(401).send('Authentication required.');
 });
 
+const compressData = (data) => {
+    return new Promise((resolve, reject) => {
+        zlib.gzip(data, (err, buffer) => {
+            if (err) return reject(err);
+            resolve(buffer);
+        });
+    });
+};
+
+const decompressData = (buffer) => {
+    return new Promise((resolve, reject) => {
+        zlib.gunzip(buffer, (err, decompressed) => {
+            if (err) return reject(err);
+            resolve(decompressed.toString());
+        });
+    });
+};
+
 const runMigrationToV3 = (db) => {
     return new Promise((resolve, reject) => {
-        // Check if the 'names' table exists to determine if a 2>3 migration is needed.
-        db.get("SELECT name FROM sqlite_master WHERE type='table' AND name='names'", (err, row) => {
+        // Check if the 'sessions' table exists and the 'names' table doesn't to determine if a 2->3 migration is needed.
+        const migrationCheckSql = `
+            SELECT 'migration_needed' as status
+            FROM sqlite_master
+            WHERE type = 'table' AND name = 'sessions'
+              AND NOT EXISTS (SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'names');
+        `;
+        
+        db.get(migrationCheckSql, (err, row) => {
             if (err) {
-                reject(err);
-                return;
+                return reject(err);
             }
 
-            if (!row) {
-                const migrationScript = `
-                    BEGIN TRANSACTION;
+            if (row) {
+                // This is a V2 database. We need to extract names and compress data.
+                db.serialize(async () => {
+                    try {
+                        const migrateTable = async (tableName, processRow) => {
+                            await new Promise((res, rej) => db.run(`ALTER TABLE ${tableName} RENAME TO ${tableName}_old`, (err) => err ? rej(err) : res()));
+                            await new Promise((res, rej) => db.run(`CREATE TABLE ${tableName} (key TEXT PRIMARY KEY, data BLOB)`, (err) => err ? rej(err) : res()));
+                            const rows = await new Promise((res, rej) => db.all(`SELECT key, data FROM ${tableName}_old`, [], (err, rows) => err ? rej(err) : res(rows)));
+                            for (const row of rows) {
+                                await processRow(row);
+                            }
+                            await new Promise((res, rej) => db.run(`DROP TABLE ${tableName}_old`, (err) => err ? rej(err) : res()));
+                        };
 
-                    CREATE TABLE names (
-                        key TEXT PRIMARY KEY,
-                        data TEXT
-                    );
+                        db.run("BEGIN TRANSACTION;");
+                        
+                        await new Promise((res, rej) => db.run(`CREATE TABLE names (key TEXT PRIMARY KEY, data TEXT);`, (err) => err ? rej(err) : res()));
 
-                    INSERT INTO names (key, data)
-                    SELECT
-                        sessions.key,
-                        json_extract(sessions.data, '$.name')
-                    FROM
-                        sessions
-                    WHERE
-                        json_extract(sessions.data, '$.name') IS NOT NULL;
+                        await migrateTable('sessions', async (row) => {
+                            const sessionData = JSON.parse(row.data);
+                            const sessionName = sessionData.name;
 
-                    UPDATE sessions
-                    SET data = json_remove(data, '$.name')
-                    WHERE
-                        json_extract(data, '$.name') IS NOT NULL;
+                            if (sessionName) {
+                                await new Promise((res, rej) => db.run("INSERT INTO names (key, data) VALUES (?, ?)", [row.key, sessionName], (err) => err ? rej(err) : res()));
+                                delete sessionData.name;
+                            }
 
-                    COMMIT;
-                `;
+                            const compressedData = await compressData(JSON.stringify(sessionData));
+                            await new Promise((res, rej) => db.run("INSERT INTO sessions (key, data) VALUES (?, ?)", [row.key, compressedData], (err) => err ? rej(err) : res()));
+                        });
 
-                db.exec(migrationScript, (err) => {
-                    if (err) {
-                        return reject(err);
+                        await migrateTable('templates', async (row) => {
+                            const compressedData = await compressData(row.data);
+                            await new Promise((res, rej) => db.run("INSERT INTO templates (key, data) VALUES (?, ?)", [row.key, compressedData], (err) => err ? rej(err) : res()));
+                        });
+
+                        db.run("COMMIT;", (err) => {
+                            if (err) {
+                                return reject(err);
+                            }
+                            // Migration was successful!
+                            resolve(true);
+                        });
+
+                    } catch (e) {
+                        db.run("ROLLBACK;");
+                        reject(e);
                     }
-                    // Migration success!
-                    resolve(true);
                 });
             } else {
-                // This is already a V3 db.
+                // This is already a V3 db, no migration needed.
                 resolve(false);
             }
         });
     });
 };
+
 
 // Open a database connection
 const db = new sqlite3.Database('./web-session-storage.db', (err) => {
@@ -114,16 +156,16 @@ const db = new sqlite3.Database('./web-session-storage.db', (err) => {
     }
 
     db.serialize(() => {
-        db.run(`CREATE TABLE IF NOT EXISTS sessions (key TEXT PRIMARY KEY, data TEXT)`);
-        db.run(`CREATE TABLE IF NOT EXISTS templates (key TEXT PRIMARY KEY, data TEXT)`);
+        db.run(`CREATE TABLE IF NOT EXISTS sessions (key TEXT PRIMARY KEY, data BLOB)`);
+        db.run(`CREATE TABLE IF NOT EXISTS templates (key TEXT PRIMARY KEY, data BLOB)`);
         db.run(`CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)`);
 
-        runMigrationToV3(db).then((res) => {
-            if (!res) {
+        runMigrationToV3(db).then((didMigrate) => {
+            if (!didMigrate) {
+                // If no migration happened, it's either a V3 DB or a entirely new DB, ensure names table exists.
                 db.run(`CREATE TABLE IF NOT EXISTS names (key TEXT PRIMARY KEY, data TEXT)`);
             }
 
-            // No need to check the result for now, but it would be necessary when V4 is introduced.
             db.run(`INSERT OR REPLACE INTO meta (key, value) VALUES ('version', 3)`);
         }).catch((err) => {
             console.error("Migration failed:", err.message);
@@ -283,36 +325,62 @@ app.post('/load', (req, res) => {
     if (!normStoreName) {
         return res.status(400).json({ ok: false, message: 'Invalid store name provided' });
     }
-    db.get(`SELECT data FROM ${normStoreName} WHERE key = ?`, [key], (err, row) => {
+    db.get(`SELECT data FROM ${normStoreName} WHERE key = ?`, [key], async (err, row) => {
         if (err) {
-            res.status(500).json({ ok: false, message: 'Error querying the database' });
-        } else if (row) {
-            res.json({ ok: true, result: normStoreName === "names" ? row.data : JSON.parse(row.data) });
-        } else {
-            res.status(404).json({ ok: false, message: 'Key not found' });
+            return res.status(500).json({ ok: false, message: 'Error querying the database' });
+        }
+        if (!row) {
+            return res.status(404).json({ ok: false, message: 'Key not found' });
+        }
+
+        try {
+            if (normStoreName !== "names") {
+                const decompressed = await decompressData(row.data);
+                res.json({ ok: true, result: JSON.parse(decompressed) });
+            } else {
+                res.json({ ok: true, result: row.data });
+            }
+        } catch (e) {
+            res.status(500).json({ ok: false, message: 'Failed to decompress or parse data.' });
         }
     });
 });
 
 // POST route to save data
-app.post('/save', (req, res) => {
+app.post('/save', async (req, res) => {
     const { storeName, key, data } = req.body;
     const normStoreName = normalizeStoreName(storeName);
     if (!normStoreName) {
         return res.status(400).json({ ok: false, message: 'Invalid store name provided' });
     }
-    db.run(`INSERT OR REPLACE INTO ${normStoreName} (key, data) VALUES (?, ?)`, [key, normStoreName === "names" ? data : JSON.stringify(data)], (err) => {
-        if (err) {
-            res.status(500).json({ ok: false, message: 'Error writing to the database' });
+
+    try {
+        let dataToStore;
+        if (normStoreName !== "names") {
+            dataToStore = await compressData(JSON.stringify(data));
         } else {
-            res.json({ ok: true, result: 'Data saved successfully' });
+            dataToStore = data;
         }
-    });
+
+        db.run(`INSERT OR REPLACE INTO ${normStoreName} (key, data) VALUES (?, ?)`, [key, dataToStore], (err) => {
+            if (err) {
+                res.status(500).json({ ok: false, message: 'Error writing to the database' });
+            } else {
+                res.json({ ok: true, result: 'Data saved successfully' });
+            }
+        });
+    } catch (e) {
+        res.status(500).json({ ok: false, message: 'Failed to compress data.' });
+    }
 });
 
 // POST route to update session name
 app.post('/rename', (req, res) => {
     const { storeName, key, newName } = req.body;
+    const normStoreName = normalizeStoreName(storeName);
+    if (normStoreName !== 'sessions') {
+        return res.status(400).json({ ok: false, message: 'Renaming is only supported for sessions' });
+    }
     db.run(
         `
         UPDATE names
@@ -337,15 +405,26 @@ app.post('/all', (req, res) => {
     if (!normStoreName) {
         return res.status(400).json({ ok: false, message: 'Invalid store name provided' });
     }
-    db.all(`SELECT key, data FROM ${normStoreName}`, [], (err, rows) => {
+    db.all(`SELECT key, data FROM ${normStoreName}`, [], async (err, rows) => {
         if (err) {
-            res.status(500).json({ ok: false, message: 'Error querying the database' });
-        } else {
+            return res.status(500).json({ ok: false, message: 'Error querying the database' });
+        }
+
+        try {
             const all = {};
-            rows.forEach((row) => {
-                all[row.key] = normStoreName === "names" ? row.data : JSON.parse(row.data);
-            });
+            if (normStoreName !== "names") {
+                await Promise.all(rows.map(async (row) => {
+                    const decompressed = await decompressData(row.data);
+                    all[row.key] = JSON.parse(decompressed);
+                }));
+            } else {
+                rows.forEach((row) => {
+                    all[row.key] = row.data;
+                });
+            }
             res.json({ ok: true, result: all });
+        } catch (e) {
+            res.status(500).json({ ok: false, message: 'Failed to decompress or parse data for one or more items.' });
         }
     });
 });
@@ -380,12 +459,22 @@ app.post('/delete', (req, res) => {
     if (!normStoreName) {
         return res.status(400).json({ ok: false, message: 'Invalid store name provided' });
     }
-    db.run(`DELETE FROM ${normStoreName} WHERE key = ?`, [key], (err) => {
-        if (err) {
-            res.status(500).json({ ok: false, message: 'Error deleting from the database' });
-        } else {
-            res.json({ ok: true, result: 'Session deleted successfully' });
+    db.serialize(() => {
+        db.run("BEGIN TRANSACTION");
+
+        db.run(`DELETE FROM ${normStoreName} WHERE key = ?`, [key]);
+
+        if (normStoreName === 'sessions') {
+            db.run(`DELETE FROM names WHERE key = ?`, [key]);
         }
+
+        db.run("COMMIT", (err) => {
+            if (err) {
+                db.run("ROLLBACK");
+                return res.status(500).json({ ok: false, message: 'Error deleting from the database' });
+            }
+            res.json({ ok: true, result: 'Session deleted successfully' });
+        });
     });
 });
 
