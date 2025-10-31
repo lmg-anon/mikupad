@@ -31,6 +31,9 @@ const headersToRemove = [
     'x-forwarded-proto'
 ];
 
+// Server API version
+const SERVER_VERSION = 3;
+
 app.use(cors(), bodyParser.json({limit: "100mb"}));
 
 // authentication middleware
@@ -53,35 +56,81 @@ app.use((req, res, next) => {
     res.status(401).send('Authentication required.');
 });
 
+const runMigrationToV3 = (db) => {
+    return new Promise((resolve, reject) => {
+        // Check if the 'names' table exists to determine if a 2>3 migration is needed.
+        db.get("SELECT name FROM sqlite_master WHERE type='table' AND name='names'", (err, row) => {
+            if (err) {
+                reject(err);
+                return;
+            }
+
+            if (!row) {
+                const migrationScript = `
+                    BEGIN TRANSACTION;
+
+                    CREATE TABLE names (
+                        key TEXT PRIMARY KEY,
+                        data TEXT
+                    );
+
+                    INSERT INTO names (key, data)
+                    SELECT
+                        sessions.key,
+                        json_extract(sessions.data, '$.name')
+                    FROM
+                        sessions
+                    WHERE
+                        json_extract(sessions.data, '$.name') IS NOT NULL;
+
+                    UPDATE sessions
+                    SET data = json_remove(data, '$.name')
+                    WHERE
+                        json_extract(data, '$.name') IS NOT NULL;
+
+                    COMMIT;
+                `;
+
+                db.exec(migrationScript, (err) => {
+                    if (err) {
+                        return reject(err);
+                    }
+                    // Migration success!
+                    resolve(true);
+                });
+            } else {
+                // This is already a V3 db.
+                resolve(false);
+            }
+        });
+    });
+};
+
 // Open a database connection
 const db = new sqlite3.Database('./web-session-storage.db', (err) => {
     if (err) {
         console.error(err.message);
-        throw err;
-    } else {
-        db.run(`CREATE TABLE IF NOT EXISTS sessions (
-            key TEXT PRIMARY KEY,
-            data TEXT
-        )`);
-        db.run(`CREATE TABLE IF NOT EXISTS templates (
-            key TEXT PRIMARY KEY,
-            data TEXT
-        )`);
-        db.run(`CREATE TABLE IF NOT EXISTS names (
-            key TEXT PRIMARY KEY,
-            data TEXT
-        )`);
+        process.exit(1);
     }
-});
 
-//db.loadExtension('./libsqlite_zstd.so', (err) => {
-//    if (err) {
-//        console.error(err.message);
-//        throw err;
-//    } else {
-//        //Apply compression?
-//    }
-//});
+    db.serialize(() => {
+        db.run(`CREATE TABLE IF NOT EXISTS sessions (key TEXT PRIMARY KEY, data TEXT)`);
+        db.run(`CREATE TABLE IF NOT EXISTS templates (key TEXT PRIMARY KEY, data TEXT)`);
+        db.run(`CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)`);
+
+        runMigrationToV3(db).then((res) => {
+            if (!res) {
+                db.run(`CREATE TABLE IF NOT EXISTS names (key TEXT PRIMARY KEY, data TEXT)`);
+            }
+
+            // No need to check the result for now, but it would be necessary when V4 is introduced.
+            db.run(`INSERT OR REPLACE INTO meta (key, value) VALUES ('version', 3)`);
+        }).catch((err) => {
+            console.error("Migration failed:", err.message);
+            process.exit(1);
+        });
+    });
+});
 
 // GET route to serve Mikupad html
 app.get('/', (req, res) => {
@@ -90,7 +139,7 @@ app.get('/', (req, res) => {
 
 // GET route to get the server version
 app.get('/version', (req, res) => {
-    res.json({ version: 2 });
+    res.json({ version: SERVER_VERSION });
 });
 
 // Dynamic POST proxy route
@@ -217,24 +266,28 @@ app.delete('/proxy/*', async (req, res) => {
 });
 
 const normalizeStoreName = (storeName) => {
-    if (!storeName)
-        return "Sessions";
+    if (!storeName) {
+        return "sessions";
+    }
     const normalizedStoreName = storeName.split(' ')[0].toLowerCase();
-    if (["sessions", "templates"].includes(normalizedStoreName)) {
+    if (["sessions", "templates", "names"].includes(normalizedStoreName)) {
         return normalizedStoreName;
     }
-    return "Sessions";
+    return null;
 };
 
 // POST route to load data
 app.post('/load', (req, res) => {
     const { storeName, key } = req.body;
     const normStoreName = normalizeStoreName(storeName);
+    if (!normStoreName) {
+        return res.status(400).json({ ok: false, message: 'Invalid store name provided' });
+    }
     db.get(`SELECT data FROM ${normStoreName} WHERE key = ?`, [key], (err, row) => {
         if (err) {
             res.status(500).json({ ok: false, message: 'Error querying the database' });
         } else if (row) {
-            res.json({ ok: true, result: storeName === "Names" ? row.data : JSON.parse(row.data) });
+            res.json({ ok: true, result: normStoreName === "names" ? row.data : JSON.parse(row.data) });
         } else {
             res.status(404).json({ ok: false, message: 'Key not found' });
         }
@@ -245,7 +298,10 @@ app.post('/load', (req, res) => {
 app.post('/save', (req, res) => {
     const { storeName, key, data } = req.body;
     const normStoreName = normalizeStoreName(storeName);
-    db.run(`INSERT OR REPLACE INTO ${normStoreName} (key, data) VALUES (?, ?)`, [key, storeName === "Names" ? data : JSON.stringify(data)], (err) => {
+    if (!normStoreName) {
+        return res.status(400).json({ ok: false, message: 'Invalid store name provided' });
+    }
+    db.run(`INSERT OR REPLACE INTO ${normStoreName} (key, data) VALUES (?, ?)`, [key, normStoreName === "names" ? data : JSON.stringify(data)], (err) => {
         if (err) {
             res.status(500).json({ ok: false, message: 'Error writing to the database' });
         } else {
@@ -257,10 +313,9 @@ app.post('/save', (req, res) => {
 // POST route to update session name
 app.post('/rename', (req, res) => {
     const { storeName, key, newName } = req.body;
-    const normStoreName = normalizeStoreName("Names");
     db.run(
         `
-        UPDATE ${normStoreName}
+        UPDATE names
         SET data = ?
         WHERE key = ?
         `,
@@ -279,13 +334,16 @@ app.post('/rename', (req, res) => {
 app.post('/all', (req, res) => {
     const { storeName } = req.body;
     const normStoreName = normalizeStoreName(storeName);
+    if (!normStoreName) {
+        return res.status(400).json({ ok: false, message: 'Invalid store name provided' });
+    }
     db.all(`SELECT key, data FROM ${normStoreName}`, [], (err, rows) => {
         if (err) {
             res.status(500).json({ ok: false, message: 'Error querying the database' });
         } else {
             const all = {};
             rows.forEach((row) => {
-                all[row.key] = JSON.parse(row.data);
+                all[row.key] = normStoreName === "names" ? row.data : JSON.parse(row.data);
             });
             res.json({ ok: true, result: all });
         }
@@ -295,34 +353,10 @@ app.post('/all', (req, res) => {
 // POST route to get session info
 app.post('/sessions', (req, res) => {
     const { storeName } = req.body;
-    const normStoreName = normalizeStoreName("Names");
     db.all(
         `
         SELECT key, data AS name
-        FROM ${normStoreName}
-        `,
-        [],
-        (err, rows) => {
-            if (err) {
-                res.status(500).json({ ok: false, message: 'Error querying the database' });
-            } else {
-                const sessions = {};
-                rows.forEach((row) => {
-                    sessions[row.key] = row.name;
-                });
-                res.json({ ok: true, result: sessions });
-            }
-        }
-    );
-});
-
-// GET route to get session info
-app.get('/sessions', (req, res) => {
-    const normStoreName = normalizeStoreName("Names");   
-    db.all(
-        `
-        SELECT key, data AS name
-        FROM ${normStoreName}
+        FROM names
         `,
         [],
         (err, rows) => {
@@ -343,6 +377,9 @@ app.get('/sessions', (req, res) => {
 app.post('/delete', (req, res) => {
     const { storeName, key } = req.body;
     const normStoreName = normalizeStoreName(storeName);
+    if (!normStoreName) {
+        return res.status(400).json({ ok: false, message: 'Invalid store name provided' });
+    }
     db.run(`DELETE FROM ${normStoreName} WHERE key = ?`, [key], (err) => {
         if (err) {
             res.status(500).json({ ok: false, message: 'Error deleting from the database' });
