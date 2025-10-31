@@ -2119,7 +2119,7 @@ function openaiConvertOptions(options, endpoint, isChat) {
 	if (options.n_predict === -1) {
 		options.n_predict = 1024;
 	}
-	if (isOpenAI && options.n_probs > 5) {
+	if (isOpenAI && options.n_probs > 5 || endpoint.toLowerCase().includes("xai")) {
 		options.n_probs = 5;
 	}
 	if (isTogetherAI && options.n_probs > 1) {
