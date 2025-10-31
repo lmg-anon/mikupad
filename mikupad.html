@@ -3137,6 +3137,14 @@ const SVG_Moveable = ({...props}) => {
 		<path d="M 5.5 11 L 7 9 L 6 9 L 6 6 L 9 6 L 9 7 L 11 5.5 L 9 4 L 9 5 L 6 5 L 6 2 L 7 2 L 5.5 0 L 4 2 L 5 2 L 5 5 L 2 5 L 2 4 L 0 5.5 L 2 7 L 2 6 L 5 6 L 5 9 L 4 9 Z"/>
 	</${SVG}>
 `};
+const SVG_Stop = ({ ...props }) => {
+		return html`
+	<${SVG}
+		...${props}
+		viewBox="0 0 24 24">
+		<path fill="var(--color-light)" fillRule="evenodd" d="M3 4a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4z"/>
+	</${SVG}>
+`};
 
 function Modal({ isOpen, onClose, title, description, children, ...props }) {
 	if (!isOpen) {
@@ -5890,6 +5898,19 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	const [promptPreviewReroll, setPromptPreviewReroll] = useState(0);
 	const [showPromptPreview, setShowPromptPreview] = useSessionState('promptPreview', defaultPresets.promptPreview);
 	const [promptPreviewTokens, setPromptPreviewTokens] = useSessionState('promptPreviewTokens', defaultPresets.promptPreviewTokens);
+	// Text-To-Speech stuff
+	const ttsNewText = useRef("");
+	const ttsLastChunk = useRef("");
+	const ttsQueue = useRef([]);
+	const ttsVoices = useRef([]);
+	const ttsPaused = useRef(false);
+	const [ttsEnabled, setTTSEnabled] = usePersistentState('ttsEnabled', false);
+	const [ttsVoiceId, setTTSVoiceId] = usePersistentState('ttsVoiceId', 0);
+	const [ttsPitch, setTTSPitch] = usePersistentState('ttsPitch', 1);
+	const [ttsRate, setTTSRate] = usePersistentState('ttsRate', 1);
+	const [ttsVolume, setTTSVolume] = usePersistentState('ttsVolume', 1);
+	const [ttsSpeakInputs, setTTSSpeakInputs] = usePersistentState('ttsSpeakInputs', true);
+	const [ttsMaxUserInput, setTTSMaxUserInput] = usePersistentState('ttsMaxUserInput', 50);
 
 	function replacePlaceholders(string,placeholders) {
 		// give placeholders as json object
@@ -6457,7 +6478,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 		setLastError(undefined);
 
 		let predictCount = 0;
-
+		ttsPushUserInput(); ttsPaused.current = false;
 		try {
 			// sometimes "getTokenCount" can take a while because the server is busy
 			// so let's set the predictStartTokens beforehand.
@@ -6619,6 +6640,7 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 					setTokens(t => t + (chunk?.completion_probabilities?.length ?? 1));
 				}
 				predictCount += 1;
+				ttsAddChunk(chunk.content);
 			}
 		} catch (e) {
 			if (e.name !== 'AbortError') {
@@ -6646,6 +6668,12 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 			hordeTaskId.current = undefined;
 			setHordeQueuePos(undefined);
 			setHordeProcessing(false);
+			if (ttsNewText.current.length) {
+				if (!ttsPaused.current)
+					ttsQueue.current.push(ttsNewText.current);
+				ttsNewText.current = "";
+			}
+			if (!window.speechSynthesis.speaking && !window.speechSynthesis.pending) ttsProcessQueue();
 		}
 
 		// Chat Mode
@@ -7010,7 +7038,11 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 					if (showPromptPreview) setPromptPreviewChunks([]); // Discard current preview so that a new one is generated.
 					if (cancel || !redo()) return;
 					break;
-
+				case 'false:true:false:e':
+				case 'false:false:true:e':
+					ttsStop();
+					break;
+				
 				default:
 					if (showPromptPreview && (e.key.length == 1 || e.key == "Dead" || e.key == "Backspace")) {
 						// If character is printable, backspace, or a diacritic,
@@ -7417,6 +7449,90 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 
 		elem.scrollTop = scrollTop;
 	}, [instructModalState.result]);
+
+	// Text-To-Speech functions
+	window.speechSynthesis.onvoiceschanged = () => {
+		const voices = window.speechSynthesis.getVoices();
+		ttsVoices.current = voices;
+	};
+
+	async function ttsProcessQueue() {
+		if (ttsEnabled && ttsQueue.current.length > 0) {
+			if (window.speechSynthesis.speaking)
+				window.speechSynthesis.cancel();
+			var text = ttsQueue.current.shift().trim();
+			// Remove special tokens (anything between <> and [])
+			text = text.replaceAll(/\<.+?\>/g, "");
+			text = text.replaceAll(/\[.+?\]/g, "");
+			// Remove asterisks
+			text = text.replaceAll("*", "");
+			var utterance = new SpeechSynthesisUtterance(text);
+			utterance.voice = ttsVoices.current[ttsVoiceId];
+			utterance.pitch = ttsPitch;
+			utterance.rate = ttsRate;
+			utterance.volume = ttsVolume;
+			utterance.addEventListener("end", (event) = ttsProcessQueue);
+			window.speechSynthesis.speak(utterance);
+		}
+	}
+
+	function ttsStop() {
+		ttsPaused.current = true;
+		ttsQueue.current = [];
+		window.speechSynthesis.cancel();
+	}
+
+	function ttsPushUserInput() {
+		if (!ttsSpeakInputs || !ttsEnabled)
+			return;
+		if (promptChunks.length > 0 && promptChunks[promptChunks.length - 1].type == 'user') {
+			var textToRead = "";
+			let text = promptChunks[promptChunks.length - 1].content;
+			// Limit user input
+			let words = text.split(/(?<=[ \n])/);
+			if (words.length > ttsMaxUserInput) {
+				text = words.slice(-ttsMaxUserInput).join('');
+			}
+			// Split string using punctuation
+			var strings = text.split(/(?<=[!\.\?\n])/);
+			for (var s in strings) {
+				if (s == strings.length -1 && !/[!\.\?\n]/.test(strings[s].slice(-1))) {
+					// Put unterminated sentence in ttsNewText instead
+					ttsNewText.current += strings[s];
+				} else if (/[0-9a-zÀ-ÿ]/.test(strings[s]))	// Make sure it contains at least one pronounceable character
+					textToRead += strings[s];
+			}
+			if (textToRead.length > 0 && !ttsPaused.current)
+				ttsQueue.current.push(textToRead);
+			if (!window.speechSynthesis.speaking && !window.speechSynthesis.pending) ttsProcessQueue();
+		}
+	}
+
+	function ttsAddChunk(text) {
+		if (!ttsEnabled)
+			return;
+		ttsNewText.current += text;
+		var last = text.slice(-1);
+		if (text.slice(-3) == "..." || (last == "." && !/(Ms|Mr|Mrs)/.test(ttsLastChunk.current.slice(-3))) || last == "!" || last == "\n" || last == "?" || last == "\u{2026}") {
+			if (/[0-9a-zÀ-ÿ]/.test(ttsNewText.current)) {
+				if (!ttsPaused.current)
+					ttsQueue.current.push(ttsNewText.current);
+				ttsNewText.current = "";
+				ttsLastChunk.current = "";
+				if (!window.speechSynthesis.speaking && !window.speechSynthesis.pending) ttsProcessQueue();
+			}
+		} else {
+			ttsLastChunk.current = text;
+		}
+	}
+
+	function listTTSVoices() {
+		const voices = [];
+		for (var v = 0; v < ttsVoices.current.length; v++) {
+			voices[v] = { name: ttsVoices.current[v].name, value: v }
+		}
+		return voices;
+	}
 
 	return html`
 		<div id="prompt-container" onMouseMove=${onPromptMouseMove} style=${{ 'margin-bottom': isMobile ? sidebarHeight + 'px' : 0 }}>
@@ -7997,6 +8113,34 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 					Export prompt to plaintext
 				</button>
 			</div>
+			<${Checkbox} label="Enable Text-to-Speech"
+						disabled=${!!cancel} value=${ttsEnabled} onValueChange=${setTTSEnabled}/>
+			${ttsEnabled && html`
+			<div className="hbox-flex" style=${{ "flex-wrap": "unset" }}>
+					<${SelectBox}
+						id="voices"
+						label="Voice"
+						disabled=${!!cancel}
+						value=${ttsVoiceId}
+						onValueChange=${setTTSVoiceId}
+						options=${listTTSVoices}/>
+					<button title="Stop TTS (Ctrl + E)" className="symbol-button" disabled=${!speechSynthesis.speaking} onClick=${() => ttsStop()}>
+						<${SVG_Stop} style=${{ 'width': '.95em', 'transform': 'translate(-45%, -45%)' }}/>
+					</button>
+			</div>
+			<${Checkbox} label="Speak User Inputs"
+						disabled=${!!cancel} value=${ttsSpeakInputs} onValueChange=${setTTSSpeakInputs}/>
+			<${InputSlider} label="Max User Input Length" type="number" step="1" min="1" max="400"
+				disabled=${!ttsSpeakInputs} readonly=${!!cancel} value=${ttsMaxUserInput} onValueChange=${setTTSMaxUserInput}/>
+			<div className="hbox">
+				<${InputSlider} label="TTS Pitch" type="number" step="0.1" max="2"
+					readOnly=${!!cancel} value=${ttsPitch} onValueChange=${setTTSPitch}/>
+					<${InputSlider} label="TTS Rate" type="number" step="0.1" max="10"
+					readOnly=${!!cancel} value=${ttsRate} onValueChange=${setTTSRate}/>
+					<${InputSlider} label="TTS Volume" type="number" step="0.1" max="2"
+					readOnly=${!!cancel} value=${ttsVolume} onValueChange=${setTTSVolume}/>
+			</div>
+			`}
 		</${EditorPreferencesModal}>
 
 		<${MemoryModal}
