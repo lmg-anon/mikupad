@@ -4985,6 +4985,69 @@ class IndexedDBAdapter {
 			request.onerror = () => reject(request.error);
 		});
 	}
+
+	async exportDatabase() {
+		const db = await this.openDatabase();
+		const exportObject = {};
+		const storeNames = Array.from(db.objectStoreNames);
+
+		const transaction = db.transaction(storeNames, 'readonly');
+		transaction.onerror = (event) => {
+			console.error("Transaction error:", event.target.error);
+		};
+
+		for (const storeName of storeNames) {
+			exportObject[storeName] = [];
+			const store = transaction.objectStore(storeName);
+			const request = store.openCursor();
+
+			await new Promise((resolve, reject) => {
+				request.onsuccess = (event) => {
+					const cursor = event.target.result;
+					if (cursor) {
+						exportObject[storeName].push({ key: cursor.key, value: cursor.value });
+						cursor.continue();
+					} else {
+						resolve();
+					}
+				};
+				request.onerror = (event) => {
+					reject(event.target.error);
+				};
+			});
+		}
+
+		return exportObject;
+	}
+
+	async importDatabase(data) {
+		const db = await this.openDatabase();
+		const storeNames = Array.from(db.objectStoreNames);
+		const transaction = db.transaction(storeNames, 'readwrite');
+
+		transaction.onerror = (event) => {
+			console.error("Transaction error:", event.target.error);
+		};
+
+		for (const storeName of storeNames) {
+			if (data[storeName]) {
+				const store = transaction.objectStore(storeName);
+				store.clear();
+				for (const item of data[storeName]) {
+					store.put(item.value, item.key);
+				}
+			}
+		}
+
+		return new Promise((resolve, reject) => {
+			transaction.oncomplete = () => {
+				resolve();
+			};
+			transaction.onerror = (event) => {
+				reject(event.target.error);
+			};
+		});
+	}
 }
 
 class ServerDBAdapter {
@@ -5911,6 +5974,46 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 	const [ttsVolume, setTTSVolume] = usePersistentState('ttsVolume', 1);
 	const [ttsSpeakInputs, setTTSSpeakInputs] = usePersistentState('ttsSpeakInputs', true);
 	const [ttsMaxUserInput, setTTSMaxUserInput] = usePersistentState('ttsMaxUserInput', 50);
+
+	const handleExportDB = async () => {
+		try {
+			const data = await sessionStorage.dbAdapter.exportDatabase();
+			const jsonString = JSON.stringify(data, null, 2);
+			exportText('mikupad_db_export.json', jsonString);
+		} catch (error) {
+			console.error('Failed to export database:', error);
+			alert('Failed to export database. See console for details.');
+		}
+	};
+
+	const handleImportDB = () => {
+		if (!confirm('This will overwrite your current database and reload the page. Are you sure you want to continue?')) {
+			return;
+		}
+		const fileInput = document.createElement('input');
+		fileInput.type = 'file';
+		fileInput.accept = '.json';
+		fileInput.onchange = async (e) => {
+			const file = e.target.files[0];
+			if (!file) {
+				return;
+			}
+
+			const reader = new FileReader();
+			reader.onload = async (event) => {
+				try {
+					const data = JSON.parse(event.target.result);
+					await sessionStorage.dbAdapter.importDatabase(data);
+					window.location.reload();
+				} catch (error) {
+					console.error('Failed to import database:', error);
+					alert('Failed to import database. Make sure the file is a valid export. See console for details.');
+				}
+			};
+			reader.readAsText(file);
+		};
+		fileInput.click();
+	};
 
 	function replacePlaceholders(string,placeholders) {
 		// give placeholders as json object
@@ -8108,7 +8211,17 @@ export function App({ sessionStorage, templateStorage, useSessionState, useDBTem
 						{ name: 'Show on hover while holding CTRL', value: 1 },
 						{ name: 'Hide', value: -1 },
 					]}/>`}
-			<div style=${{ display: 'flex', justifyContent: 'flex-start' }}>
+			${!isMikupadEndpoint && html`
+				<div style=${{ display: 'flex', justifyContent: 'space-evenly' }}>
+					<button onClick=${handleExportDB}>
+						Export Full DB
+					</button>
+					<button onClick=${handleImportDB}>
+						Import Full DB
+					</button>
+				</div>
+			`}
+			<div style=${{ display: 'flex', justifyContent: 'space-evenly' }}>
 				<button onClick=${() => exportText(`${sessionStorage.getProperty('name')}.txt`, promptArea.current.value)}>
 					Export prompt to plaintext
 				</button>
