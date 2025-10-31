@@ -5652,7 +5652,7 @@ const createLenientPrefixRegex = memoize((prefix) => {
 });
 
 const createLenientRegex = memoize((suffix) => {
-	return new RegExp(makeWhiteSpaceLenient(escapeRegExp(suffix)), 'i');
+	return new RegExp(makeWhiteSpaceLenient(escapeRegExp(suffix)).replace(/^\\s\*/, '(^\\s*)?'), 'i');
 });
 
 function prefixMatchLength(str1, str2) {
