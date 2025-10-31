@@ -1662,7 +1662,7 @@ async function llamaCppTokenCount({ endpoint, endpointAPIKey, proxyEndpoint, sig
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
-			...(endpointAPIKey ? { 'Authorization': `Bearer ${endpointAPIKey}` } : {}),
+			...(endpointAPIKey ? { 'X-Real-Authorization': `Bearer ${endpointAPIKey}` } : {}),
 			...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
 		},
 		body: JSON.stringify(options),
@@ -1679,7 +1679,7 @@ async function llamaCppTokenize({ endpoint, endpointAPIKey, proxyEndpoint, signa
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
-			...(endpointAPIKey ? { 'Authorization': `Bearer ${endpointAPIKey}` } : {}),
+			...(endpointAPIKey ? { 'X-Real-Authorization': `Bearer ${endpointAPIKey}` } : {}),
 			...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
 		},
 		body: JSON.stringify(options),
@@ -1708,7 +1708,7 @@ async function llamaCppDetokenize({ endpoint, endpointAPIKey, proxyEndpoint, sig
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
-			...(endpointAPIKey ? { 'Authorization': `Bearer ${endpointAPIKey}` } : {}),
+			...(endpointAPIKey ? { 'X-Real-Authorization': `Bearer ${endpointAPIKey}` } : {}),
 			...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
 		},
 		body: JSON.stringify(options),
@@ -1725,7 +1725,7 @@ async function* llamaCppCompletion({ endpoint, endpointAPIKey, proxyEndpoint, si
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
-			...(endpointAPIKey ? { 'Authorization': `Bearer ${endpointAPIKey}` } : {}),
+			...(endpointAPIKey ? { 'X-Real-Authorization': `Bearer ${endpointAPIKey}` } : {}),
 			...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
 		},
 		body: JSON.stringify({
@@ -1777,7 +1777,7 @@ async function koboldCppTokenCount({ endpoint, endpointAPIKey, proxyEndpoint, si
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
-			...(endpointAPIKey ? { 'Authorization': `Bearer ${endpointAPIKey}` } : {}),
+			...(endpointAPIKey ? { 'X-Real-Authorization': `Bearer ${endpointAPIKey}` } : {}),
 			...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
 		},
 		body: JSON.stringify({
@@ -1796,7 +1796,7 @@ async function koboldCppTokenize({ endpoint, endpointAPIKey, proxyEndpoint, sign
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
-			...(endpointAPIKey ? { 'Authorization': `Bearer ${endpointAPIKey}` } : {}),
+			...(endpointAPIKey ? { 'X-Real-Authorization': `Bearer ${endpointAPIKey}` } : {}),
 			...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
 		},
 		body: JSON.stringify({
@@ -1844,7 +1844,7 @@ async function* koboldCppCompletion({ endpoint, endpointAPIKey, proxyEndpoint, s
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
-			...(endpointAPIKey ? { 'Authorization': `Bearer ${endpointAPIKey}` } : {}),
+			...(endpointAPIKey ? { 'X-Real-Authorization': `Bearer ${endpointAPIKey}` } : {}),
 			...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
 		},
 		body: JSON.stringify({
@@ -1907,7 +1907,7 @@ async function openaiAphroditeTokenCount({ endpoint, endpointAPIKey, proxyEndpoi
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',
-				'Authorization': `Bearer ${endpointAPIKey}`,
+				'X-Real-Authorization': `Bearer ${endpointAPIKey}`,
 				...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
 			},
 			body: JSON.stringify({
@@ -1952,7 +1952,7 @@ async function openaiTabbyTokenCount({ endpoint, endpointAPIKey, proxyEndpoint, 
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',
-				'Authorization': `Bearer ${endpointAPIKey}`,
+				'X-Real-Authorization': `Bearer ${endpointAPIKey}`,
 				...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
 			},
 			body: JSON.stringify({
@@ -2086,7 +2086,7 @@ async function openaiModels({ endpoint, endpointAPIKey, proxyEndpoint, signal, .
 		method: 'GET',
 		headers: {
 			'Content-Type': 'application/json',
-			'Authorization': `Bearer ${endpointAPIKey}`,
+			'X-Real-Authorization': `Bearer ${endpointAPIKey}`,
 			...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
 		},
 		signal,
@@ -2157,7 +2157,7 @@ async function* openaiCompletion({ endpoint, endpointAPIKey, proxyEndpoint, sign
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
-			'Authorization': `Bearer ${endpointAPIKey}`,
+			'X-Real-Authorization': `Bearer ${endpointAPIKey}`,
 			...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
 		},
 		body: JSON.stringify({
@@ -2274,7 +2274,7 @@ async function* openaiChatCompletion({ endpoint, endpointAPIKey, proxyEndpoint, 
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
-			'Authorization': `Bearer ${endpointAPIKey}`,
+			'X-Real-Authorization': `Bearer ${endpointAPIKey}`,
 			...(proxyEndpoint ? { 'X-Real-URL': endpoint } : {})
 		},
 		body: JSON.stringify({
