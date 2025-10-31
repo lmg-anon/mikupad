@@ -4848,17 +4848,42 @@ class IndexedDBAdapter {
 
 	async openDatabase() {
 		return new Promise((resolve, reject) => {
-			const openRequest = indexedDB.open(this.dbName, 2);
+			const openRequest = indexedDB.open(this.dbName, 3);
 
 			openRequest.onerror = () => reject(openRequest.error);
 			openRequest.onsuccess = () => resolve(openRequest.result);
 
 			openRequest.onupgradeneeded = (event) => {
 				const db = event.target.result;
-				for (const storeName of ["Sessions", "Templates"]) {
+				const transaction = event.target.transaction;
+
+				for (const storeName of ["Sessions", "Templates", "Names"]) {
 					if (!db.objectStoreNames.contains(storeName)) {
 						db.createObjectStore(storeName);
 					}
+				}
+
+				switch (event.oldVersion) {
+					case 2:
+						// NameStore has been introduced in version 3.
+						const sessionsStore = transaction.objectStore("Sessions");
+						const namesStore = transaction.objectStore("Names");
+
+						sessionsStore.openCursor().onsuccess = (e) => {
+							const cursor = e.target.result;
+							if (cursor) {
+								const sessionData = cursor.value;
+								const sessionId = cursor.key;
+
+								if (sessionData && sessionData.name && typeof sessionId === 'number') {
+									namesStore.add(sessionData.name, sessionId);
+									delete sessionData.name;
+									cursor.update(sessionData);
+								}
+								cursor.continue();
+							}
+						};
+						break;
 				}
 			};
 			openRequest.onblocked = () => console.warn('Request was blocked');
@@ -4899,8 +4924,8 @@ class IndexedDBAdapter {
 
 	async loadSessionInfoFromDatabase(db, storeName) {
 		return new Promise((resolve, reject) => {
-			const tx = db.transaction(storeName, 'readonly');
-			const store = tx.objectStore(storeName);
+			const tx = db.transaction("Names", 'readonly');
+			const store = tx.objectStore("Names");
 			const request = store.openCursor();
 
 			let allTables = {};
@@ -4909,7 +4934,7 @@ class IndexedDBAdapter {
 				const cursor = event.target.result;
 				if (cursor) {
 					if (cursor.key !== 'nextSessionId' && cursor.key !== 'selectedSessionId') {
-						allTables[cursor.key] = cursor.value.name;
+						allTables[cursor.key] = cursor.value;
 					}
 					cursor.continue();
 				} else {
@@ -4934,22 +4959,11 @@ class IndexedDBAdapter {
 
 	async renameSessionInDatabase(db, storeName, key, newName) {
 		return new Promise((resolve, reject) => {
-			const tx = db.transaction(storeName, 'readwrite');
-			const store = tx.objectStore(storeName);
-			const getRequest = store.get(key);
-
-			getRequest.onsuccess = async () => {
-				const sessionData = getRequest.result;
-				if (sessionData) {
-					sessionData.name = newName;
-					const putRequest = store.put(sessionData, key);
-					putRequest.onsuccess = () => resolve();
-					putRequest.onerror = () => reject(putRequest.error);
-				} else {
-					reject(new Error(`Session with key '${key}' not found`));
-				}
-			};
-			getRequest.onerror = () => reject(request.error);
+			const tx = db.transaction("Names", 'readwrite');
+			const store = tx.objectStore("Names");
+			const request = store.put(newName, key);
+			request.onsuccess = () => resolve();
+			request.onerror = () => reject(request.error);
 		});
 	}
 
@@ -4980,7 +4994,7 @@ class ServerDBAdapter {
 		if (!res.ok)
 			throw new Error("Not a mikupad server or version mismatch.");
 		const { version } = await res.json();
-		if (version !== 2)
+		if (version !== 3)
 			throw new Error("Mikupad server version mismatch.");
 	}
 
@@ -5222,12 +5236,19 @@ class TemplateStorage extends AbstractStorage {
 	}
 }
 
+class NameStorage extends AbstractStorage {
+        constructor(dbAdapter) {
+                super('Names', dbAdapter);
+        }
+}
+
 class SessionStorage extends AbstractStorage {
 	constructor(dbAdapter) {
 		super('Sessions', dbAdapter);
 		this.nextId = undefined;
 		this.sessions = {};
 		this.selectedSession = undefined;
+		this.nameStorage = new NameStorage(dbAdapter);
 
 		if (dbAdapter.sessionEndpoint) {
 			this.sessionEndpoint = dbAdapter.sessionEndpoint;
@@ -5247,8 +5268,31 @@ class SessionStorage extends AbstractStorage {
 		this.startSaveTimer(async (sessionId) => await this.saveSessionToDB(sessionId));
 	}
 
+	async saveToDatabase(db, key, data) {
+        if (data.hasOwnProperty('name')) {
+            await this.nameStorage.saveToDatabase(db, key, data.name);
+            const { name, ...sessionData } = data;
+            await super.saveToDatabase(db, key, sessionData);
+        } else {
+            await super.saveToDatabase(db, key, data);
+        }
+	}
+
+	async loadFromDatabase(db, key) {
+		const data = await super.loadFromDatabase(db, key);
+		if(data && !['selectedSessionId', 'nextSessionId'].includes(key)){
+			data['name'] = await this.nameStorage.loadFromDatabase(db, key);		
+		}
+		return data;
+	}
+
+	async deleteFromDatabase(db, key) {
+		await super.deleteFromDatabase(db, key);
+		await this.nameStorage.deleteFromDatabase(db, key);
+	}
+
 	async saveSessionToDB(sessionId) {
-		const sessionData = this.sessions[sessionId];
+		const { name, ...sessionData } = this.sessions[sessionId];
 		if (!sessionData || sessionData.inactive)
 			return;
 		const db = await this.openDatabase();
