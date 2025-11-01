@@ -1088,7 +1088,7 @@ button.completing {
 		right: 0;
 		bottom: 0;
 	}
-	#sidebar .theme-selector, .horz-separator, .collapsible-group {
+	#sidebar .theme-selector:not(.visible), .horz-separator:not(.visible), .collapsible-group:not(.visible) {
 		display: none;
 	}
 	#button-settings {
@@ -1096,12 +1096,6 @@ button.completing {
 	}
 	#markdown-preview {
 		max-height: 50vh;
-	}
-}
-
-@media (min-width: 767.98px) {
-	#sidebar .theme-selector, .horz-separator, .collapsible-group {
-		display: block !important;
 	}
 }
 
@@ -9030,10 +9024,17 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 					id="button-settings"
 					onClick=${() => {
 						toggleModal("settings");
-						document.getElementsByClassName("SelectBox")[0].style.display = modalState.settings ? "none" : "block";
-						document.getElementsByClassName("horz-separator")[0].style.display = modalState.settings ? "none" : "block";
-						for (const collapseGroup of document.getElementsByClassName("collapsible-group"))
-							collapseGroup.style.display = modalState.settings ? "none" : "block";
+						if (modalState.settings) {
+							document.getElementsByClassName("theme-selector")[0].classList.remove("visible");
+							document.getElementsByClassName("horz-separator")[0].classList.remove("visible");
+							for (const collapseGroup of document.getElementsByClassName("collapsible-group"))
+								collapseGroup.classList.remove("visible");
+						} else {
+							document.getElementsByClassName("theme-selector")[0].classList.add("visible");
+							document.getElementsByClassName("horz-separator")[0].classList.add("visible");
+							for (const collapseGroup of document.getElementsByClassName("collapsible-group"))
+								collapseGroup.classList.add("visible");
+						}
 					}}>
 					<${SVG_MobileSidebar}/>
 				</button>
