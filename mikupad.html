@@ -1900,13 +1900,24 @@ async function* openaiCompletion({ endpoint, endpointAPIKey, proxyEndpoint, sign
 				continue;
 			}
 
-			const { text, logprobs } = chunk.choices[0];
-			const top_logprobs = logprobs?.top_logprobs?.[0] ?? {};
+			const choice = chunk.choices[0];
+			const text = choice.text;
+			const logprobsData = choice.logprobs;
+			let probs = [];
 
-			const probs = Object.entries(top_logprobs).map(([tok, logprob]) => ({
-				tok_str: tok,
-				prob: Math.exp(logprob)
-			}));
+			if (logprobsData?.content?.[0]?.top_logprobs) {
+				probs = logprobsData.content[0].top_logprobs.map(({ token, logprob }) => ({
+					tok_str: token,
+					prob: Math.exp(logprob)
+				}));
+			} else if (logprobsData?.top_logprobs?.[0]) {
+				const top_logprobs_obj = logprobsData.top_logprobs[0];
+				probs = Object.entries(top_logprobs_obj).map(([tok, logprob]) => ({
+					tok_str: tok,
+					prob: Math.exp(logprob)
+				}));
+			}
+
 			const prob = probs.find(p => p.tok_str === text)?.prob;
 
 			yield {
