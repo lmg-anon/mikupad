@@ -6788,7 +6788,12 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 			return;
 
 		const ac = new AbortController();
+		const signal = ac.signal;
 		const to = setTimeout(async () => {
+			if (signal.aborted) {
+				return;
+			}
+
 			const customParams = {
 				n_predict: promptPreviewTokens
 			};
