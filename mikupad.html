@@ -17,7 +17,8 @@
 		"react": "https://esm.sh/v135/react@18",
 		"react-dom/client": "https://esm.sh/v135/react-dom@18/client?external=react",
 		"htm/react": "https://esm.sh/v135/htm@3/react?external=react&react=18",
-		"scrollview-resize": "https://esm.sh/v135/scrollview-resize@1.0.2"
+		"scrollview-resize": "https://esm.sh/v135/scrollview-resize@1.0.2",
+		"marked": "https://esm.sh/v135/marked@16.4.1"
 	}
 }
 </script>
@@ -1172,6 +1173,38 @@ button.completing {
 	left: 210px;
 }
 
+#markdown-preview {
+    display: none;
+    flex: 1;
+	border: none;
+	outline: none;
+	resize: none;
+	background: var(--color-base-100);
+	color: var(--color-base-10);
+    padding: 2em 3em;
+	margin: 0;
+	scrollbar-gutter: stable;
+	font: inherit;
+	box-sizing: border-box;
+    font-size: calc(1.125rem * var(--font-size-multiplier));
+	text-size-adjust: 100%;
+	-webkit-text-size-adjust: 100%;
+	-moz-text-size-adjust: 100%;
+    font-family: serif;
+    word-wrap: break-word;
+    overflow-y: scroll;
+	height: calc(100vh);
+}
+
+body.markdown-preview-on #prompt-container {
+    max-width: none;
+    margin-left: 0;
+    margin-right: 0;
+}
+body.markdown-preview-on #markdown-preview {
+    display: block;
+}
+
 </style>
 <style id="dynamic-theme-style"></style>
 <script type="module">
@@ -1180,6 +1213,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { html } from 'htm/react';
 import { SVResizeObserver } from 'scrollview-resize';
+import { marked } from 'marked';
 
 const API_LLAMA_CPP = 0;
 const API_KOBOLD_CPP = 2;
@@ -2911,6 +2945,20 @@ const SVG_Stop = ({ ...props }) => {
 		<path fill="var(--color-light)" fillRule="evenodd" d="M3 4a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4z"/>
 	</${SVG}>
 `};
+const SVG_SplitView = ({ ...props }) => {
+  return html`
+    <${SVG}
+      ...${props}
+      viewBox="0 0 16 16"
+      fill="currentColor"
+      style=${{height:"1.3em"}}>
+      <path d="M8 3.5a.5.5 0 0 0-1 0V14a.5.5 0 0 0 1 0V3.5z"/>
+      <path d="M1.5 3a.5.5 0 0 1 .5-.5h5.5a1.5 1.5 0 0 1 1.5 1.5v10a.5.5 0 0 1-.5.5H2a1.5 1.5 0 0 1-1.5-1.5V3zm1 .5v9a.5.5 0 0 0 .5.5h5V4a.5.5 0 0 0-.5-.5H2.5z"/>
+      <path d="M14.5 3a.5.5 0 0 0-.5-.5H8.5A1.5 1.5 0 0 0 7 4v10a.5.5 0 0 0 .5.5H14a1.5 1.5 0 0 0 1.5-1.5V3zm-1 .5v9a.5.5 0 0 1-.5.5H8V4a.5.5 0 0 1 .5-.5h5z"/>
+      <path d="M3 5h3v1H3V5zm0 2h3v1H3V7zm7-2h3v1h-3V5zm0 2h3v1h-3V7z" opacity="0.6"/>
+    </${SVG}>
+  `;
+};
 
 function Modal({ isOpen, onClose, title, description, children, ...props }) {
 	if (!isOpen) {
@@ -5939,6 +5987,10 @@ html.monospace-dark .MenuItem.disabled {
 	background: var(--color-base-10);
 	color: var(--color-base-50);
 }
+html.monospace-dark #markdown-preview {
+	background: var(--color-base-20);
+	color: var(--color-base-0);
+}
     `},
     "NockoffAI": {
 		order: 2,
@@ -6113,6 +6165,10 @@ html.nockoffAI .MenuItem:not(.disabled):hover {
 html.nockoffAI .MenuItem.disabled {
 	background: var(--color-base-10);
 	color: var(--color-base-50);
+}
+html.nockoffAI #markdown-preview {
+	background: var(--color-prompt-area);
+	color: var(--color-text);
 }
     `},
     "E-Reader": {
@@ -6404,6 +6460,8 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 	const useScrollSmoothing = useRef(true);
 	const hordeTaskId = useRef();
 	const promptPreviewElement = useRef();
+	const markdownPreviewRef = useRef(null);
+	const isSyncingScroll = useRef(false);
 	const [templates, setTemplates] = useDBTemplates(defaultPresets.instructTemplates);
 	const [templateReplacements, setTemplateReplacements] = useState(false);
 	const [templatesImport, setTemplatesImport] = useState(false);
@@ -6512,6 +6570,7 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 		}
 	})());
     const [allThemes, setAllThemes] = useDBThemes(defaultThemes);
+	const [showMarkdownPreview, setShowMarkdownPreview] = usePersistentState('showMarkdownPreview', false);
 	// Text-To-Speech stuff
 	const ttsNewText = useRef("");
 	const ttsLastChunk = useRef("");
@@ -7191,14 +7250,10 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 					case 'fill_suffix':
 						if (fimPromptInfo !== undefined) {
 							const { fimLeftChunks, fimRightChunks } = fimPromptInfo;
-							const elem = promptArea.current;
-							if (elem) {
-								const suffix = fimRightChunks[0].content;
-								if (suffix.length > 0) {
-									stopParam = [suffix.trim().substring(0, 2)];
-								}
+							const suffix = fimRightChunks[0]?.content;
+							if (suffix && suffix.length > 0) {
+								stopParam = [suffix.trim().substring(0, 2)];
 							}
-							console.log(`Suffix: ${stopParam}`);
 						}
 						break;
 				}
@@ -7418,6 +7473,19 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 			setTriggerPredict(false);
 		}
 	}, [triggerPredict]);
+
+	useLayoutEffect(() => {
+		if (showMarkdownPreview) {
+			document.body.classList.add('markdown-preview-on');
+		} else {
+			document.body.classList.remove('markdown-preview-on');
+		}
+	}, [showMarkdownPreview]);
+
+	const markdownHtml = useMemo(() => {
+		if (!showMarkdownPreview) return '';
+		return marked.parse(promptText, { gfm: true, breaks: true });
+	}, [promptText, showMarkdownPreview]);
 
 	useLayoutEffect(() => {
 		document.body.style.setProperty('--font-size-multiplier', fontSizeMultiplier);
@@ -7872,8 +7940,8 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 
 		let isDragging = false;
 		let startX;
-		let startMaxWidth;
 		let startEdge;
+		let startNumericWidth;
 		let edgeDetectionZone = 5; // Pixels from edge to trigger resize
 
 		function getNearEdge(e) {
@@ -7897,7 +7965,7 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 
 			const invEdgePos = edge == 'right' ? container.getBoundingClientRect().left : container.getBoundingClientRect().right;
 			startX = e.clientX - invEdgePos;
-			startMaxWidth = getComputedStyle(container).getPropertyValue('max-width');
+			startNumericWidth = container.getBoundingClientRect().width;
 			startEdge = edge;
 		}
 
@@ -7926,9 +7994,15 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 			// reset selection
 			promptArea.current.selectionStart = promptArea.current.selectionEnd;
 
+			const minWidth = 200;
 			const invEdgePos = startEdge == 'right' ? container.getBoundingClientRect().left : container.getBoundingClientRect().right;
 			const currentX = e.clientX - invEdgePos;
-			setPromptAreaWidth(`calc(${startMaxWidth} + ${(currentX - startX) * (startEdge == 'right' ? 1 : -1)}px)`);
+			const delta = (currentX - startX) * (startEdge == 'right' ? 1 : -1);
+
+			// Calculate the new width and ensure it's not less than minWidth
+			const newWidth = Math.max(minWidth, startNumericWidth + delta);
+
+			setPromptAreaWidth(`${newWidth}px`);
 		}
 
 		function stopDragging() {
@@ -8045,6 +8119,19 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 			} else if (currentPromptChunk) {
 				currentPromptChunk.top += oldTop - newTop;
 			}
+		}
+
+		if (showMarkdownPreview && markdownPreviewRef.current && !isSyncingScroll.current) {
+			isSyncingScroll.current = true;
+			const editor = target;
+			const preview = markdownPreviewRef.current;
+			if (editor.scrollHeight > editor.clientHeight) {
+				const scrollPercentage = editor.scrollTop / (editor.scrollHeight - editor.clientHeight);
+				preview.scrollTop = scrollPercentage * (preview.scrollHeight - preview.clientHeight);
+			}
+			requestAnimationFrame(() => {
+				isSyncingScroll.current = false;
+			});
 		}
 	}
 
@@ -8342,6 +8429,13 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 				onClick=${() => toggleModal("searchAndReplace")}>
 				<${SVG_SearchAndReplace} style=${{"height":"1.3em"}} />
 			</button>
+			<button
+				title="Toggle Markdown Preview"
+				style=${{"margin-top":"3em"}}
+				className="textAreaSettings"
+				onClick=${() => setShowMarkdownPreview(p => !p)}>
+				<${SVG_SplitView}/>
+			</button>
 			<textarea
 				ref=${promptArea}
 				readOnly=${!!cancel}
@@ -8401,6 +8495,9 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 				promptArea=${promptArea}
 				promptText=${promptText}
 				cancel=${cancel}/>
+		</div>
+		<div id="markdown-preview" ref=${markdownPreviewRef}>
+			<div dangerouslySetInnerHTML=${{__html: markdownHtml}} />
 		</div>
 		${probs ? html`
 			<div
