@@ -1451,11 +1451,20 @@ async function* llamaCppCompletion({ endpoint, endpointAPIKey, proxyEndpoint, si
 			const token = chunk.content || chunk.token;
 			const choice = chunk.completion_probabilities?.[0];
 
-			const probs = choice?.probs ??
-				Object.values(choice?.top_logprobs || chunk.top_logprobs || {}).map(({ token, logprob }) => ({
+			let probs;
+			if (choice?.top_probs) { // post_sampling_probs: true
+				probs = choice.top_probs.map(({ token, prob }) => ({
 					tok_str: token,
-					prob: Math.exp(logprob)
+					prob: prob
 				}));
+			} else {  // post_sampling_probs: false
+				probs = choice?.probs ??
+					Object.values(choice?.top_logprobs || chunk.top_logprobs || {}).map(({ token, logprob }) => ({
+						tok_str: token,
+						prob: Math.exp(logprob)
+					}));
+			}
+
 			const prob = probs.find(p => p.tok_str === token)?.prob;
 
 			yield {
@@ -6305,6 +6314,7 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 	const [hordeProcessing, setHordeProcessing] = useState(false);
 	const [useChatAPI, setUseChatAPI] = useSessionState('chatAPI', defaultPresets.chatAPI);
 	const [useTokenStreaming, setUseTokenStreaming] = useSessionState('tokenStreaming', defaultPresets.tokenStreaming);
+	const [postSamplingProbs, setPostSamplingProbs] = useSessionState('postSamplingProbs', true);
 	const [promptPreviewChunks, setPromptPreviewChunks] = useState([]);
 	const [promptPreviewReroll, setPromptPreviewReroll] = useState(0);
 	const [showPromptPreview, setShowPromptPreview] = useSessionState('promptPreview', defaultPresets.promptPreview);
@@ -7073,6 +7083,7 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 				}),
 				n_predict: maxPredictTokens,
 				n_probs: 10,
+				...(endpointAPI === API_LLAMA_CPP ? { post_sampling_probs: postSamplingProbs } : {}),
 				stream: useTokenStreaming,
 				...(JSON.parse(stoppingStrings).length ? { stop: JSON.parse(stoppingStrings) } : {}),
 				signal: ac.signal,
@@ -8159,6 +8170,10 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 						value=${endpointModel}
 						onValueChange=${setEndpointModel}/>`}
 				${endpointAPI != API_AI_HORDE && html`
+					${endpointAPI == API_LLAMA_CPP && html`
+						<${Checkbox} label="Post Sampling Probs"
+							title="This returns the probabilities after applying the sampling chain. Note that disabling this will significantly reduce generation speed."
+							disabled=${!!cancel} value=${postSamplingProbs} onValueChange=${setPostSamplingProbs}/>`}
 					${endpointAPI == API_OPENAI_COMPAT && html`
 						<${Checkbox} label="Strict API"
 							title="If enabled, non-standard fields won't be included in API requests."
