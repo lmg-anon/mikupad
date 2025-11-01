@@ -5792,6 +5792,7 @@ const defaultTemplates = {
 
 const defaultThemes = {
     "Serif Dark": {
+		order: 0,
         className: "serif-dark",
         css: `/* Serif Dark */
 html.serif-dark {
@@ -5820,6 +5821,7 @@ html.serif-dark #prompt-container #prompt-overlay > .nudge {
 }
 	`},
     "Monospace Dark": {
+		order: 1,
         className: "monospace-dark",
         css: `/* Monospace Dark */
 html.monospace-dark {
@@ -5939,6 +5941,7 @@ html.monospace-dark .MenuItem.disabled {
 }
     `},
     "NockoffAI": {
+		order: 2,
         className: "nockoffAI",
         css: `/* NockoffAI */
 html.nockoffAI {
@@ -6113,6 +6116,7 @@ html.nockoffAI .MenuItem.disabled {
 }
     `},
     "E-Reader": {
+		order: 3,
         className: "ereader",
         css: `/* E-Reader */
 html.ereader {
@@ -8293,7 +8297,7 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 					onValueChange=${setCurrentThemeName}
 					options=${() => [
 						{ name: 'Serif Light', value: 'Serif Light' },
-						...Object.keys(allThemes).map(name => ({ name, value: name }))
+						...Object.keys(allThemes).sort((a, b) => a.order - b.order).map(name => ({ name, value: name }))
 					]}/>
 				<button
 					title="Manage Themes"
