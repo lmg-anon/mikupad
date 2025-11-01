@@ -6801,7 +6801,7 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 			const predicted = await predict(finalPromptText, promptChunks.length, (chunk) => {
 				setPromptPreviewChunks((c) => [...c, chunk]);
 				return true;
-			}, ac, customParams);
+			}, ac, false, customParams);
 		}, 500);
 
 		ac.signal.addEventListener('abort', () => clearTimeout(to));
@@ -6824,7 +6824,7 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 			]);
 			setTokens(t => t + (chunk?.completion_probabilities?.length ?? 1));
 			return true;
-		});
+		}, undefined, true);
 
 		return true;
 	}
@@ -6904,7 +6904,7 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 		return messages;
 	}
 
-	async function predict(prompt = finalPromptText, chunkCount = promptChunks.length, callback = undefined, abortController = undefined, customParams = {}) {
+	async function predict(prompt = finalPromptText, chunkCount = promptChunks.length, callback = undefined, abortController = undefined, invalidatesUndo = false, customParams = {}) {
 		if (!abortController && cancel) {
 			cancel?.();
 
@@ -6985,7 +6985,8 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 				while (undoStack.current.at(-1) >= chunkCount)
 					undoStack.current.pop();
 				undoStack.current.push(chunkCount);
-			} else {
+			}
+			if (invalidatesUndo) {
 				undoStack.current = [];
 			}
 			redoStack.current = [];
