@@ -7794,8 +7794,17 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 
 	async function switchCompletion(i, tok) {
 		const remainingPrompt = promptChunks.slice(i);
-		if (remainingPrompt.some((chunk) => chunk.type === 'user')) {
-			// disallow switching tokens in FIM.
+		const instPre = templates[selectedTemplate]?.instPre?.replace(/\\n/g, '\n');
+		const lastChunk = promptChunks.at(-1);
+
+		// Disallow if there is any user-written text after the current token.
+		// We make an exception for the instruction suffix if it's the very last chunk.
+		const hasRealUserTextAfter = remainingPrompt.some(chunk =>
+			chunk.type === 'user' &&
+			!(chunk === lastChunk && chunk.content === instPre)
+		);
+
+		if (hasRealUserTextAfter) {
 			return;
 		}
 
