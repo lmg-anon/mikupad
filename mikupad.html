@@ -7491,6 +7491,89 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 		}
 	}, [currentPromptChunk, showProbs]);
 
+	useEffect(() => {
+		const element = promptArea.current;
+		if (!element) return;
+
+		const isTouchDevice = () => {
+			return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+		};
+
+		const showMenu = (x, y) => {
+			if (cancel) return;
+			setContextMenuState({
+				visible: true,
+				x: x,
+				y: y,
+			});
+		};
+
+		if (isTouchDevice()) {
+			// This is a smartphone!
+			let touchstartX = 0;
+			let touchstartY = 0;
+			const swipeThreshold = 20;
+
+			const handleTouchStart = (e) => {
+				// Only track if it's a two-finger touch
+				if (e.touches.length === 2) {
+					touchstartX = e.touches[0].screenX;
+					touchstartY = e.touches[0].screenY;
+				}
+			};
+
+			const handleTouchEnd = (e) => {
+				if (e.changedTouches.length === 2) {
+					const touchendX = e.changedTouches[0].screenX;
+					const touchendY = e.changedTouches[0].screenY;
+
+					// Check if the fingers didn't move much
+					if (
+						Math.abs(touchendX - touchstartX) < swipeThreshold &&
+						Math.abs(touchendY - touchstartY) < swipeThreshold
+					) {
+						e.preventDefault();
+
+						// Calculate the midpoint between the two touches
+						const touch1 = e.changedTouches[0];
+						const touch2 = e.changedTouches[1];
+						const midX = (touch1.clientX + touch2.clientX) / 2;
+						const midY = (touch1.clientY + touch2.clientY) / 2;
+
+						showMenu(midX, midY);
+					}
+				}
+			};
+			
+			const preventDefaultContextMenu = (e) => e.preventDefault();
+
+			element.addEventListener('touchstart', handleTouchStart);
+			element.addEventListener('touchend', handleTouchEnd);
+			element.addEventListener('contextmenu', preventDefaultContextMenu);
+
+			return () => {
+				element.removeEventListener('touchstart', handleTouchStart);
+				element.removeEventListener('touchend', handleTouchEnd);
+				element.removeEventListener('contextmenu', preventDefaultContextMenu);
+			};
+
+		} else {
+			// This is a desktop!
+			const handleContextMenu = (e) => {
+				if (e.ctrlKey) {
+					e.preventDefault();
+					showMenu(e.pageX, e.pageY);
+				}
+			};
+
+			element.addEventListener('contextmenu', handleContextMenu);
+
+			return () => {
+				element.removeEventListener('contextmenu', handleContextMenu);
+			};
+		}
+	}, [cancel]);
+
 	// Update the textarea in an uncontrolled way so the user doesn't lose their
 	// selection or cursor position during prediction
 	useLayoutEffect(() => {
@@ -7906,19 +7989,6 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 		}
 	}
 
-	function onContextMenu(event) {
-		if (event.ctrlKey) {
-			event.preventDefault();
-			if (cancel)
-				return;
-			setContextMenuState({
-				visible: true,
-				x: event.pageX,
-				y: event.pageY,
-			});
-		}
-	}
-
 	function onPromptMouseMove({ clientX, clientY }) {
 		if (showProbsMode === -1 && tokenHighlightMode === -1)
 			return;
@@ -8220,7 +8290,6 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 				id="prompt-area"
 				onInput=${onInput}
 				onScroll=${onScroll}
-				onContextMenu=${onContextMenu}
 				...${showPromptPreview && { style: { 'padding-bottom': promptPreviewElement.current?.offsetHeight ?? '0px' } }}/>
 			<div
 				ref=${promptOverlay}
