@@ -1900,7 +1900,7 @@ function openaiConvertOptions(options, endpoint, isChat) {
 }
 
 async function* openaiCompletion({ endpoint, endpointAPIKey, proxyEndpoint, signal, ...options }) {
-	const finalEndpoint = proxyEndpoint ?? endpoint;
+	let finalEndpoint = proxyEndpoint ?? endpoint;
 	if (!finalEndpoint.endsWith("/completions")) {
 		finalEndpoint += "/v1/completions";
 	}
@@ -2032,7 +2032,7 @@ async function* openaiBufferUtf8Stream(stream) {
 }
 
 async function* openaiChatCompletion({ endpoint, endpointAPIKey, proxyEndpoint, signal, ...options }) {
-	const finalEndpoint = proxyEndpoint ?? endpoint;
+	let finalEndpoint = proxyEndpoint ?? endpoint;
 	if (!finalEndpoint.endsWith("/completions")) {
 		finalEndpoint += "/v1/chat/completions";
 	}
@@ -6177,6 +6177,8 @@ const defaultPresets = {
 	drySequenceBreakers: "[\"\\n\", \":\", \"\\\"\", \"*\"]",
 	bannedTokens: "[]",
 	stoppingStrings: "[]",
+	useBasicStoppingMode: true,
+	basicStoppingModeType: 'max_tokens',
 	ignoreEos: false,
 	openaiPresets: false,
 	contextLength: 8192,
@@ -6469,6 +6471,8 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 	const [lastError, setLastError] = useState(undefined);
 	const [stoppingStrings, setStoppingStrings] = useSessionState('stoppingStrings', defaultPresets.stoppingStrings);
 	const [stoppingStringsError, setStoppingStringsError] = useState(undefined);
+	const [useBasicStoppingMode, setUseBasicStoppingMode] = useSessionState('useBasicStoppingMode', stoppingStrings != '[]' ? false : defaultPresets.useBasicStoppingMode);
+	const [basicStoppingModeType, setBasicStoppingModeType] = useSessionState('basicStoppingModeType', defaultPresets.basicStoppingModeType);
 	const [savedScrollTop, setSavedScrollTop] = useSessionState('scrollTop', defaultPresets.scrollTop);
 	const [modalState, setModalState] = useState({});
 	const [logitBias, setLogitBias] = useSessionState('logitBias', defaultPresets.logitBias);
@@ -7178,6 +7182,30 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 			promptArea.current.scrollTarget = undefined;
 			useScrollSmoothing.current = true;
 
+			let stopParam = [];
+			if (useBasicStoppingMode) {
+				switch (basicStoppingModeType) {
+					case 'new_line':
+						stopParam = ['\n'];
+						break;
+					case 'fill_suffix':
+						if (fimPromptInfo !== undefined) {
+							const { fimLeftChunks, fimRightChunks } = fimPromptInfo;
+							const elem = promptArea.current;
+							if (elem) {
+								const suffix = fimRightChunks[0].content;
+								if (suffix.length > 0) {
+									stopParam = [suffix.trim().substring(0, 2)];
+								}
+							}
+							console.log(`Suffix: ${stopParam}`);
+						}
+						break;
+				}
+			} else {
+				stopParam = JSON.parse(stoppingStrings);
+			}
+
 			let startTime = 0;
 			setTokensPerSec(0.0);
 			
@@ -7258,7 +7286,7 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 				n_probs: 10,
 				...(endpointAPI === API_LLAMA_CPP ? { post_sampling_probs: postSamplingProbs } : {}),
 				stream: useTokenStreaming,
-				...(JSON.parse(stoppingStrings).length ? { stop: JSON.parse(stoppingStrings) } : {}),
+				...(stopParam.length ? { stop: stopParam } : {}),
 				signal: ac.signal,
 				...(isMikupadEndpoint ? { proxyEndpoint: sessionStorage.proxyEndpoint } : {}),
 				...customParams
@@ -8525,12 +8553,35 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 					readOnly=${!!cancel} value=${contextLength} onValueChange=${setContextLength}/>
 				<${InputBox} label="Max Predict Tokens${endpointAPI != API_LLAMA_CPP ? (endpointAPI == API_AI_HORDE ? ' (-1 = 512)' : ' (-1 = 1024)') : ' (-1 = infinite)'}" type="text" inputmode="numeric"
 					readOnly=${!!cancel} value=${maxPredictTokens} onValueChange=${setMaxPredictTokens}/>
-				<${InputBox} label="Stopping Strings (JSON array)" type="text" pattern="^\\[.*?\\]$"
-					className="${stoppingStringsError ? 'rejected' : ''}"
-					tooltip="${stoppingStringsError ? stoppingStringsError : ''}"
-					readOnly=${!!cancel}
-					value=${stoppingStrings}
-					onValueChange=${setStoppingStrings}/>
+				<div className="hbox-flex" style=${{ "flex-wrap": "unset", "align-items": "flex-end" }}>
+					<div style=${{ "flex": "1" }}>
+						${useBasicStoppingMode ? html`
+							<${SelectBox}
+								label="Stopping Mode"
+								disabled=${!!cancel}
+								value=${JSON.stringify(basicStoppingModeType)}
+								onValueChange=${setBasicStoppingModeType}
+								options=${[
+									{ name: 'Max Tokens', value: 'max_tokens' },
+									{ name: 'New Line', value: 'new_line' },
+									{ name: 'Fill', value: 'fill_suffix' },
+								]}/>
+						` : html`
+							<${InputBox} label="Stopping Strings (JSON array)" type="text" pattern="^\\[.*?\\]$"
+								className="${stoppingStringsError ? 'rejected' : ''}"
+								tooltip="${stoppingStringsError ? stoppingStringsError : ''}"
+								readOnly=${!!cancel}
+								value=${stoppingStrings}
+								onValueChange=${setStoppingStrings}/>
+						`}
+					</div>
+					<button
+						title=${useBasicStoppingMode ? "Switch to Advanced Mode" : "Switch to Basic Mode"}
+						disabled=${!!cancel}
+						onClick=${() => setUseBasicStoppingMode(prev => !prev)}>
+						${useBasicStoppingMode ? "A" : "B"}
+					</button>
+				</div>
 			</${CollapsibleGroup}>
 			<${CollapsibleGroup} label="Sampling" expanded menu=${html`
 					<${Checkbox} label="Temperature"
