@@ -7510,53 +7510,84 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 
 		if (isTouchDevice()) {
 			// This is a smartphone!
-			let touchstartX = 0;
-			let touchstartY = 0;
-			const swipeThreshold = 20;
+			const SWIPE_THRESHOLD = 30; // Max distance fingers can move to be a "tap"
+			const TIME_LENIENCY_MS = 50;  // How long to wait for the second finger lift
+
+			let isTwoFingerGesture = false;
+			let startTouches = [];
+			let firstTouchEndTime = 0;
+			let leniencyTimeout = null;
+
+			const resetGestureState = () => {
+				isTwoFingerGesture = false;
+				startTouches = [];
+				firstTouchEndTime = 0;
+				clearTimeout(leniencyTimeout);
+			};
 
 			const handleTouchStart = (e) => {
-				// Only track if it's a two-finger touch
 				if (e.touches.length === 2) {
-					touchstartX = e.touches[0].screenX;
-					touchstartY = e.touches[0].screenY;
+					isTwoFingerGesture = true;
+					startTouches = [e.touches[0], e.touches[1]];
+				} else {
+					resetGestureState();
+				}
+			};
+
+			const handleTouchMove = (e) => {
+				if (!isTwoFingerGesture) return;
+
+				// Cancel gesture if fingers move too far
+				const movedTooFar = startTouches.some((startTouch, index) => {
+					const currentTouch = e.touches[index];
+					return (
+						Math.abs(currentTouch.screenX - startTouch.screenX) > SWIPE_THRESHOLD ||
+						Math.abs(currentTouch.screenY - startTouch.screenY) > SWIPE_THRESHOLD
+					);
+				});
+
+				if (movedTooFar) {
+					resetGestureState();
 				}
 			};
 
 			const handleTouchEnd = (e) => {
-				if (e.changedTouches.length === 2) {
-					const touchendX = e.changedTouches[0].screenX;
-					const touchendY = e.changedTouches[0].screenY;
+				if (!isTwoFingerGesture) return;
 
-					// Check if the fingers didn't move much
-					if (
-						Math.abs(touchendX - touchstartX) < swipeThreshold &&
-						Math.abs(touchendY - touchstartY) < swipeThreshold
-					) {
+				if (e.touches.length === 1) {
+					firstTouchEndTime = Date.now();
+					// Wait for the second finger
+					leniencyTimeout = setTimeout(resetGestureState, TIME_LENIENCY_MS);
+				} else if (e.touches.length === 0 && firstTouchEndTime > 0) {
+					const timeDifference = Date.now() - firstTouchEndTime;
+
+					if (timeDifference <= TIME_LENIENCY_MS) {
+						// Success! a two-finger tap was detected
 						e.preventDefault();
+						clearTimeout(leniencyTimeout);
 
-						// Calculate the midpoint between the two touches
-						const touch1 = e.changedTouches[0];
-						const touch2 = e.changedTouches[1];
-						const midX = (touch1.clientX + touch2.clientX) / 2;
-						const midY = (touch1.clientY + touch2.clientY) / 2;
+						const lowerTouch = startTouches[0].clientY > startTouches[1].clientY
+							? startTouches[0]
+							: startTouches[1];
 
-						showMenu(midX, midY);
+						showMenu(lowerTouch.clientX, lowerTouch.clientY);
 					}
+
+					// Gesture is complete.
+					resetGestureState();
 				}
 			};
-			
-			const preventDefaultContextMenu = (e) => e.preventDefault();
 
 			element.addEventListener('touchstart', handleTouchStart);
+			element.addEventListener('touchmove', handleTouchMove);
 			element.addEventListener('touchend', handleTouchEnd);
-			element.addEventListener('contextmenu', preventDefaultContextMenu);
 
 			return () => {
 				element.removeEventListener('touchstart', handleTouchStart);
+				element.removeEventListener('touchmove', handleTouchMove);
 				element.removeEventListener('touchend', handleTouchEnd);
-				element.removeEventListener('contextmenu', preventDefaultContextMenu);
+				clearTimeout(leniencyTimeout);
 			};
-
 		} else {
 			// This is a desktop!
 			const handleContextMenu = (e) => {
