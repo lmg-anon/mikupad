@@ -158,6 +158,7 @@ const db = new sqlite3.Database('./web-session-storage.db', (err) => {
     db.serialize(() => {
         db.run(`CREATE TABLE IF NOT EXISTS sessions (key TEXT PRIMARY KEY, data BLOB)`);
         db.run(`CREATE TABLE IF NOT EXISTS templates (key TEXT PRIMARY KEY, data BLOB)`);
+        db.run(`CREATE TABLE IF NOT EXISTS themes (key TEXT PRIMARY KEY, data BLOB)`);
         db.run(`CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)`);
 
         runMigrationToV3(db).then((didMigrate) => {
@@ -312,7 +313,7 @@ const normalizeStoreName = (storeName) => {
         return "sessions";
     }
     const normalizedStoreName = storeName.split(' ')[0].toLowerCase();
-    if (["sessions", "templates", "names"].includes(normalizedStoreName)) {
+    if (["sessions", "templates", "names", "themes"].includes(normalizedStoreName)) {
         return normalizedStoreName;
     }
     return null;
