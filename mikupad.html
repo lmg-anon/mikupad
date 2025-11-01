@@ -1088,11 +1088,14 @@ button.completing {
 		right: 0;
 		bottom: 0;
 	}
-	#sidebar .SelectBox:first-child, .horz-separator, .collapsible-group {
+	#sidebar .theme-selector, .horz-separator, .collapsible-group {
 		display: none;
 	}
 	#button-settings {
 		display: block;
+	}
+	#markdown-preview {
+		max-height: 50vh;
 	}
 }
 
@@ -8453,7 +8456,7 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 	}
 
 	return html`
-		<div id="prompt-container" onMouseMove=${onPromptMouseMove} style=${{ 'margin-bottom': isMobile ? sidebarHeight + 'px' : 0 }}>
+		<div id="prompt-container" onMouseMove=${onPromptMouseMove} style=${{ 'margin-bottom': isMobile && !showMarkdownPreview ? sidebarHeight + 'px' : 0 }}>
 			<button
 				title="Editor Preferences"
 				className="textAreaSettings"
@@ -8534,7 +8537,7 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 				promptText=${promptText}
 				cancel=${cancel}/>
 		</div>
-		<div id="markdown-preview" ref=${markdownPreviewRef}>
+		<div id="markdown-preview" ref=${markdownPreviewRef} style=${{ 'margin-bottom': isMobile ? sidebarHeight + 'px' : 0 }}>
 			<div dangerouslySetInnerHTML=${{__html: markdownHtml}} />
 		</div>
 		${probs ? html`
@@ -8553,7 +8556,7 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 				})}
 			</div>` : null}
 		<div id="sidebar" ref=${sidebar} style=${{ 'max-height': ''}}>
-			<div className="buttons instructTemplateSidebar">
+			<div className="buttons instructTemplateSidebar theme-selector">
 				<${SelectBox}
 					label="Theme"
 					value=${JSON.stringify(currentThemeName)}
