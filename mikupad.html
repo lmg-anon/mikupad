@@ -2002,7 +2002,11 @@ async function* openaiBufferUtf8Stream(stream) {
 }
 
 async function* openaiChatCompletion({ endpoint, endpointAPIKey, proxyEndpoint, signal, ...options }) {
-	const res = await fetch(`${proxyEndpoint ?? endpoint}/v1/chat/completions`, {
+	const finalEndpoint = proxyEndpoint ?? endpoint;
+	if (!finalEndpoint.endsWith("/completions")) {
+		finalEndpoint += "/v1/chat/completions";
+	}
+	const res = await fetch(finalEndpoint, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
