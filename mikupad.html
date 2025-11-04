@@ -6606,6 +6606,7 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 	})());
     const [allThemes, setAllThemes] = useDBThemes(defaultThemes);
 	const [showMarkdownPreview, setShowMarkdownPreview] = usePersistentState('showMarkdownPreview', false);
+	const [generateFromCursor, setGenerateFromCursor] = usePersistentState('generateFromCursor', false);
 	// Text-To-Speech stuff
 	const ttsNewText = useRef("");
 	const ttsLastChunk = useRef("");
@@ -7186,6 +7187,35 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 	}
 
 	async function predict(prompt = finalPromptText, chunkCount = promptChunks.length, callback = undefined, abortController = undefined, invalidatesUndo = false, customParams = {}) {
+
+		// If a callback is provided, this is an internal call, so we skip the in-filling logic.
+		if (!callback) {
+			const elem = promptArea.current;
+			const cursorPosition = elem.selectionStart;
+			const isSelection = elem.selectionEnd > cursorPosition;
+			const isAtEnd = cursorPosition === elem.value.length && !isSelection;
+			const hasExistingPlaceholder = elem.value.includes('{predict}') || elem.value.includes('{fill}');
+
+			// If the cursor is not at the end and there's no placeholder,
+			// we treat it as a fill-in-the-middle request from the cursor.
+			if (generateFromCursor && !isAtEnd && !hasExistingPlaceholder) {
+				const textBeforeCursor = elem.value.substring(0, cursorPosition);
+				const textAfterCursor = elem.value.substring(elem.selectionEnd); // Handles replacing selected text
+
+				// Insert our placeholder. This will also replace any selected text.
+				elem.value = textBeforeCursor + '{predict}' + textAfterCursor;
+
+				// Manually trigger the onInput handler to update the React state with the new text.
+				onInput({ target: elem });
+
+				// Set a trigger to call predict() again in the next render cycle.
+				// By then, the state will have been updated to include the placeholder,
+				// and the existing fill-in-the-middle logic will take over.
+				setTriggerPredict(true);
+				return; // Stop the current execution.
+			}
+		}
+		
 		if (!abortController && cancel) {
 			cancel?.();
 
@@ -8637,6 +8667,8 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 						disabled=${!!cancel} value=${useTokenStreaming} onValueChange=${setUseTokenStreaming}/>
 					<${Checkbox} label="Prediction Preview"
 						disabled=${!!cancel || tokenHighlightMode === -1} value=${showPromptPreview && tokenHighlightMode !== -1} onValueChange=${setShowPromptPreview}/>
+					<${Checkbox} label="Generate From Cursor"
+                        disabled=${!!cancel} value=${generateFromCursor} onValueChange=${setGenerateFromCursor}/>
 					${showPromptPreview && html`
 						<${InputBox} label="Max Preview Tokens" type="text" inputmode="numeric"
 							readOnly=${!!cancel} value=${promptPreviewTokens} onValueChange=${setPromptPreviewTokens}/>`}`}
