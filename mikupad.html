@@ -627,6 +627,13 @@ body {
 	text-overflow: ellipsis;
 	word-break: break-word;
 }
+.horde-model-entry .model-header {
+    display: flex;
+    align-items: center;
+    gap: 1em;
+    flex: 1;
+    overflow: hidden;
+}
 .horde-model-entry .model-stats {
 	display: flex;
 	gap: 1em;
@@ -638,6 +645,17 @@ body {
 	cursor: pointer;
 }
 
+@media (max-width: 600px) {
+	.horde-model-entry {
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 0.5em;
+	}
+	.horde-model-entry .model-stats {
+		width: 100%;
+		font-size: 0.85em;
+	}
+}
 
 
 
@@ -4692,8 +4710,10 @@ function AIHordeSettingsModal({ isOpen, closeModal, endpoint, endpointAPIKey, se
                     ${loading && !models.length ? html`<div style=${{padding: '1em'}}>Loading models...</div>` : ''}
                     ${filteredModels.map(model => html`
                         <div key=${model.name} className="horde-model-entry" onClick=${() => handleSelect(model.name)}>
-                            <input type="checkbox" checked=${localSelected.includes(model.name)} readOnly/>
-                            <div className="model-name" title=${model.name}>${model.name}</div>
+							<div class="model-header">
+								<input type="checkbox" checked=${localSelected.includes(model.name)} readOnly/>
+								<div className="model-name" title=${model.name}>${model.name}</div>
+							</div>
                             <div className="model-stats">
                                 <span>ETA: ${model.eta}s</span>
                                 <span>Queue: ${model.queued}</span>
