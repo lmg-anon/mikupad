@@ -7931,11 +7931,6 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 					break;
 				
 				default:
-					if (showPromptPreview && (e.key.length == 1 || e.key == "Dead" || e.key == "Backspace")) {
-						// If character is printable, backspace, or a diacritic,
-						// clear prompt preview so that it can be re-rolled.
-						setPromptPreviewChunks([]);
-					}
 					keyState.current = e;
 					return;
 			}
@@ -8044,6 +8039,9 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 	}, []);
 
 	function onInput({ target }) {
+		if (showPromptPreview) {
+			setPromptPreviewChunks([]);
+		}
 		setPromptChunks(oldPrompt => {
 			const start = [];
 			const end = [];
