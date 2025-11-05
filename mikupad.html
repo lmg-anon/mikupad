@@ -6532,6 +6532,7 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 	const ttsQueue = useRef([]);
 	const ttsVoices = useRef([]);
 	const ttsPaused = useRef(false);
+	const [ttsAvailable, setTTSAvailable] = useState(true);
 	const [ttsEnabled, setTTSEnabled] = usePersistentState('ttsEnabled', false);
 	const [ttsVoiceId, setTTSVoiceId] = usePersistentState('ttsVoiceId', 0);
 	const [ttsPitch, setTTSPitch] = usePersistentState('ttsPitch', 1);
@@ -7363,12 +7364,14 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 			hordeTaskId.current = undefined;
 			setHordeQueuePos(undefined);
 			setHordeProcessing(false);
-			if (ttsNewText.current.length) {
-				if (!ttsPaused.current)
-					ttsQueue.current.push(ttsNewText.current);
-				ttsNewText.current = "";
+			if (ttsEnabled) {
+				if (ttsNewText.current.length) {
+					if (!ttsPaused.current)
+						ttsQueue.current.push(ttsNewText.current);
+					ttsNewText.current = "";
+				}
+				if (!window.speechSynthesis.speaking && !window.speechSynthesis.pending) ttsProcessQueue();
 			}
-			if (!window.speechSynthesis.speaking && !window.speechSynthesis.pending) ttsProcessQueue();
 		}
 
 		// Chat Mode
@@ -8286,10 +8289,23 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 	}, [instructModalState.result]);
 
 	// Text-To-Speech functions
-	window.speechSynthesis.onvoiceschanged = () => {
-		const voices = window.speechSynthesis.getVoices();
-		ttsVoices.current = voices;
-	};
+	useLayoutEffect(() => {
+		if (!window.speechSynthesis) {
+			setTTSAvailable(false);
+			setTTSEnabled(false);
+			return;
+		}
+		
+		window.speechSynthesis.onvoiceschanged = () => {
+			const voices = window.speechSynthesis.getVoices();
+			ttsVoices.current = voices;
+		};
+		setTTSAvailable(true);
+		
+		return () => {
+			window.speechSynthesis.onvoiceschanged = null;
+		};
+	}, []);
 
 	async function ttsProcessQueue() {
 		if (ttsEnabled && ttsQueue.current.length > 0) {
@@ -8312,6 +8328,8 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 	}
 
 	function ttsStop() {
+		if (!ttsEnabled)
+			return;
 		ttsPaused.current = true;
 		ttsQueue.current = [];
 		window.speechSynthesis.cancel();
@@ -9018,7 +9036,9 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 				</button>
 			</div>
 			<${Checkbox} label="Enable Text-to-Speech"
-						disabled=${!!cancel} value=${ttsEnabled} onValueChange=${setTTSEnabled}/>
+						disabled=${!!cancel || !ttsAvailable}
+						title=${!ttsAvailable ? 'TTS is not available in your browser' : ''}
+						value=${ttsEnabled} onValueChange=${setTTSEnabled}/>
 			${ttsEnabled && html`
 			<div className="hbox-flex" style=${{ "flex-wrap": "unset" }}>
 					<${SelectBox}
