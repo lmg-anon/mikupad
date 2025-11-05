@@ -20,11 +20,12 @@
 <script type="importmap">
 {
 	"imports": {
-		"react": "https://esm.sh/v135/react@18",
-		"react-dom/client": "https://esm.sh/v135/react-dom@18/client?external=react",
-		"htm/react": "https://esm.sh/v135/htm@3/react?external=react&react=18",
-		"scrollview-resize": "https://esm.sh/v135/scrollview-resize@1.0.2",
-		"marked": "https://esm.sh/v135/marked@16.4.1"
+		"react": "https://esm.sh/react@19.2.0",
+		"react-dom/client": "https://esm.sh/react-dom@19.2.0/client?external=react",
+		"htm/react": "https://esm.sh/htm@3/react?external=react&react=19",
+		"scrollview-resize": "https://esm.sh/scrollview-resize@1.0.2",
+		"marked": "https://esm.sh/marked@16.4.1",
+		"react-error-boundary": "https://esm.sh/react-error-boundary@5.0.0"
 	}
 }
 </script>
@@ -1238,6 +1239,34 @@ body.markdown-preview-on #markdown-preview {
     display: block;
 }
 
+#crash-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(20, 20, 30, 0.95);
+    color: #f0f0f0;
+    font-family: monospace;
+    padding: 2em;
+    z-index: 99999;
+    overflow: auto;
+    box-sizing: border-box;
+}
+#crash-screen h1 {
+    color: #ff8080;
+    border-bottom: 1px solid #ff8080;
+    padding-bottom: 0.5em;
+}
+#crash-screen pre {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    margin-top: 1em;
+    background-color: #333;
+    padding: 1em;
+    border-radius: 5px;
+}
+
 </style>
 <style id="dynamic-theme-style"></style>
 <script type="module">
@@ -1247,6 +1276,7 @@ import { createRoot } from 'react-dom/client';
 import { html } from 'htm/react';
 import { SVResizeObserver } from 'scrollview-resize';
 import { marked } from 'marked';
+import { ErrorBoundary } from 'react-error-boundary';
 
 const API_LLAMA_CPP = 0;
 const API_KOBOLD_CPP = 2;
@@ -6404,6 +6434,20 @@ function usePersistentState(name, initialState) {
 	return [value, updateState];
 }
 
+function CrashScreenFallback({ error }) {
+  return html`
+    <div id="crash-screen" role="alert">
+      <h1>Oops! Something went wrong.</h1>
+      <p>Mikupad has encountered a fatal error and cannot continue. If possible, please copy the text below and create an issue on the <a href="https://github.com/lmg-anon/mikupad/issues/new/choose" target="_blank">GitHub repository</a>.</p>
+      <pre>
+        <strong>${error.message}</strong>
+        <br /><br />
+        ${error.stack}
+      </pre>
+    </div>
+  `;
+}
+
 export function App({ sessionStorage, templateStorage, themeStorage, useSessionState, useDBTemplates, useDBThemes, isMikupadEndpoint }) {
 	const promptArea = useRef();
 	const promptOverlay = useRef();
@@ -9308,14 +9352,16 @@ async function main() {
     await themeStorage.init();
 
 	createRoot(document.body).render(html`
-		<${App}
-			sessionStorage=${sessionStorage}
-			templateStorage=${templateStorage}
-            themeStorage=${themeStorage}
-			useSessionState=${(name, initialState) => useSessionState(sessionStorage, name, initialState)}
-			useDBTemplates=${(initialState => useStorageState(templateStorage, initialState))}
-			useDBThemes=${(initialState => useStorageState(themeStorage, initialState))}
-			isMikupadEndpoint=${isMikupadEndpoint}/>`);
+		<${ErrorBoundary} FallbackComponent=${CrashScreenFallback}>
+			<${App}
+				sessionStorage=${sessionStorage}
+				templateStorage=${templateStorage}
+				themeStorage=${themeStorage}
+				useSessionState=${(name, initialState) => useSessionState(sessionStorage, name, initialState)}
+				useDBTemplates=${(initialState => useStorageState(templateStorage, initialState))}
+				useDBThemes=${(initialState => useStorageState(themeStorage, initialState))}
+				isMikupadEndpoint=${isMikupadEndpoint}/>
+		</${ErrorBoundary}>`);
 }
 
 main();
