@@ -2,23 +2,30 @@
 <meta charset="utf-8">
 <!-- mikupad by Anon
   --
-  -- To the extent possible under law, the person who associated CC0 with
-  -- mikupad has waived all copyright and related or neighboring rights
-  -- to mikupad.
+  -- This program is free software: you can redistribute it and/or modify
+  -- it under the terms of the GNU Affero General Public License as published by
+  -- the Free Software Foundation, either version 3 of the License, or
+  -- (at your option) any later version.
   --
-  -- You should have received a copy of the CC0 legalcode along with this
-  -- work.  If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
+  -- This program is distributed in the hope that it will be useful,
+  -- but WITHOUT ANY WARRANTY; without even the implied warranty of
+  -- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  -- GNU Affero General Public License for more details.
+  --
+  -- You should have received a copy of the GNU Affero General Public License
+  -- along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <title>mikupad</title>
 <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1.0">
 <script type="importmap">
 {
 	"imports": {
-		"react": "https://esm.sh/v135/react@18",
-		"react-dom/client": "https://esm.sh/v135/react-dom@18/client?external=react",
-		"htm/react": "https://esm.sh/v135/htm@3/react?external=react&react=18",
-		"scrollview-resize": "https://esm.sh/v135/scrollview-resize@1.0.2",
-		"marked": "https://esm.sh/v135/marked@16.4.1"
+		"react": "https://esm.sh/react@19.2.0",
+		"react-dom/client": "https://esm.sh/react-dom@19.2.0/client?external=react",
+		"htm/react": "https://esm.sh/htm@3/react?external=react&react=19",
+		"scrollview-resize": "https://esm.sh/scrollview-resize@1.0.2",
+		"marked": "https://esm.sh/marked@16.4.1",
+		"react-error-boundary": "https://esm.sh/react-error-boundary@5.0.0"
 	}
 }
 </script>
@@ -40,6 +47,29 @@ html {
 	--color-dark: var(--color-base-0);
 	--color-light: var(--color-base-100);
 
+	--color-text-prompt: var(--color-base-10);
+	--color-text-ui: var(--color-base-100);
+	--color-text-hint: var(--color-base-80);
+	--color-text-disabled: var(--color-base-50);
+	--color-svg-1: var(--color-text-ui);
+	--color-svg-2: var(--color-base-50);
+
+	--color-bg-prompt: var(--color-base-100);
+	--color-bg-input-1: var(--color-base-30);
+	--color-bg-input-2: var(--color-base-20);
+	--color-bg-ui-1: var(--color-base-50);
+	--color-bg-ui-2: var(--color-base-40);
+	--color-bg-popover-1: var(--color-base-40);
+	--color-bg-popover-2: var(--color-base-30);
+	--color-bg-rule: var(--color-base-40);
+	--color-bg-highlight-1: var(--color-base-40);
+	--color-bg-highlight-2: var(--color-base-50);
+	--color-bg-highlight-3: var(--color-base-60); /* For highlighting on the main UI */
+	--color-bg-highlight-4: var(--color-base-60); /* Secondary color for highlighting on the main UI */
+	--color-bg-active: var(--color-base-30);
+	--color-bg-disabled-1: var(--color-base-60);
+	--color-bg-disabled-2: var(--color-base-20);
+
 	font-family: serif;
 	font-size: 16px;
 	min-height: 100%;
@@ -47,8 +77,8 @@ html {
 	flex-direction: column;
 
 	accent-color: var(--color-base-30);
-	background: var(--color-base-20);
-	color: var(--color-base-0);
+	background: var(--color-bg-input-2);
+	color: var(--color-text-prompt);
 }
 
 body {
@@ -88,8 +118,8 @@ body {
 	border: none;
 	outline: none;
 	resize: none;
-	background: var(--color-base-100);
-	color: var(--color-base-10);
+	background: var(--color-bg-prompt);
+	color: var(--color-text-prompt);
 	padding: 2em 3em;
 	margin: 0;
 	scrollbar-gutter: stable;
@@ -104,8 +134,8 @@ body {
 }
 .modal .wi-textarea {
 	resize:vertical;
-	background: var(--color-base-100);
-	color: var(--color-base-10);
+	background: var(--color-bg-prompt);
+	color: var(--color-text-prompt);
 }
 
 #memory-area, #an-area, .expanded-text-area-settings, .wi-textarea {
@@ -113,8 +143,8 @@ body {
 	border: none;
 	outline: none;
 	resize: none;
-	background: var(--color-base-100);
-	color: var(--color-base-10);
+	background: var(--color-bg-prompt);
+	color: var(--color-text-prompt);
 	padding: 0.5em;
 	scrollbar-gutter: stable;
 	font-family: inherit;
@@ -131,7 +161,8 @@ body {
 }
 
 #advancedContextPlaceholders {
-	background: var(--color-base-30);
+	color: var(--color-text-ui);
+	background: var(--color-bg-input-1);
 	margin: 1em auto;
 	padding: .25em;
 	border-radius: 2px;
@@ -185,15 +216,15 @@ body {
 }
 #prompt-container #prompt-overlay > .machine.current {
 	border-radius: 3px;
-	outline: 1px solid var(--color-base-50);
+	outline: 1px solid var(--color-bg-highlight-1);
 	outline-offset: 1px;
 }
 #prompt-container #prompt-overlay > .preview {
-	color: var(--color-dark);
+	color: var(--color-text-prompt);
 	opacity: 40%;
 }
 #prompt-container #prompt-overlay > .nudge {
-    outline: 1px solid var(--color-dark);
+    outline: 1px solid var(--color-text-prompt);
     margin-left: 5px;
 	padding-bottom: 2px;
     padding: 0 4px;
@@ -206,7 +237,7 @@ body {
 
 #probs {
 	position: absolute;
-	background: var(--color-base-30);
+	background: var(--color-bg-popover-2);
 	top: var(--probs-top);
 	left: var(--probs-left);
 	display: flex;
@@ -222,7 +253,7 @@ body {
 #probs > button {
 	cursor: pointer;
 	background: transparent;
-	color: var(--color-light);
+	color: var(--color-text-ui);
 	border-radius: 0;
 	padding: calc(4px * var(--font-size-multiplier)) calc(8px * var(--font-size-multiplier));
 	display: flex;
@@ -231,7 +262,7 @@ body {
 	font-size: calc(1rem * var(--font-size-multiplier));
 }
 #probs > button.current {
-	background: var(--color-base-40);
+	background: var(--color-bg-highlight-1);
 }
 #probs > button:first-child {
 	border-radius: calc(5px * var(--font-size-multiplier)) 0 0 calc(5px * var(--font-size-multiplier));
@@ -242,10 +273,10 @@ body {
 	padding-right: calc(6px * var(--font-size-multiplier));
 }
 #probs > button:hover {
-	background: var(--color-base-40);
+	background: var(--color-bg-highlight-1);
 }
 #probs > button:active {
-	background: var(--color-base-50);
+	background: var(--color-bg-highlight-2);
 }
 #probs > button > .prob {
 	font-size: calc(0.8rem * var(--font-size-multiplier));
@@ -257,7 +288,7 @@ body {
 
 .widget-body {
 	z-index: 10;
-	color: var(--color-light);
+	color: var(--color-text-ui);
 	box-shadow: #0004 2px 2px 6px 2px;
 }
 
@@ -279,7 +310,7 @@ body {
 	padding:0.2em;
 	font-weight: bold;
 	font-size: 110%;
-	background-color: var(--color-base-40);
+	background-color: var(--color-bg-input-1);
 	border-radius:2px;
 	width: calc(100% - 2em);
 	display: flex;
@@ -294,7 +325,7 @@ body {
 #searchAndReplace {
 	position: absolute;
 	width: 40vw;
-	background: var(--color-base-50);
+	background: var(--color-bg-ui-1);
 	top:.75em;
 	left:.75em;
 	border-radius:3px;
@@ -358,9 +389,9 @@ body {
 }
 
 .modal {
-	color: var(--color-light);
+	color: var(--color-text-ui);
 	position: relative;
-	background: var(--color-base-50);
+	background: var(--color-bg-ui-1);
 	width: 75%;
 	max-height: 80vh;
 	padding: 1em;
@@ -387,9 +418,9 @@ body {
 	overflow: hidden;
 }
 
-hr {
+.modal hr {
 	border:unset;
-	border-top: 1px solid var(--color-base-40);
+	border-top: 1px solid var(--color-bg-rule);
 	margin: 0.75em -1em 0.5em;
 }
 
@@ -421,7 +452,7 @@ hr {
 	display: grid;
 	grid-template-columns: min-content 1fr;
 	grid-template-rows: min-content 1fr;
-	border-top: 1px solid var(--color-base-40);
+	border-top: 1px solid var(--color-bg-rule);
 	padding-top: 8px;
 	grid-template-areas:
 	  "wi-entry-filler wi-entry-name ."
@@ -433,7 +464,6 @@ hr {
 	margin-bottom:8px;
 }
 .wi-entry-name input {
-	background: var(--color-base-60);
 	font-weight:bold !important;
 	font-size: 1.2rem !important;
 }
@@ -475,6 +505,7 @@ hr {
 	position: absolute;
 	top: 50%;
 	left: 50%;
+	color: var(--color-svg-1);
 	transform: translate(-50%, -50%);
 } 
 
@@ -587,34 +618,52 @@ hr {
 	user-select: none;
 }
 .horde-model-entry:hover {
-	background-color: var(--color-base-40);
+	background-color: var(--color-bg-highlight-3);
 }
 .horde-model-entry .model-name {
 	flex: 1;
 	font-weight: bold;
 	overflow: hidden;
 	text-overflow: ellipsis;
-	white-space: nowrap;
+	word-break: break-word;
+}
+.horde-model-entry .model-header {
+    display: flex;
+    align-items: center;
+    gap: 1em;
+    flex: 1;
+    overflow: hidden;
 }
 .horde-model-entry .model-stats {
 	display: flex;
 	gap: 1em;
 	font-size: 0.9em;
-	color: var(--color-base-80);
+	color: var(--color-text-hint);
 	flex-shrink: 0;
 }
 .horde-model-entry input[type="checkbox"] {
 	cursor: pointer;
 }
 
+@media (max-width: 600px) {
+	.horde-model-entry {
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 0.5em;
+	}
+	.horde-model-entry .model-stats {
+		width: 100%;
+		font-size: 0.85em;
+	}
+}
 
 
 
 #sidebar {
 	font-family: inherit;
 	width: 250px;
-	background: var(--color-base-50);
-	color: var(--color-light);
+	background: var(--color-bg-ui-1);
+	color: var(--color-text-ui);
 	padding: 4px 8px;
 	display: flex;
 	flex-direction: column;
@@ -666,19 +715,21 @@ hr {
 	margin: 0 -8px;
 	border-radius: 2px;
 	color: inherit;
-	background: var(--color-base-30);
+	background: var(--color-bg-input-1);
 	flex: none;
 }
 
 .InputBox > div > input:read-only {
-	background: var(--color-base-60);
+	background: var(--color-bg-disabled-1);
+	opacity: 0.8;
 }
 
 .InputBox > div > input:focus-visible {
 	outline: 1px solid var(--color-base-0);
 }
 .SelectBox > select:disabled {
-	background: var(--color-base-60);
+	background: var(--color-bg-disabled-1);
+	opacity: 0.8;
 }
 .relative {
 	position: relative;
@@ -719,7 +770,7 @@ hr {
 	appearance: none;
 	padding: 0;
 	z-index: 1;
-	background: var(--color-base-20);
+	background: var(--color-bg-input-2);
 	border-radius: 2px 2px 0 0;
 	outline: none;
 	border: none;
@@ -727,7 +778,7 @@ hr {
 
 .InputSlider-container input[type="range"]::-webkit-slider-runnable-track {
 	height: 8px;
-	background: var(--color-base-20);
+	background: var(--color-bg-input-2);
 	border-radius: 2px 2px 0 0;
 }
 
@@ -744,7 +795,7 @@ hr {
 
 .InputSlider-container input[type="range"]::-moz-range-track {
 	height: 8px;
-	background: var(--color-base-20);
+	background: var(--color-bg-input-2);
 	border-radius: 2px 2px 0 0;
 }
 
@@ -765,12 +816,12 @@ hr {
 }
 
 .InputSlider-container input[type="range"]::-ms-fill-lower {
-	background: var(--color-base-20);
+	background: var(--color-bg-input-2);
 	border-radius: 5px 5px 0 0;
 }
 
 .InputSlider-container input[type="range"]::-ms-fill-upper {
-	background: var(--color-base-20);
+	background: var(--color-bg-input-2);
 	border-radius: 2px 2px 0 0;
 }
 
@@ -809,7 +860,7 @@ hr {
 	pointer-events: none;
 	width: 95%;
 	background-color: #000000AA;
-	color: var(--color-light);
+	color: var(--color-text-ui);
 	text-align: center;
 	padding: 5px 4px;
 	margin: 0 -8px;
@@ -847,12 +898,12 @@ button {
 	font: inherit;
 	padding: 4px 8px;
 	color: inherit;
-	background: var(--color-base-30);
+	background: var(--color-bg-input-1);
 	border-radius: 2px;
 }
 button.textAreaSettings {
 	all: unset;
-	color: var(--color-base-50);
+	color: var(--color-svg-2);
 	width:1.25em;
 	position:absolute;
 	top:calc(1.25em + 1px);
@@ -868,19 +919,21 @@ button.textAreaSettings.textAreaSettings-bias {
 	bottom:0;
 	right:0;
 	transform: translate(0%,-50%);
-	color: var(--color-base-50);
-	background: color-mix(in srgb, var(--color-base-30), transparent 50%);
-}.token-counter::after {
+	color: var(--color-text-ui);
+	background: color-mix(in srgb, var(--color-bg-popover-2), transparent 50%);
+}
+.token-counter::after {
 	content:" Tokens";
 }
 button:hover {
-	background: var(--color-base-40);
+	background: var(--color-bg-highlight-1);
 }
 button:active {
-	background: var(--color-base-50);
+	background: var(--color-bg-highlight-2);
 }
 button:disabled {
-	background: var(--color-base-60);
+	background: var(--color-bg-disabled-1);
+	opacity: 0.8;
 }
 button:focus-visible {
 	outline: 1px solid var(--color-base-0);
@@ -939,7 +992,7 @@ button.completing {
 	align-items: center;
 	padding: 4px 8px;
 	color: inherit;
-	background-color: var(--color-base-30);
+	background-color: var(--color-bg-input-1);
 	border-radius: 2px;
 }
 .collapsible-header svg {
@@ -972,10 +1025,10 @@ button.completing {
 	max-height: 200px;
 	overflow-y: auto;
 	width: 100%;
-	background: var(--color-base-40);
+	background: var(--color-bg-ui-2);
 }
 .Sessions.disabled > ul {
-	background: var(--color-base-50);
+	background: var(--color-bg-ui-1);
 	pointer-events: auto;
 }
 
@@ -997,10 +1050,10 @@ button.completing {
 	user-select: none;
 }
 .Session:hover {
-	background-color: var(--color-base-60);
+	background-color: var(--color-bg-highlight-3);
 }
 .Session.selected {
-	background-color: var(--color-base-30);
+	background-color: var(--color-bg-active);
 }
 
 .Session > button {
@@ -1022,7 +1075,7 @@ button.completing {
 	appearance: none;
 	border: none;
 	outline: 1px solid var(--color-light);
-	background-color: var(--color-base-40);
+	background-color: var(--color-bg-ui-2);
 	font: inherit;
 	color: inherit;
 	width: 80%;
@@ -1051,7 +1104,7 @@ button.completing {
 }
 
 .horz-separator {
-	border-top: 3px dotted var(--color-base-60);
+	border-top: 3px dotted var(--color-bg-highlight-4);
 }
 
 .eye-button {
@@ -1064,6 +1117,7 @@ button.completing {
 	position: absolute;
 	top: 50%;
 	left: 50%;
+	color: var(--color-svg-1);
 	transform: translate(-50%, -50%);
 } 
 
@@ -1103,8 +1157,8 @@ button.completing {
 	position: absolute;
 	top: 30px;
 	right: 0px;
-	background-color: var(--color-base-40);
-	border: 1px solid var(--color-base-30);
+	background-color: var(--color-bg-popover-1);
+	border: 1px solid var(--color-bg-popover-2);
 	border-radius: 4px;
 	box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
 	padding: 10px;
@@ -1117,8 +1171,8 @@ button.completing {
 .EditorContextMenu {
 	display: none;
 	position: absolute;
-	background: var(--color-base-40);
-	color: var(--color-light);
+	background: var(--color-bg-popover-1);
+	color: var(--color-text-ui);
 	/* border: 1px solid #ccc; */
 	box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 	border-radius: 4px;
@@ -1143,13 +1197,14 @@ button.completing {
 	border-radius: 0px;
 }
 .MenuItem:not(.disabled):hover {
-	background: var(--color-base-50) !important;
+	background: var(--color-bg-highlight-2) !important;
 }
 
 .MenuItem.disabled {
 	cursor: default;
-	background: var(--color-base-20);
-	color: var(--color-base-50);
+	background: var(--color-bg-disabled-2);
+	color: var(--color-text-disabled);
+	opacity: 0.8;
 }
 
 .MenuItem.hasSubItems {
@@ -1176,8 +1231,8 @@ button.completing {
 	border: none;
 	outline: none;
 	resize: none;
-	background: var(--color-base-100);
-	color: var(--color-base-10);
+	background: var(--color-bg-prompt);
+	color: var(--color-text-prompt);
     padding: 2em 3em;
 	margin: 0;
 	scrollbar-gutter: stable;
@@ -1202,6 +1257,34 @@ body.markdown-preview-on #markdown-preview {
     display: block;
 }
 
+#crash-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(20, 20, 30, 0.95);
+    color: #f0f0f0;
+    font-family: monospace;
+    padding: 2em;
+    z-index: 99999;
+    overflow: auto;
+    box-sizing: border-box;
+}
+#crash-screen h1 {
+    color: #ff8080;
+    border-bottom: 1px solid #ff8080;
+    padding-bottom: 0.5em;
+}
+#crash-screen pre {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    margin-top: 1em;
+    background-color: #333;
+    padding: 1em;
+    border-radius: 5px;
+}
+
 </style>
 <style id="dynamic-theme-style"></style>
 <script type="module">
@@ -1211,6 +1294,7 @@ import { createRoot } from 'react-dom/client';
 import { html } from 'htm/react';
 import { SVResizeObserver } from 'scrollview-resize';
 import { marked } from 'marked';
+import { ErrorBoundary } from 'react-error-boundary';
 
 const API_LLAMA_CPP = 0;
 const API_KOBOLD_CPP = 2;
@@ -4622,12 +4706,14 @@ function AIHordeSettingsModal({ isOpen, closeModal, endpoint, endpointAPIKey, se
                     </button>
                 </div>
                 ${error && html`<div class="error-text">${error}</div>`}
-                <div className="overflow-container" style=${{'max-height': '45vh', background: 'var(--color-base-40)', borderRadius: '4px'}}>
+                <div className="overflow-container" style=${{'max-height': '45vh', background: 'var(--color-bg-popover-1)', borderRadius: '4px'}}>
                     ${loading && !models.length ? html`<div style=${{padding: '1em'}}>Loading models...</div>` : ''}
                     ${filteredModels.map(model => html`
                         <div key=${model.name} className="horde-model-entry" onClick=${() => handleSelect(model.name)}>
-                            <input type="checkbox" checked=${localSelected.includes(model.name)} readOnly/>
-                            <div className="model-name" title=${model.name}>${model.name}</div>
+							<div class="model-header">
+								<input type="checkbox" checked=${localSelected.includes(model.name)} readOnly/>
+								<div className="model-name" title=${model.name}>${model.name}</div>
+							</div>
                             <div className="model-stats">
                                 <span>ETA: ${model.eta}s</span>
                                 <span>Queue: ${model.queued}</span>
@@ -5890,14 +5976,9 @@ html.serif-dark {
 	--color-dark: var(--color-base-100);
 	--color-light: var(--color-base-0);
 
+	--color-text-ui: var(--color-light);
+
 	color-scheme: dark;
-}
-html.serif-dark #prompt-container #prompt-overlay > .preview {
-	color: var(--color-light);
-	opacity: 30%;
-}
-html.serif-dark #prompt-container #prompt-overlay > .nudge {
-	border: 1px solid var(--color-light);
 }
 	`},
     "Monospace Dark": {
@@ -5906,9 +5987,6 @@ html.serif-dark #prompt-container #prompt-overlay > .nudge {
         className: "monospace-dark",
         css: `/* Monospace Dark */
 html.monospace-dark {
-	---color-bg-dark: #282833;
-	--color-bg: #202020;
-	--color-text: #bababa;
 	--color-base-0: oklch(77.65% 0.0752 285.22);
 	--color-base-10: color-mix(in oklch, var(--color-base-100) 90%, var(--color-base-0));
 	--color-base-20: color-mix(in oklch, var(--color-base-100) 80%, var(--color-base-0));
@@ -5922,73 +6000,41 @@ html.monospace-dark {
 	--color-base-100: oklch(24.28% 0.015 285.22);
 	--color-dark: var(--color-base-100);
 	--color-light: var(--color-base-0);
-	--token-prob-box: #4a4a4a;
+
+	--color-text-ui: var(--color-light);
+	--color-text-prompt: #bababa;
+
+	--color-bg-ui-1: #282833;
+	--color-bg-ui-2: var(--color-base-20);
+	--color-bg-prompt: #202020;
+	--color-bg-popover-1: var(--color-base-20);
+	--color-bg-popover-2: var(--color-base-20);
+	--color-bg-highlight-2: var(--color-base-40);
+	--color-bg-highlight-3: var(--color-base-40);
+	--color-bg-highlight-4: var(--color-base-20);
+	--color-bg-active: var(--color-base-10);
+	--color-bg-disabled-1: var(--color-base-20);
+	--color-bg-disabled-2: var(--color-base-10);
 
 	font-family: monospace;
 	font-size: 15px;
 
 	accent-color: var(--color-base-30);
-	background: var(--color-bg-dark);
-	color: var(--color-base-0);
+	background: none;
+	color: var(--color-text-prompt);
 	color-scheme: dark;
 }
-html.monospace-dark #prompt-area,
-html.monospace-dark #memory-area,
-html.monospace-dark #an-area,
-html.monospace-dark .expanded-text-area-settings,
-html.monospace-dark .wi-textarea {
-	background: var(--color-bg);
-	color: var(--color-text);
-}
-html.monospace-dark #prompt-container #prompt-overlay > .preview {
-	color: var(--color-light);
-	opacity: 30%;
-}
-html.monospace-dark #prompt-container #prompt-overlay > .nudge {
-	border: 1px solid var(--color-light);
-}
 html.monospace-dark #probs {
-	background: var(--color-base-10);
-	border: 1px solid var(--token-prob-box);
+	border: 1px solid #4a4a4a;
 	border-radius: calc(4px * var(--font-size-multiplier));
 	box-shadow: none;
 }
-html.monospace-dark .widget-title {
-	background: #46465a;
-}
-html.monospace-dark #searchAndReplace {
-	background: #282833;
-}
-html.monospace-dark .modal {
-	background: #282833;
-}
 html.monospace-dark #sidebar {
-	background: #282833;
 	width: 265px;
 }
-html.monospace-dark .InputBox > div > input, html.monospace-dark .SelectBox > select {
-	color: var(--color-light);
-}
-html.monospace-dark .InputBox > div > input:read-only {
-	background: var(--color-base-30);
-}
-html.monospace-dark .tooltip .tooltiptext {
-	transform: translate(0, -65%);
-}
+html.monospace-dark .tooltip .tooltiptext,
 html.monospace-dark .tooltip .tooltiptext.short {
 	transform: translate(0, -65%);
-}
-html.monospace-dark .Sessions > ul {
-	background: var(--color-base-20);
-}
-html.monospace-dark .Session:hover {
-	background-color: var(--color-base-40);
-}
-html.monospace-dark .Session.selected {
-	background-color: var(--color-base-10);
-}
-html.monospace-dark .horz-separator {
-	border-top: 3px dotted var(--color-base-20);
 }
 html.monospace-dark .eye-button {
 	position: relative;
@@ -6006,24 +6052,6 @@ html.monospace-dark .eye-button {
 		bottom: 0;
 	}
 }
-html.monospace-dark .floating-menu {
-	background: var(--color-base-20);
-	border: 1px solid var(--color-base-10);
-}
-html.monospace-dark .EditorContextMenu {
-	background: var(--color-base-20);
-}
-html.monospace-dark .MenuItem:not(.disabled):hover {
-	background: var(--color-base-40) !important;
-}
-html.monospace-dark .MenuItem.disabled {
-	background: var(--color-base-10);
-	color: var(--color-base-50);
-}
-html.monospace-dark #markdown-preview {
-	background: var(--color-base-20);
-	color: var(--color-base-0);
-}
     `},
     "NockoffAI": {
 		order: 2,
@@ -6031,10 +6059,6 @@ html.monospace-dark #markdown-preview {
         className: "nockoffAI",
         css: `/* NockoffAI */
 html.nockoffAI {
-	---color-bg-dark: #191b31;
-	--color-bg: #191b31;
-
-	--color-text: #fff;
 	--color-base-0: #fff;
 	--color-base-10: color-mix(in oklch, var(--color-base-100) 90%, var(--color-base-0));
 	--color-base-20: color-mix(in oklch, var(--color-base-100) 80%, var(--color-base-0));
@@ -6048,32 +6072,34 @@ html.nockoffAI {
 	--color-base-100: #13152c;
 	--color-dark: var(--color-base-100);
 	--color-light: #fff;
-	--color-input: #0e0f21;
-	--color-sidebar: var(--color-base-100);
-	--color-prompt-area: #191b31;
-	--color-hover: #13152c;
-	--color-button: #22253f;
-	--color-disabled: #161833;
-	--color-button-hover: #282b44;
-
 	--token-prob-box: #4a4a4a;
+
+	--color-text-ui: var(--color-base-80);
+	--color-text-prompt: var(--color-light);
+
+	--color-bg-input-1: #0e0f21;
+	--color-bg-ui-1: var(--color-base-100);
+	--color-bg-ui-2: #0e0f21;
+	--color-bg-prompt: #191b31;
+	--color-bg-popover-1: #0e0f21;
+	--color-bg-highlight-2: #2B2C41;
+	--color-bg-highlight-3: #13152c;
+	--color-bg-active: #191b31;
+	--color-bg-disabled-1: #161833;
+	--color-bg-disabled-2: #161833;
 
 	font-family: "Source Sans Pro", "Helvetica Neue", sans-serif;
 	font-size: 15.5px;
 
 	accent-color: var(--color-base-30);
-	background: var(--color-bg-dark);
-	color: var(--color-base-0);
+	background: none;
+	color: var(--color-text-prompt);
 	color-scheme: dark;
 }
 html.nockoffAI body {
-	background: var(--color-prompt-area)
+	background: var(--color-bg-prompt);
 }
-html.nockoffAI #prompt-area {
-	text-indent: 1em each-line;
-	background: var(--color-prompt-area);
-	color: var(--color-text);
-}
+html.nockoffAI #prompt-area,
 html.nockoffAI #prompt-overlay {
 	text-indent: 1em each-line;
 }
@@ -6081,15 +6107,7 @@ html.nockoffAI #memory-area,
 html.nockoffAI #an-area,
 html.nockoffAI .expanded-text-area-settings,
 html.nockoffAI .wi-textarea {
-	background: var(--color-input);
-	color: var(--color-text);
-}
-html.nockoffAI #prompt-container #prompt-overlay > .preview {
-	color: var(--color-light);
-	opacity: 30%;
-}
-html.nockoffAI #prompt-container #prompt-overlay > .nudge {
-	border: 1px solid var(--color-light);
+	background: var(--color-bg-input-1);
 }
 html.nockoffAI #probs {
 	background: var(--color-base-10);
@@ -6097,85 +6115,47 @@ html.nockoffAI #probs {
 	border-radius: calc(4px * var(--font-size-multiplier));
 	box-shadow: none;
 }
-html.nockoffAI #searchAndReplace {
-	background: var(--color-sidebar);
-}
-html.nockoffAI .widget-title {
-	background: var(--color-input);
+html.nockoffAI .modal {
 	color: var(--color-base-50);
 }
-html.nockoffAI .modal {
-	background: var(--color-sidebar);
-	color:var(--color-base-50);
-}
 html.nockoffAI .modal-title {
-	color:var(--color-text);
+	color: var(--color-text-ui);
 }
 html.nockoffAI  #context-order-desc,
 html.nockoffAI  #contextTokensTable,
 html.nockoffAI .modal-desc {
-	color:var(--color-base-80);
-}
-html.nockoffAI .wi-entry-name input {
-	background: var(--color-base-10) !important;
+	color: var(--color-text-ui);
 }
 html.nockoffAI #sidebar {
-	background: var(--color-sidebar);
 	color: var(--color-base-50);
 	width: 255px;
 }
 html.nockoffAI .InputBox > div > input, html.nockoffAI .SelectBox > select {
-	color: var(--color-light);
-}
-html.nockoffAI .InputBox > div > input:read-only {
-	background: var(--color-disabled);
-}
-html.nockoffAI .SelectBox > select,
-html.nockoffAI .collapsible-header,
-html.nockoffAI .InputBox > div > input {
-	background: var(--color-input);
+	color: var(--color-text-ui);
 }
 html.nockoffAI .horz-separator {
 	border-top: 3px dotted color-mix(in oklch, var(--color-base-100) 90%, var(--color-light));
 }
-html.nockoffAI .SelectBox > select:disabled {
-	background: var(--color-disabled);
-}
 html.nockoffAI button {
-	background: var(--color-button);
-	color: var(--color-base-90);
+	background: #22253f;
+	color: var(--color-text-ui);
 }
 html.nockoffAI .Session button:not(:hover),
 html.nockoffAI button.textAreaSettings:not(:hover) {
 	background: none;
 }
 html.nockoffAI button:hover {
-	background: var(--color-button-hover);
-}
-html.nockoffAI button:disabled {
-	background: var(--color-disabled);
-}
-html.nockoffAI .Sessions > ul {
-	background: var(--color-input);
-}
-html.nockoffAI .Sessions.disabled > ul {
-	background: var(--color-disabled);
+	background: #282b44;
 }
 html.nockoffAI .Session {
 	margin: 0.25rem;
 	padding: 0.25rem;
-	color: var(--color-base-70);
 }
 html.nockoffAI .Session > input {
-	background-color: var(--color-input);
 	outline: none;
 }
 html.nockoffAI .Session.selected {
-	color: var(--color-text);
-	background-color: var(--color-prompt-area)
-}
-html.nockoffAI .Session:hover {
-	background-color: var(--color-hover);
+	color: var(--color-text-ui);
 }
 @media (max-width: 767.98px) {
 	html.nockoffAI #sidebar {
@@ -6187,22 +6167,9 @@ html.nockoffAI .Session:hover {
 		bottom: 0;
 	}
 }
-html.nockoffAI .floating-menu {
-	background: var(--color-input);
-}
 html.nockoffAI .EditorContextMenu {
-	background: var(--color-base-20);
-}
-html.nockoffAI .MenuItem:not(.disabled):hover {
-	background: var(--color-base-40) !important;
-}
-html.nockoffAI .MenuItem.disabled {
-	background: var(--color-base-10);
-	color: var(--color-base-50);
-}
-html.nockoffAI #markdown-preview {
-	background: var(--color-prompt-area);
-	color: var(--color-text);
+	border: 1px solid var(--color-bg-popover-2);
+    border-radius: 4px;
 }
     `},
     "E-Reader": {
@@ -6231,6 +6198,9 @@ html.ereader {
 }
 html.ereader #prompt-container:hover #prompt-overlay > .machine {
 	background: color-mix(in srgb, var(--bg-color, var(--color-miku)) 20%, transparent);
+}
+html.ereader #sidebar {
+	width: 280px;
 }
     `},
 };
@@ -6484,6 +6454,20 @@ function usePersistentState(name, initialState) {
 	return [value, updateState];
 }
 
+function CrashScreenFallback({ error }) {
+  return html`
+    <div id="crash-screen" role="alert">
+      <h1>Oops! Something went wrong.</h1>
+      <p>Mikupad has encountered a fatal error and cannot continue. If possible, please copy the text below and create an issue on the <a href="https://github.com/lmg-anon/mikupad/issues/new/choose" target="_blank">GitHub repository</a>.</p>
+      <pre>
+        <strong>${error.message}</strong>
+        <br /><br />
+        ${error.stack}
+      </pre>
+    </div>
+  `;
+}
+
 export function App({ sessionStorage, templateStorage, themeStorage, useSessionState, useDBTemplates, useDBThemes, isMikupadEndpoint }) {
 	const promptArea = useRef();
 	const promptOverlay = useRef();
@@ -6613,6 +6597,7 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 	const ttsQueue = useRef([]);
 	const ttsVoices = useRef([]);
 	const ttsPaused = useRef(false);
+	const [ttsAvailable, setTTSAvailable] = useState(true);
 	const [ttsEnabled, setTTSEnabled] = usePersistentState('ttsEnabled', false);
 	const [ttsVoiceId, setTTSVoiceId] = usePersistentState('ttsVoiceId', 0);
 	const [ttsPitch, setTTSPitch] = usePersistentState('ttsPitch', 1);
@@ -7473,12 +7458,14 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 			hordeTaskId.current = undefined;
 			setHordeQueuePos(undefined);
 			setHordeProcessing(false);
-			if (ttsNewText.current.length) {
-				if (!ttsPaused.current)
-					ttsQueue.current.push(ttsNewText.current);
-				ttsNewText.current = "";
+			if (ttsEnabled) {
+				if (ttsNewText.current.length) {
+					if (!ttsPaused.current)
+						ttsQueue.current.push(ttsNewText.current);
+					ttsNewText.current = "";
+				}
+				if (!window.speechSynthesis.speaking && !window.speechSynthesis.pending) ttsProcessQueue();
 			}
-			if (!window.speechSynthesis.speaking && !window.speechSynthesis.pending) ttsProcessQueue();
 		}
 
 		// Chat Mode
@@ -7974,11 +7961,6 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 					break;
 				
 				default:
-					if (showPromptPreview && (e.key.length == 1 || e.key == "Dead" || e.key == "Backspace")) {
-						// If character is printable, backspace, or a diacritic,
-						// clear prompt preview so that it can be re-rolled.
-						setPromptPreviewChunks([]);
-					}
 					keyState.current = e;
 					return;
 			}
@@ -8087,6 +8069,9 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 	}, []);
 
 	function onInput({ target }) {
+		if (showPromptPreview) {
+			setPromptPreviewChunks([]);
+		}
 		setPromptChunks(oldPrompt => {
 			const start = [];
 			const end = [];
@@ -8396,10 +8381,23 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 	}, [instructModalState.result]);
 
 	// Text-To-Speech functions
-	window.speechSynthesis.onvoiceschanged = () => {
-		const voices = window.speechSynthesis.getVoices();
-		ttsVoices.current = voices;
-	};
+	useLayoutEffect(() => {
+		if (!window.speechSynthesis) {
+			setTTSAvailable(false);
+			setTTSEnabled(false);
+			return;
+		}
+		
+		window.speechSynthesis.onvoiceschanged = () => {
+			const voices = window.speechSynthesis.getVoices();
+			ttsVoices.current = voices;
+		};
+		setTTSAvailable(true);
+		
+		return () => {
+			window.speechSynthesis.onvoiceschanged = null;
+		};
+	}, []);
 
 	async function ttsProcessQueue() {
 		if (ttsEnabled && ttsQueue.current.length > 0) {
@@ -8422,6 +8420,8 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 	}
 
 	function ttsStop() {
+		if (!ttsEnabled)
+			return;
 		ttsPaused.current = true;
 		ttsQueue.current = [];
 		window.speechSynthesis.cancel();
@@ -9130,7 +9130,9 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 				</button>
 			</div>
 			<${Checkbox} label="Enable Text-to-Speech"
-						disabled=${!!cancel} value=${ttsEnabled} onValueChange=${setTTSEnabled}/>
+						disabled=${!!cancel || !ttsAvailable}
+						title=${!ttsAvailable ? 'TTS is not available in your browser' : ''}
+						value=${ttsEnabled} onValueChange=${setTTSEnabled}/>
 			${ttsEnabled && html`
 			<div className="hbox-flex" style=${{ "flex-wrap": "unset" }}>
 					<${SelectBox}
@@ -9400,14 +9402,16 @@ async function main() {
     await themeStorage.init();
 
 	createRoot(document.body).render(html`
-		<${App}
-			sessionStorage=${sessionStorage}
-			templateStorage=${templateStorage}
-            themeStorage=${themeStorage}
-			useSessionState=${(name, initialState) => useSessionState(sessionStorage, name, initialState)}
-			useDBTemplates=${(initialState => useStorageState(templateStorage, initialState))}
-			useDBThemes=${(initialState => useStorageState(themeStorage, initialState))}
-			isMikupadEndpoint=${isMikupadEndpoint}/>`);
+		<${ErrorBoundary} FallbackComponent=${CrashScreenFallback}>
+			<${App}
+				sessionStorage=${sessionStorage}
+				templateStorage=${templateStorage}
+				themeStorage=${themeStorage}
+				useSessionState=${(name, initialState) => useSessionState(sessionStorage, name, initialState)}
+				useDBTemplates=${(initialState => useStorageState(templateStorage, initialState))}
+				useDBThemes=${(initialState => useStorageState(themeStorage, initialState))}
+				isMikupadEndpoint=${isMikupadEndpoint}/>
+		</${ErrorBoundary}>`);
 }
 
 main();
