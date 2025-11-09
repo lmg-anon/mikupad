@@ -8195,13 +8195,10 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 		const instPre = templates[selectedTemplate]?.instPre?.replace(/\\n/g, '\n');
 		const lastChunk = promptChunks.at(-1);
 
-		// Disallow if there is any user-written text after the current token.
-		// We make an exception for the instruction suffix if it's the very last chunk.
 		const hasRealUserTextAfter = remainingPrompt.some(chunk =>
 			chunk.type === 'user' &&
-			!(chunk === lastChunk && chunk.content === instPre)
+			!(chunk === lastChunk && (chunk.content === instPre || chunk.content.length <= 50))
 		);
-
 		if (hasRealUserTextAfter) {
 			return;
 		}
