@@ -1,7 +1,7 @@
 FROM node:20.19.3
 
-COPY project /app/project
 COPY server /app/server
+COPY project /app/project
 COPY mikupad.html /app/mikupad.html
 COPY compile.sh /app/compile.sh
 
