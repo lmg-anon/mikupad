@@ -18,6 +18,7 @@ const host = args.host || process.env.MIKUPAD_HOST || '0.0.0.0';
 const noOpen = (args.open !== undefined && !args.open) || process.env.MIKUPAD_NO_OPEN;
 const login = args.login || process.env.MIKUPAD_LOGIN || 'anon';
 const password = args.password || process.env.MIKUPAD_PASSWORD || undefined;
+const storagePath = args.storagePath || process.env.MIKUPAD_STORAGE_PATH || './web-session-storage.db';
 
 // Headers that shouldn't be forwarded in the proxy endpoint.
 const headersToRemove = [
@@ -149,7 +150,7 @@ const runMigrationToV3 = (db) => {
 
 
 // Open a database connection
-const db = new sqlite3.Database('./web-session-storage.db', (err) => {
+const db = new sqlite3.Database(storagePath, (err) => {
     if (err) {
         console.error(err.message);
         process.exit(1);
@@ -194,6 +195,10 @@ app.post('/proxy/*', async (req, res) => {
     const targetBaseUrl = req.headers['x-real-url'];
     delete req.headers['x-real-url'];
 
+    // Proxy authorization (since we use authorization headers as well)
+    const authorization = req.headers['x-real-authorization'];
+    delete req.headers['x-real-authorization'];
+
     headersToRemove.forEach(header => {
         delete req.headers[header.toLowerCase()];
     });
@@ -207,7 +212,8 @@ app.post('/proxy/*', async (req, res) => {
                 ...req.headers,
                 'Content-Type': 'application/json',
                 'Host': new URL(targetBaseUrl).hostname,  // Update the Host header for the target server
-                'Accept-Encoding': 'identity'
+                'Accept-Encoding': 'identity',
+                'Authorization': authorization
             },
             responseType: 'stream'
         });
@@ -246,6 +252,10 @@ app.get('/proxy/*', async (req, res) => {
     const targetBaseUrl = req.headers['x-real-url'];
     delete req.headers['x-real-url'];
 
+    // Proxy authorization (since we use authorization headers as well)
+    const authorization = req.headers['x-real-authorization'];
+    delete req.headers['x-real-authorization'];
+
     headersToRemove.forEach(header => {
         delete req.headers[header.toLowerCase()];
     });
@@ -257,7 +267,8 @@ app.get('/proxy/*', async (req, res) => {
                 ...req.headers,
                 'Content-Type': 'application/json',
                 'Host': new URL(targetBaseUrl).hostname,  // Update the Host header for the target server
-                'Accept-Encoding': 'identity'
+                'Accept-Encoding': 'identity',
+                'Authorization': authorization
             }
         });
 
@@ -282,6 +293,10 @@ app.delete('/proxy/*', async (req, res) => {
     const targetBaseUrl = req.headers['x-real-url'];
     delete req.headers['x-real-url'];
 
+    // Proxy authorization (since we use authorization headers as well)
+    const authorization = req.headers['x-real-authorization'];
+    delete req.headers['x-real-authorization'];
+
     headersToRemove.forEach(header => {
         delete req.headers[header.toLowerCase()];
     });
@@ -292,7 +307,8 @@ app.delete('/proxy/*', async (req, res) => {
                 ...req.headers,
                 'Content-Type': 'application/json',
                 'Host': new URL(targetBaseUrl).hostname,  // Update the Host header for the target server
-                'Accept-Encoding': 'identity'
+                'Accept-Encoding': 'identity',
+                'Authorization': authorization
             }
         });
 
