@@ -18,6 +18,7 @@ const host = args.host || process.env.MIKUPAD_HOST || '0.0.0.0';
 const noOpen = (args.open !== undefined && !args.open) || process.env.MIKUPAD_NO_OPEN;
 const login = args.login || process.env.MIKUPAD_LOGIN || 'anon';
 const password = args.password || process.env.MIKUPAD_PASSWORD || undefined;
+const storagePath = args.storagePath || process.env.MIKUPAD_STORAGE_PATH || './web-session-storage.db';
 
 // Headers that shouldn't be forwarded in the proxy endpoint.
 const headersToRemove = [
@@ -149,7 +150,7 @@ const runMigrationToV3 = (db) => {
 
 
 // Open a database connection
-const db = new sqlite3.Database('./web-session-storage.db', (err) => {
+const db = new sqlite3.Database(storagePath, (err) => {
     if (err) {
         console.error(err.message);
         process.exit(1);

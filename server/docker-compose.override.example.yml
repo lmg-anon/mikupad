@@ -1,0 +1,31 @@
+# HOW TO USE THIS FILE
+#
+# 1. Copy into `docker-compose.override.yml`
+# 2. Uncomment the parts you wish to include
+#
+# UNCOMMENT THIS FIRST:
+
+# services:
+  
+# ADD HTTPS SUPPORT:
+  
+#   https:
+#     image: nginx:1.29
+#     ports:
+#       - 3443:3443
+#     volumes:
+#       - ./https/nginx.conf:/etc/nginx/conf.d/default.conf
+#       - ./https/public.crt:/public.crt
+#       - ./https/private.key:/private.key
+
+# REMOVE HTTP SUPPORT:
+
+#   mikupad:
+#     ports: !reset []
+
+# ADD LOCALHOST AI SERVER SUPPORT FOR LINUX USERS:
+# (DELETE `mikupad:` IF ALREADY DEFINED ABOVE)
+  
+#   mikupad:
+#     extra_hosts:
+#       - host.docker.internal:host-gateway
