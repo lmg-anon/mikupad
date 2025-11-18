@@ -7851,6 +7851,7 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 				return;
 			if (Object.values(modalState).some((s) => s))
 				return;
+			let preventDefaultAction = true;
 			switch (`${altKey}:${ctrlKey}:${shiftKey}:${key}`) {
 				case 'false:false:true:Enter':
 				case 'false:true:false:Enter':
@@ -7880,7 +7881,11 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 					// by pressing Ctrl+ArrowRight.
 
 					if (!showPromptPreview || promptPreviewChunks.length === 0)
+					{
+						// Fall back to default Ctrl+RightArrow behavior (move right by 1 word)
+						preventDefaultAction = false;
 						break;
+					}
 
 					let newPromptChunks = [ ...promptChunks ];
 					let newPromptPreviewChunks = [ ...promptPreviewChunks ];
@@ -7934,7 +7939,9 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 					keyState.current = e;
 					return;
 			}
-			e.preventDefault();
+
+			if (preventDefaultAction)
+				e.preventDefault();
 		}
 		function onKeyUp(e) {
 			const { altKey, ctrlKey, shiftKey, key, defaultPrevented } = e;
