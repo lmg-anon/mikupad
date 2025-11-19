@@ -61,7 +61,7 @@ html {
 	--color-bg-ui-2: var(--color-base-40);
 	--color-bg-popover-1: var(--color-base-40);
 	--color-bg-popover-2: var(--color-base-30);
-	--color-bg-rule: var(--color-base-40);
+	--color-bg-rule: var(--color-base-30);
 	--color-bg-highlight-1: var(--color-base-40);
 	--color-bg-highlight-2: var(--color-base-50);
 	--color-bg-highlight-3: var(--color-base-60); /* For highlighting on the main UI */
@@ -1283,6 +1283,283 @@ body.markdown-preview-on #markdown-preview {
     background-color: #333;
     padding: 1em;
     border-radius: 5px;
+}
+
+/* Connection Manager */
+.connection-modal-layout {
+	display: grid;
+	grid-template-columns: 240px 1fr;
+	gap: 0;
+	height: 60vh;
+	min-height: 450px;
+	border: 1px solid var(--color-bg-rule);
+	border-radius: 4px;
+	overflow: hidden;
+	background-color: var(--color-bg-ui-1);
+}
+
+.connection-sidebar {
+	background: var(--color-bg-ui-2);
+	border-right: 1px solid var(--color-bg-rule);
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+}
+
+.connection-sidebar-header {
+	padding: 11px;
+	border-bottom: 1px solid var(--color-bg-rule);
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	font-weight: bold;
+}
+
+.connection-list {
+	flex: 1;
+	overflow-y: auto;
+	min-height: 0;
+	padding: 8px;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.connection-item {
+	padding: 7.5px 12px;
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	user-select: none;
+	border: 1px solid transparent;
+	color: var(--color-text-ui);
+	opacity: 0.5;
+}
+.connection-item.enabled {
+	opacity: 1;
+}
+
+.connection-item:hover {
+	background-color: var(--color-bg-highlight-3);
+}
+
+.connection-item.selected {
+	background-color: var(--color-bg-active);
+	border-color: var(--color-bg-highlight-1);
+	color: var(--color-text-ui);
+}
+
+.connection-item-icon {
+	display: grid;
+	place-items: center;
+	width: 20px;
+}
+
+.connection-item-details {
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+}
+
+.connection-item-name {
+	font-weight: bold;
+	font-size: 0.95em;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.connection-item-type {
+	font-size: 0.75em;
+	opacity: 0.7;
+}
+
+.connection-details {
+	padding: 0;
+	overflow-y: hidden;
+	display: flex;
+	flex-direction: column;
+}
+
+.connection-header {
+	padding: 12px 16px;
+	border-bottom: 1px solid var(--color-bg-rule);
+	background-color: var(--color-bg-ui-1);
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	flex-shrink: 0;
+}
+
+.connection-header-title {
+	font-size: 1.1em;
+	font-weight: bold;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.connection-actions {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+}
+
+.connection-action-btn {
+	background: transparent;
+	border: none;
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	font-size: 0.9em;
+	color: var(--color-text-ui);
+	padding: 4px 8px;
+	border-radius: 4px;
+	user-select: none;
+}
+.connection-action-btn:hover {
+	background-color: var(--color-bg-highlight-1);
+}
+
+.connection-content-scroll {
+	padding: 16px;
+	overflow-y: auto;
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.connection-models-wrapper {
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+	min-height: 0;
+}
+
+.connection-models-header {
+	display: flex;
+	align-items: center;
+	font-size: 0.75rem;
+	margin-bottom: 4px;
+	gap: 8px;
+}
+
+.connection-models-section {
+	border: 1px solid var(--color-bg-rule);
+	border-radius: 4px;
+	padding: 8px;
+	flex: 1; 
+	min-height: 100px;
+	overflow-y: auto;
+	background: var(--color-bg-input-2);
+	font-family: monospace;
+	font-size: 0.85em;
+	display: flex;
+	flex-wrap: wrap;
+	align-content: flex-start;
+}
+
+.connection-models-empty {
+	width: 100%;
+	height: 100%;
+	display: grid;
+	place-items: center;
+	color: var(--color-text-hint);
+}
+
+.connection-model-list {
+	border: 1px solid var(--color-bg-rule);
+	border-radius: 4px;
+	flex: 1;
+	min-height: 150px;
+	overflow-y: auto;
+	background: var(--color-bg-input-2);
+	display: flex;
+	flex-direction: column;
+}
+
+.connection-model-item {
+	padding: 6px 10px;
+	cursor: pointer;
+	border-bottom: 1px solid var(--color-bg-rule);
+	font-size: 0.9em;
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+}
+
+.connection-model-item:last-child {
+	border-bottom: none;
+}
+
+.connection-model-item:hover {
+	background-color: var(--color-bg-highlight-3);
+}
+
+.connection-model-item.selected {
+	background-color: var(--color-bg-highlight-1);
+	color: var(--color-text-ui);
+	font-weight: bold;
+}
+
+.connection-error-msg {
+	color: #ff8080;
+	background: #4E3534;
+	padding: 8px;
+	border-radius: 4px;
+	font-size: 0.85em;
+	margin-bottom: 8px;
+	white-space: pre-wrap;
+	word-break: break-word;
+	border: 1px solid #ff8080;
+}
+
+.model-search-box {
+	margin-bottom: 8px;
+}
+
+.connection-back-btn {
+	display: none;
+	cursor: pointer;
+	margin-right: 12px;
+	padding: 4px;
+	border-radius: 4px;
+}
+.connection-back-btn:hover {
+	background-color: var(--color-bg-highlight-1);
+}
+
+@media (max-width: 767px) {
+	.connection-modal-layout {
+		display: block;
+		position: relative;
+	}
+	
+	.connection-sidebar, .connection-details {
+		width: 100%;
+		height: 100%;
+		border-right: none;
+	}
+
+	.connection-modal-layout:not(.mobile-show-details) .connection-details {
+		display: none;
+	}
+	
+	.connection-modal-layout.mobile-show-details .connection-sidebar {
+		display: none;
+	}
+
+	.connection-back-btn {
+		display: flex;
+		align-items: center;
+	}
+	
+	.connection-header {
+		padding: 8px 12px;
+	}
 }
 
 </style>
@@ -2609,6 +2886,10 @@ function Sessions({ sessionStorage, disabled }) {
 
 	const exportSession = () => {
 		const sessionObj = { ...sessionStorage.sessions[sessionStorage.selectedSession] };
+
+		delete sessionObj.endpoint;
+		delete sessionObj.endpointAPIKey;
+		
 		for (const [key, value] of Object.entries(sessionObj)) {
 			// This is done for compatibility with localStorage export files.
 			sessionObj[key] = JSON.stringify(value);
@@ -3040,11 +3321,25 @@ const SVG_SplitView = ({ ...props }) => {
     </${SVG}>
   `;
 };
+const SVG_ToggleOn = ({...props}) => {
+	return html`
+	<${SVG} width="1em" height="1em" viewBox="0 0 24 24" ...${props}>
+		<path fill="var(--color-light)" d="M19 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.11 0 2-.9 2-2V5c0-1.1-.89-2-2-2zm-9 14l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+	</${SVG}>
+`};
+const SVG_ToggleOff = ({...props}) => {
+	return html`
+	<${SVG} width="1em" height="1em" viewBox="0 0 24 24" ...${props}>
+		<path fill="var(--color-light)" d="M19 5v14H5V5h14m0-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/>
+	</${SVG}>
+`};
 
 function Modal({ isOpen, onClose, title, description, children, ...props }) {
 	if (!isOpen) {
 		return null;
 	}
+
+	const mouseDownOnBackground = useRef(false);
 
 	useEffect(() => {
 		const onKeyDown = (event) => {
@@ -3058,10 +3353,27 @@ function Modal({ isOpen, onClose, title, description, children, ...props }) {
 		};
 	}, []);
 
+	const handleOverlayMouseDown = (e) => {
+		mouseDownOnBackground.current = true;
+	};
+
+	const handleOverlayClick = (e) => {
+		// Only close if we started the click on the background
+		if (mouseDownOnBackground.current) {
+			onClose();
+		}
+		mouseDownOnBackground.current = false;
+	};
+
 	return html`
-		<div className="modal-overlay" onClick=${onClose}>
+		<div className="modal-overlay" 
+			onMouseDown=${handleOverlayMouseDown}
+			onClick=${handleOverlayClick}>
 			<div className="modal-container">
-				<div className="modal" onClick=${(e) => e.stopPropagation()} ...${props}>
+				<div className="modal" 
+					onClick=${(e) => e.stopPropagation()} 
+					onMouseDown=${(e) => e.stopPropagation()}
+					...${props}>
 					<div class="modal-title">${title}</div>
 					${ description=="" ? false : html`<div style=${{ whiteSpace: 'pre-line' }} class='modal-desc'>${description}</div>` }
 					<hr/>
@@ -4731,6 +5043,510 @@ function AIHordeSettingsModal({ isOpen, closeModal, endpoint, endpointAPIKey, se
         </${Modal}>`;
 }
 
+function GenericConnectionSettings({ connection, updateConnection }) {
+	const [showKey, setShowKey] = useState(false);
+	const [isFetching, setIsFetching] = useState(false);
+	const [error, setError] = useState(null);
+	const [search, setSearch] = useState("");
+
+	const fetchModels = async () => {
+		setIsFetching(true);
+		setError(null);
+		const ac = new AbortController();
+		try {
+			const models = await getModels({
+				endpoint: connection.endpoint,
+				endpointAPI: connection.api,
+				endpointAPIKey: connection.key,
+				signal: ac.signal
+			});
+
+			if (Array.isArray(models)) {
+				updateConnection('models', models);
+			}
+		} catch (e) {
+			console.error(e);
+			setError(e.message || e.toString());
+		} finally {
+			setIsFetching(false);
+		}
+	};
+
+	const filteredModels = connection.models 
+		? connection.models.filter(m => m.toLowerCase().includes(search.toLowerCase()))
+		: [];
+
+	const iconCheck = html`<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+
+	return html`
+		<div className="connection-content-scroll">
+			<${InputBox} label="Connection Name" 
+				value=${connection.name} 
+				onInput=${(e) => updateConnection('name', e.target.value)}
+				onValueChange=${() => {}}
+			/>
+
+			<${InputBox} label="Base URL" 
+				value=${connection.endpoint} 
+				onValueChange=${(val) => updateConnection('endpoint', val)}
+			/>
+
+			${connection.api !== API_LLAMA_CPP && connection.api !== API_KOBOLD_CPP && html`
+				<div className="hbox-flex" style=${{"flex-wrap": "unset"}}>
+					<${InputBox} label="API Key" type=${showKey ? 'text' : 'password'}
+						value=${connection.key} 
+						onValueChange=${(val) => updateConnection('key', val)}
+					/>
+					<button title=${showKey ? "Hide" : "Show"} 
+						className="eye-button" 
+						onClick=${() => setShowKey(!showKey)}>
+						${!showKey ? html`<${SVG_ShowKey}/>` : html`<${SVG_HideKey}/>`}
+					</button>
+				</div>
+			`}
+
+			${connection.api === API_LLAMA_CPP && html`
+				<${Checkbox} label="Post Sampling Probs"
+					title="This returns the probabilities after applying the sampling chain. Note that disabling this will significantly reduce generation speed."
+					value=${connection.postSamplingProbs ?? true} 
+					onValueChange=${(val) => updateConnection('postSamplingProbs', val)}
+				/>
+			`}
+			${connection.api === API_OPENAI_COMPAT && html`
+				<${Checkbox} label="Strict API"
+					title="If enabled, non-standard fields won't be included in API requests."
+					value=${connection.strict ?? false} 
+					onValueChange=${(val) => updateConnection('strict', val)}
+				/>
+				<${Checkbox} label="Chat Completions API"
+					title="If enabled, the chat API endpoint will be used, and the prompt will be split into chat messages based on the delimiters defined in the selected instruct template."
+					value=${connection.chatAPI ?? false} 
+					onValueChange=${(val) => updateConnection('chatAPI', val)}
+				/>
+			`}
+
+			<${InputBox} label="Selected Model"
+				value=${connection.model || ""}
+				onInput=${(e) => updateConnection('model', e.target.value)}
+				onValueChange=${() => {}}
+			/>
+
+			<div class="connection-models-wrapper">
+				<div class="connection-models-header">
+					<label style=${{'padding-left': '8px'}}>Available Models</label>
+					<button className="connection-action-btn" 
+						style=${{padding: '0 4px', fontSize: '0.8em'}}
+						onClick=${fetchModels} 
+						disabled=${isFetching}>
+						<${SVG_Regen} style=${{width: '1em'}}/> 
+						${isFetching ? 'Refreshing...' : 'Refresh List'}
+					</button>
+				</div>
+
+				${error && html`
+					<div className="connection-error-msg">
+						<b>Connection Error:</b><br/>
+						${error}
+					</div>
+				`}
+
+				<div className="model-search-box">
+					<${InputBox} 
+						placeholder="Filter list..." 
+						value=${search}
+						onInput=${(e) => setSearch(e.target.value)}
+						onValueChange=${() => {}}
+					/>
+				</div>
+
+				<div className="connection-model-list">
+					${(connection.models && connection.models.length > 0) 
+						? filteredModels.map(m => html`
+							<div className="connection-model-item ${connection.model === m ? 'selected' : ''}"
+								onClick=${() => updateConnection('model', m)}>
+								<span>${m}</span>
+								${connection.model === m ? iconCheck : ''}
+							</div>
+						`) 
+						: html`<div className="connection-models-empty">
+							${isFetching ? 'Fetching models...' : 'No models found. Click Refresh.'}
+						</div>`}
+				</div>
+			</div>
+		</div>
+	`;
+}
+
+function AIHordeConnectionSettings({ connection, updateConnection }) {
+	const [showKey, setShowKey] = useState(false);
+	const [isFetching, setIsFetching] = useState(false);
+	const [error, setError] = useState(null);
+	const [search, setSearch] = useState("");
+	const [availableModels, setAvailableModels] = useState([]); 
+
+	const selectedModels = connection.model ? connection.model.split(',').map(s => s.trim()).filter(Boolean) : [];
+
+	const fetchModels = async () => {
+		setIsFetching(true);
+		setError(null);
+		const ac = new AbortController();
+		try {
+			const res = await fetch(`https://aihorde.net/api/v2/status/models?type=text`, {
+				method: 'GET',
+				headers: { 'Content-Type': 'application/json' },
+				signal: ac.signal,
+			});
+
+			if (!res.ok) throw new Error(`HTTP ${res.status}`);
+			
+			const modelData = (await res.json()).filter(model => model.type === "text");
+            modelData.sort((a, b) => b.count - a.count || a.eta - b.eta);
+			setAvailableModels(modelData);
+		} catch (e) {
+			console.error(e);
+			setError(e.message || e.toString());
+		} finally {
+			setIsFetching(false);
+		}
+	};
+
+	useEffect(() => {
+		fetchModels();
+	}, []);
+
+	const toggleModel = (modelName) => {
+		const currentSet = new Set(selectedModels);
+		if (currentSet.has(modelName)) {
+			currentSet.delete(modelName);
+		} else {
+			currentSet.add(modelName);
+		}
+		updateConnection('model', Array.from(currentSet).join(', '));
+	};
+
+	const filteredModels = availableModels.filter(m => m.name.toLowerCase().includes(search.toLowerCase()));
+
+	return html`
+		<div className="connection-content-scroll">
+			<${InputBox} label="Connection Name" 
+				value=${connection.name} 
+				onInput=${(e) => updateConnection('name', e.target.value)}
+				onValueChange=${() => {}}
+			/>
+
+			<div className="hbox-flex" style=${{"flex-wrap": "unset"}}>
+				<${InputBox} label="AI Horde API Key" type=${showKey ? 'text' : 'password'}
+					placeholder="Enter a key (or leave empty for anonymous use)"
+					value=${connection.key} 
+					onValueChange=${(val) => updateConnection('key', val)}
+				/>
+				<button title=${showKey ? "Hide" : "Show"} 
+					className="eye-button" 
+					onClick=${() => setShowKey(!showKey)}>
+					${!showKey ? html`<${SVG_ShowKey}/>` : html`<${SVG_HideKey}/>`}
+				</button>
+			</div>
+			<div style=${{fontSize: '0.8em', marginTop: '-4px'}}>
+				<a href="https://aihorde.net/register" target="_blank" rel="noopener noreferrer">Need a Key? (Register New User)</a>
+			</div>
+
+			<${InputBox} label="Selected Models"
+				placeholder="Select from the list below"
+				value=${connection.model || ""}
+				onInput=${(e) => updateConnection('model', e.target.value)}
+				onValueChange=${() => {}}
+				readOnly
+			/>
+
+			<div class="connection-models-wrapper">
+				<div class="connection-models-header">
+					<label style=${{'padding-left': '8px'}}>Available Models</label>
+					<button className="connection-action-btn" 
+						style=${{padding: '0 4px', fontSize: '0.8em'}}
+						onClick=${fetchModels} 
+						disabled=${isFetching}>
+						<${SVG_Regen} style=${{width: '1em'}}/> 
+						${isFetching ? 'Refreshing...' : 'Refresh List'}
+					</button>
+				</div>
+
+				${error && html`
+					<div className="connection-error-msg">
+						<b>Connection Error:</b><br/>
+						${error}
+					</div>
+				`}
+
+				<div className="model-search-box">
+					<${InputBox} 
+						placeholder="Filter models..." 
+						value=${search}
+						onInput=${(e) => setSearch(e.target.value)}
+						onValueChange=${() => {}}
+					/>
+				</div>
+
+				<div className="connection-model-list">
+					${(availableModels.length > 0) 
+						? filteredModels.map(m => {
+							const isSelected = selectedModels.includes(m.name);
+							return html`
+								<div className="connection-model-item"
+									style=${{flexDirection: 'column', alignItems: 'stretch', gap: '4px'}}
+									onClick=${() => toggleModel(m.name)}>
+									
+									<div style=${{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+										<span style=${{fontWeight: 'bold'}}>${m.name}</span>
+										<input type="checkbox" checked=${isSelected} readOnly style=${{pointerEvents: 'none'}}/>
+									</div>
+
+									<div style=${{display: 'flex', gap: '1em', fontSize: '0.85em', opacity: 0.8}}>
+										<span>ETA: ${m.eta}s</span>
+										<span>Queue: ${m.queued}</span>
+										<span>Workers: ${m.count}</span>
+									</div>
+								</div>
+							`
+						}) 
+						: html`<div className="connection-models-empty">
+							${isFetching ? 'Fetching models...' : 'No models found. Click Refresh.'}
+						</div>`}
+				</div>
+			</div>
+		</div>
+	`;
+}
+
+
+function ConnectionManagerModal({ isOpen, closeModal, connections, setConnections, activeConnectionId, cancel }) {
+	const [selectedId, setSelectedId] = useState(null);
+	const [mobileShowDetails, setMobileShowDetails] = useState(false); // State for mobile navigation
+	
+	useLayoutEffect(() => {
+		if (isOpen) {
+			if (selectedId !== 'custom' && selectedId !== activeConnectionId) {
+				setSelectedId(activeConnectionId);	
+			} else if (!selectedId && Object.keys(connections).length > 0) {
+				setSelectedId(Object.keys(connections)[0]);
+			}
+		}
+		if (isOpen) {
+			setMobileShowDetails(false);
+		}
+	}, [isOpen]);
+
+	const handleNewConnection = () => {
+		const newId = crypto.randomUUID();
+
+		let counter = 1;
+		let newName = `New Connection #${counter}`;
+		const existingNames = Object.values(connections).map(c => c.name);
+		while (existingNames.includes(newName)) {
+			counter++;
+			newName = `New Connection #${counter}`;
+		}
+
+		const newConnection = {
+			id: newId,
+			name: newName,
+			api: API_OPENAI_COMPAT,
+			endpoint: "https://127.0.0.1/v1",
+			key: "",
+			enabled: true,
+			models: [],
+			model: "",
+			postSamplingProbs: true,
+			strict: false,
+			chatAPI: false,
+		};
+		setConnections(prev => ({ ...prev, [newId]: newConnection }));
+		setSelectedId(newId);
+		setMobileShowDetails(true);
+	};
+
+	const handleCloneConnection = (id) => {
+		const conn = connections[id];
+		if (!conn) {
+			return;
+		}
+		const newId = crypto.randomUUID();
+		const newConnection = { ...conn, id: newId, name: `${conn.name} (Copy)` };
+		setConnections(prev => ({ ...prev, [newId]: newConnection }));
+		setSelectedId(newId);
+		setMobileShowDetails(true);
+	};
+
+	const handleDeleteConnection = (id) => {
+		if (id === activeConnectionId) {
+			return;
+		}
+		if (!confirm("Are you sure you want to delete this connection?")) {
+			return;
+		}
+		setConnections(prev => {
+			const next = { ...prev };
+			delete next[id];
+			return next;
+		});
+		if (selectedId === id) {
+			setSelectedId(null);
+			setMobileShowDetails(false);
+		}
+	};
+
+	const handleUpdateConnection = (id, field, value) => {
+		setConnections(prev => ({
+			...prev,
+			[id]: { ...prev[id], [field]: value }
+		}));
+	};
+
+	const updateCurrentConnection = (field, value) => {
+		if (!selectedId) {
+			return;
+		}
+		handleUpdateConnection(selectedId, field, value);
+	};
+
+	const updateCurrentConnectionType = (val) => {
+		if (!selectedId) {
+			return;
+		}
+		
+		const updates = { 
+			api: val,
+			models: [],
+			model: "",
+			key: ""
+		};
+
+		if (val === API_AI_HORDE) {
+			updates.endpoint = "https://aihorde.net/api";
+		} else if (val === API_LLAMA_CPP) {
+			updates.endpoint = "http://127.0.0.1:8080";
+		} else if (val === API_KOBOLD_CPP) {
+			updates.endpoint = "http://127.0.0.1:5001/api";
+		}
+		
+		setConnections(prev => ({
+			...prev,
+			[selectedId]: { ...prev[selectedId], ...updates }
+		}));
+	}
+
+	const currentConn = connections[selectedId];
+	const isActiveConnection = selectedId === activeConnectionId;
+	
+	const iconGrid = html`<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle></svg>`;
+	const iconBack = html`<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>`;
+
+	return html`
+		<${Modal} isOpen=${isOpen} onClose=${closeModal}
+			title="Connections"
+			description="Manage your AI connection presets.">
+			
+			<div className="connection-modal-layout ${mobileShowDetails ? 'mobile-show-details' : ''}">
+				<div className="connection-sidebar">
+					<div className="connection-sidebar-header">
+						<span>Your connections</span>
+						<button onClick=${handleNewConnection} title="Add New">+ New</button>
+					</div>
+					<div className="connection-list">
+						${Object.entries(connections).map(([id, conn]) => html`
+							<div key=${id} 
+								className="connection-item ${selectedId === id ? 'selected' : ''} ${conn.enabled ? 'enabled' : ''}"
+								onClick=${() => {
+									setSelectedId(id);
+									setMobileShowDetails(true);
+								}}>
+								<!--<div className="connection-item-icon">${iconGrid}</div>-->
+								<div className="connection-item-details">
+									<div className="connection-item-name">${conn.name}</div>
+									<div className="connection-item-type">
+										${conn.api === API_LLAMA_CPP ? "llama.cpp" : 
+										  conn.api === API_KOBOLD_CPP ? "KoboldCpp" : 
+										  conn.api === API_AI_HORDE ? "AI Horde" : "OpenAI"}
+									</div>
+								</div>
+							</div>
+						`)}
+					</div>
+				</div>
+
+				<div className="connection-details">
+					${currentConn ? html`
+						<!-- HEADER -->
+						<div className="connection-header">
+							<div className="connection-header-title">
+								<div className="connection-back-btn" onClick=${() => setMobileShowDetails(false)}>
+									${iconBack}
+								</div>
+								<!--${iconGrid}-->
+								${currentConn.name}
+							</div>
+							<div className="connection-actions">
+								<div className="connection-action-btn" 
+									style=${isActiveConnection ? { opacity: '0.5', cursor: 'not-allowed' } : {}}
+									title=${isActiveConnection ? "Cannot disable the currently active connection" : "Toggle status"}
+									onClick=${() => {
+										if (isActiveConnection) return; 
+										handleUpdateConnection(selectedId, 'enabled', !currentConn.enabled);
+									}}>
+									${currentConn.enabled ? html`<${SVG_ToggleOn}/>` : html`<${SVG_ToggleOff}/>`}
+									<span style=${{fontSize:'0.9em'}}>
+										${currentConn.enabled ? "Enabled" : "Disabled"}
+									</span>
+								</div>
+								
+								<button className="connection-action-btn" onClick=${() => handleCloneConnection(selectedId)} title="Clone">
+									<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg> Clone
+								</button>
+
+								<button className="connection-action-btn" 
+									style=${isActiveConnection ? { opacity: '0.5', cursor: 'not-allowed' } : {}}
+									title=${isActiveConnection ? "Cannot delete the currently active connection" : "Delete"}
+									onClick=${() => handleDeleteConnection(selectedId)}>
+									<${SVG_Trash}/> Delete
+								</button>
+							</div>
+						</div>
+
+						<div style=${{padding: "12px 16px 0 16px"}}>
+							<${SelectBox}
+								label="API Type"
+								value=${currentConn.api}
+								onValueChange=${updateCurrentConnectionType}
+								options=${[
+									{ name: 'OpenAI Compatible', value: API_OPENAI_COMPAT },
+									{ name: 'KoboldCpp', value: API_KOBOLD_CPP },
+									{ name: 'llama.cpp', value: API_LLAMA_CPP },
+									{ name: 'AI Horde', value: API_AI_HORDE },
+								]}/>
+						</div>
+
+						${currentConn.api === API_AI_HORDE 
+							? html`<${AIHordeConnectionSettings}
+									key=${currentConn.id}
+									connection=${currentConn}
+									updateConnection=${updateCurrentConnection}
+								/>`
+							: html`<${GenericConnectionSettings}
+            						key=${currentConn.id}
+									connection=${currentConn}
+									updateConnection=${updateCurrentConnection}
+								/>`
+						}
+					` : html`
+						<div className="connection-models-empty">
+							Select a connection to edit or create a new one.
+						</div>
+					`}
+				</div>
+			</div>
+		</${Modal}>
+	`;
+}
+
 function Widget({ isOpen, onClose, title, id, children, ...props }) {
 	if (!isOpen) {
 		return null;
@@ -5109,7 +5925,7 @@ class IndexedDBAdapter {
 
 	async openDatabase() {
 		return new Promise((resolve, reject) => {
-			const openRequest = indexedDB.open(this.dbName, 4);
+			const openRequest = indexedDB.open(this.dbName, 5);
 
 			openRequest.onerror = () => reject(openRequest.error);
 			openRequest.onsuccess = () => resolve(openRequest.result);
@@ -5118,7 +5934,7 @@ class IndexedDBAdapter {
 				const db = event.target.result;
 				const transaction = event.target.transaction;
 
-				for (const storeName of ["Sessions", "Templates", "Names", "Themes"]) {
+				for (const storeName of ["Sessions", "Templates", "Names", "Themes", "Connections"]) {
 					if (!db.objectStoreNames.contains(storeName)) {
 						db.createObjectStore(storeName);
 					}
@@ -5521,6 +6337,45 @@ class AbstractStorage extends EventTarget {
 			this.dispatchErrorEvent(e);
 			throw e;
 		}
+	}
+}
+
+class ConnectionStorage extends AbstractStorage {
+	constructor(dbAdapter) {
+		super('Connections', dbAdapter);
+		this.connections = {};
+	}
+
+	async init() {
+		const db = await this.openDatabase();
+		await this.loadConnections(db);
+	}
+
+	async performFullSave(newConnections) {
+		const db = await this.openDatabase();
+
+		for (const key of Object.keys(this.connections)) {
+			if (!newConnections.hasOwnProperty(key)) {
+				await this.deleteFromDatabase(db, key);
+			}
+		}
+
+		for (const [key, value] of Object.entries(newConnections)) {
+			if (JSON.stringify(value) !== JSON.stringify(this.connections[key])) {
+				await this.saveToDatabase(db, key, value);
+			}
+		}
+
+		this.connections = newConnections;
+        this.dispatchChangeEvent();
+	}
+
+	getStorageData() {
+		return this.connections;
+	}
+
+	async loadConnections(db) {
+		this.connections = await this.loadAllFromDatabase(db);
 	}
 }
 
@@ -6109,6 +6964,9 @@ html.nockoffAI .expanded-text-area-settings,
 html.nockoffAI .wi-textarea {
 	background: var(--color-bg-input-1);
 }
+html.nockoffAI .connection-model-list {
+    background: var(--color-bg-input-1);
+}
 html.nockoffAI #probs {
 	background: var(--color-base-10);
 	border: 1px solid var(--token-prob-box);
@@ -6468,7 +7326,7 @@ function CrashScreenFallback({ error }) {
   `;
 }
 
-export function App({ sessionStorage, templateStorage, themeStorage, useSessionState, useDBTemplates, useDBThemes, isMikupadEndpoint }) {
+export function App({ sessionStorage, templateStorage, themeStorage, connectionStorage, useSessionState, useDBTemplates, useDBThemes, useDBConnections, isMikupadEndpoint }) {
 	const promptArea = useRef();
 	const promptOverlay = useRef();
 	const undoStack = useRef([]);
@@ -6505,6 +7363,8 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 	const [sessionEndpointConnecting, setSessionEndpointConnecting] = useState(false);
 	const [sessionEndpointError, setSessionEndpointError] = useState(undefined);
 	const [showAPIKey, setShowAPIKey] = useState(false);
+	const [connections, setConnections] = useDBConnections({});
+	const [selectedConnectionId, setSelectedConnectionId] = useSessionState('connectionId', 'custom');
 	const [endpoint, setEndpoint] = useSessionState('endpoint', defaultPresets.endpoint);
 	const [endpointAPI, setEndpointAPI] = useSessionState('endpointAPI', defaultPresets.endpointAPI);
 	const [endpointAPIKey, setEndpointAPIKey] = useSessionState('endpointAPIKey', defaultPresets.endpointAPIKey);
@@ -8449,6 +9309,22 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 		return voices;
 	}
 
+	const handleApplyConnection = (conn) => {
+        setEndpointAPI(conn.api);
+        if (conn.api !== API_AI_HORDE) {
+            setEndpoint(conn.endpoint);
+        }
+        setEndpointAPIKey(conn.key || "");
+        setEndpointModel(conn.model || "");
+        if (conn.api === API_LLAMA_CPP) {
+            setPostSamplingProbs(conn.postSamplingProbs ?? true);
+        }
+        if (conn.api === API_OPENAI_COMPAT) {
+            setOpenaiPresets(conn.strict ?? false);
+            setUseChatAPI(conn.chatAPI ?? false);
+        }
+    };
+
 	return html`
 		<div id="prompt-container" onMouseMove=${onPromptMouseMove} style=${{ 'margin-bottom': isMobile && !showMarkdownPreview ? sidebarHeight + 'px' : 0 }}>
 			<button
@@ -8572,56 +9448,81 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 				<${Sessions} sessionStorage=${sessionStorage} disabled=${!!cancel}/>
 			</${CollapsibleGroup}>
 			<${CollapsibleGroup} label="Parameters" expanded>
-				<${InputBox} label="Server"
-					className="${isMixedContent() ? 'mixed-content' : ''}"
-					tooltip="${isMixedContent() ? 'This URL might be blocked due to mixed content. If the prediction fails, download mikupad.html and run it locally.' : ''}"
-					readOnly=${!!cancel || endpointAPI == API_AI_HORDE}
-					value=${endpointAPI != API_AI_HORDE ? endpoint : 'https://aihorde.net/api'}
-					onValueChange=${setEndpoint}/>
-				<${SelectBox}
-					label="API"
-					disabled=${!!cancel}
-					value=${endpointAPI}
-					onValueChange=${switchEndpointAPI}
-					options=${[
-						{ name: 'llama.cpp'        , value: API_LLAMA_CPP },
-						{ name: 'KoboldCpp'        , value: API_KOBOLD_CPP },
-						{ name: 'OpenAI Compatible', value: API_OPENAI_COMPAT },
-						{ name: 'AI Horde'         , value: API_AI_HORDE },
-					]}/>
-				${(endpointAPI != API_AI_HORDE) && html`
-					<div className="hbox-flex" style=${{"flex-wrap": "unset"}}>
-						<${InputBox} label="API Key" type="${!showAPIKey ? "password" : "text"}"
-							className="${rejectedAPIKey ? 'rejected' : ''}"
-							tooltip="${rejectedAPIKey ? 'This API Key was rejected by the backend.' : ''}"
-							tooltipSize="short"
+                <div className="buttons instructTemplateSidebar">
+                    <${SelectBox}
+                        label="Connection Preset"
+                        value=${JSON.stringify(selectedConnectionId)}
+                        options=${() => [
+                            { name: 'Custom (Inline Edit)', value: 'custom' },
+                            ...Object.entries(connections)
+                               .filter(([_, c]) => c.enabled)
+                               .map(([id, c]) => ({ name: c.name, value: id }))
+                        ]}
+                        onValueChange=${(val) => {
+                            if (val !== 'custom' && connections[val]) {
+                                handleApplyConnection(connections[val]);
+                            }
+                            setSelectedConnectionId(val);
+                        }}
+                    />
+                    <button
+                        onClick=${() => toggleModal("connections")}
+                        title="Manage Connections"
+                        className="symbol-button"
+                        style=${{ padding: 0 }}>
+                        <${SVG_Settings} style=${{ 'width':'.95em','transform':'translate(-50%, -45%)' }}/>
+                    </button>
+                </div>
+				${(selectedConnectionId == 'custom') && html`
+					<${InputBox} label="Server"
+						className="${isMixedContent() ? 'mixed-content' : ''}"
+						tooltip="${isMixedContent() ? 'This URL might be blocked due to mixed content. If the prediction fails, download mikupad.html and run it locally.' : ''}"
+						readOnly=${!!cancel || endpointAPI == API_AI_HORDE}
+						value=${endpointAPI != API_AI_HORDE ? endpoint : 'https://aihorde.net/api'}
+						onValueChange=${setEndpoint}/>
+					<${SelectBox}
+						label="API"
+						disabled=${!!cancel}
+						value=${endpointAPI}
+						onValueChange=${switchEndpointAPI}
+						options=${[
+							{ name: 'llama.cpp'        , value: API_LLAMA_CPP },
+							{ name: 'KoboldCpp'        , value: API_KOBOLD_CPP },
+							{ name: 'OpenAI Compatible', value: API_OPENAI_COMPAT },
+							{ name: 'AI Horde'         , value: API_AI_HORDE },
+						]}/>
+					${(endpointAPI != API_AI_HORDE) && html`
+						<div className="hbox-flex" style=${{"flex-wrap": "unset"}}>
+							<${InputBox} label="API Key" type="${!showAPIKey ? "password" : "text"}"
+								className="${rejectedAPIKey ? 'rejected' : ''}"
+								tooltip="${rejectedAPIKey ? 'This API Key was rejected by the backend.' : ''}"
+								tooltipSize="short"
+								readOnly=${!!cancel}
+								value=${endpointAPIKey}
+								onValueChange=${setEndpointAPIKey}/>
+							<button title="${!showAPIKey ? "Show API Key" : "Hide API Key"}"
+								className="eye-button"
+								disabled=${!!cancel}
+								onClick=${() => setShowAPIKey(!showAPIKey)}>
+								${!showAPIKey ? html`<${SVG_ShowKey}/>`
+												: html`<${SVG_HideKey}/>`}
+							</button>
+						</div>`}
+					${(endpointAPI == API_OPENAI_COMPAT) && html`
+						<${InputBox} label="Model"
+							datalist=${openaiModels}
 							readOnly=${!!cancel}
-							value=${endpointAPIKey}
-							onValueChange=${setEndpointAPIKey}/>
-						<button title="${!showAPIKey ? "Show API Key" : "Hide API Key"}"
-							className="eye-button"
-							disabled=${!!cancel}
-							onClick=${() => setShowAPIKey(!showAPIKey)}>
-							${!showAPIKey ? html`<${SVG_ShowKey}/>`
-											: html`<${SVG_HideKey}/>`}
-						</button>
-					</div>`}
-				${(endpointAPI == API_OPENAI_COMPAT) && html`
-					<${InputBox} label="Model"
-						datalist=${openaiModels}
-						readOnly=${!!cancel}
-						value=${endpointModel}
-						onValueChange=${setEndpointModel}/>`}
-				${endpointAPI == API_AI_HORDE && html`
-					<div class="vbox" style=${{gap: '4px'}}>
-						<${InputBox} label="Selected Model(s)"
-							readOnly=${true}
-							value=${endpointModel || 'Any'}
-							placeholder="Any"
-						/>
-						<button onClick=${() => toggleModal("horde")}>Configure AI Horde</button>
-					</div>`}
-				${endpointAPI != API_AI_HORDE && html`
+							value=${endpointModel}
+							onValueChange=${setEndpointModel}/>`}
+					${endpointAPI == API_AI_HORDE && html`
+						<div class="vbox" style=${{gap: '4px'}}>
+							<${InputBox} label="Selected Model(s)"
+								readOnly=${true}
+								value=${endpointModel || 'Any'}
+								placeholder="Any"
+							/>
+							<button onClick=${() => toggleModal("horde")}>Configure AI Horde</button>
+						</div>`}
 					${endpointAPI == API_LLAMA_CPP && html`
 						<${Checkbox} label="Post Sampling Probs"
 							title="This returns the probabilities after applying the sampling chain. Note that disabling this will significantly reduce generation speed."
@@ -8632,7 +9533,8 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 							disabled=${!!cancel} value=${openaiPresets} onValueChange=${setOpenaiPresets}/>
 						<${Checkbox} label="Chat Completions API"
 							title="If enabled, the chat API endpoint will be used, and the prompt will be split into chat messages based on the delimiters defined in the selected instruct template."
-							disabled=${!!cancel} value=${useChatAPI} onValueChange=${setUseChatAPI}/>`}
+							disabled=${!!cancel} value=${useChatAPI} onValueChange=${setUseChatAPI}/>`}`}
+				${endpointAPI != API_AI_HORDE && html`
 					<${Checkbox} label="Token Streaming"
 						disabled=${!!cancel} value=${useTokenStreaming} onValueChange=${setUseTokenStreaming}/>
 					<${Checkbox} label="Prediction Preview"
@@ -9246,6 +10148,15 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 			setEndpointModel=${setEndpointModel}
 			cancel=${cancel}/>
 
+		<${ConnectionManagerModal}
+			isOpen=${modalState.connections}
+			closeModal=${() => closeModal("connections")}
+			connections=${connections}
+			setConnections=${setConnections}
+			activeConnectionId=${selectedConnectionId}
+			cancel=${cancel}
+		/>
+
 		<${EditorContextMenu}
 			isOpen=${contextMenuState.visible}
 			closeMenu=${() => setContextMenuState({ visible: false, x: 0, y: 0 })}
@@ -9366,8 +10277,11 @@ async function main() {
 	const templateStorage = new TemplateStorage(dbAdapter);
 	await templateStorage.init();
 
-    const themeStorage = new ThemeStorage(dbAdapter);
-    await themeStorage.init();
+	const themeStorage = new ThemeStorage(dbAdapter);
+	await themeStorage.init();
+
+	const connectionStorage = new ConnectionStorage(dbAdapter);
+	await connectionStorage.init();
 
 	createRoot(document.body).render(html`
 		<${ErrorBoundary} FallbackComponent=${CrashScreenFallback}>
@@ -9375,9 +10289,11 @@ async function main() {
 				sessionStorage=${sessionStorage}
 				templateStorage=${templateStorage}
 				themeStorage=${themeStorage}
+				connectionStorage=${connectionStorage}
 				useSessionState=${(name, initialState) => useSessionState(sessionStorage, name, initialState)}
 				useDBTemplates=${(initialState => useStorageState(templateStorage, initialState))}
 				useDBThemes=${(initialState => useStorageState(themeStorage, initialState))}
+				useDBConnections=${(initialState => useStorageState(connectionStorage, initialState))}
 				isMikupadEndpoint=${isMikupadEndpoint}/>
 		</${ErrorBoundary}>`);
 }
