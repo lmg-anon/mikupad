@@ -7128,7 +7128,12 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 			}
 			return text.substring(minIndex);
 		}
-		
+
+		if (!template || typeof template !== 'object') {
+			console.warn('Invalid or missing template object!');
+			return [];
+		}
+
 		const messages = [];
 		const { sysPre, sysSuf, instPre, instSuf } = replaceNewlines(template);
 
@@ -7279,6 +7284,19 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 				}
 			} else {
 				stopParam = JSON.parse(stoppingStrings);
+			}
+
+			if (useChatAPI && !templates[selectedTemplate]) {
+				const defaultTemplate = templates["Mistral"] || Object.values(templates)[0];
+				if (!defaultTemplate) {
+					// this is bad...
+					setChatMode(false);
+					setUseChatAPI(false);
+				} else {
+					setSelectedTemplate(defaultTemplate);
+				}
+				setTriggerPredict(true);
+				return;
 			}
 
 			let startTime = 0;
@@ -9391,3 +9409,4 @@ async function main() {
 
 main();
 </script>
+
