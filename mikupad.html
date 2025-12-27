@@ -8070,24 +8070,21 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 		setPromptChunks(oldPrompt => {
 			const start = [];
 			const end = [];
-			const oldPromptLength = oldPrompt.length;
-			oldPrompt = [...oldPrompt];
 			let newValue = target.value;
 
-			while (oldPrompt.length) {
-				const chunk = oldPrompt[0];
+			let i = 0;
+			for (; i < oldPrompt.length; i++) {
+				const chunk = oldPrompt[i];
 				if (!newValue.startsWith(chunk.content))
 					break;
-				oldPrompt.shift();
 				start.push(chunk);
 				newValue = newValue.slice(chunk.content.length);
 			}
 
-			while (oldPrompt.length) {
-				const chunk = oldPrompt.at(-1);
+			for (let j = oldPrompt.length; j > i; j--) {
+				const chunk = oldPrompt[j - 1];
 				if (!newValue.endsWith(chunk.content))
 					break;
-				oldPrompt.pop();
 				end.unshift(chunk);
 				newValue = newValue.slice(0, -chunk.content.length);
 			}
@@ -8123,7 +8120,7 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 				setUndoHovered(false);
 
 			// Adjust undo/redo stacks.
-			const chunkDifference = oldPromptLength - newPrompt.length;
+			const chunkDifference = oldPrompt.length - newPrompt.length;
 			undoStack.current = undoStack.current.map(pos => {
 				if (pos >= start.length) {
 					return pos - chunkDifference;
