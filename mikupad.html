@@ -8120,7 +8120,7 @@ export function App({ sessionStorage, templateStorage, themeStorage, useSessionS
 				setUndoHovered(false);
 
 			// Adjust undo/redo stacks.
-			const chunkDifference = oldPrompt.Length - newPrompt.length;
+			const chunkDifference = oldPrompt.length - newPrompt.length;
 			undoStack.current = undoStack.current.map(pos => {
 				if (pos >= start.length) {
 					return pos - chunkDifference;
